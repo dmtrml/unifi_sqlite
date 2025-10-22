@@ -9,6 +9,7 @@ import {
   Repeat,
   DollarSign,
   Landmark,
+  Shapes,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -50,6 +51,13 @@ export default function HomePage() {
               >
                 <Landmark className="h-4 w-4" />
                 Accounts
+              </Link>
+              <Link
+                href="/categories"
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+              >
+                <Shapes className="h-4 w-4" />
+                Categories
               </Link>
               <Link
                 href="#"

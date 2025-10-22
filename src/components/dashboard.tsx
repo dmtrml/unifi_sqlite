@@ -133,7 +133,6 @@ export default function Dashboard() {
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="budgets">Budgets</TabsTrigger>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="recurring">Recurring</TabsTrigger>
         </TabsList>
       </div>
@@ -221,57 +220,6 @@ export default function Dashboard() {
           <CardFooter className="border-t pt-6">
             <Button>Save All Budgets</Button>
           </CardFooter>
-        </Card>
-      </TabsContent>
-       <TabsContent value="categories">
-        <Card>
-          <CardHeader className="flex flex-row items-center">
-            <div className="grid gap-2">
-              <CardTitle>Categories</CardTitle>
-              <CardDescription>
-                Manage your expense categories.
-              </CardDescription>
-            </div>
-            <AddCategoryDialog />
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {safeCategories.map((category) => {
-                   const IconComponent = (Icons as any)[category.icon] || Icons.MoreHorizontal;
-                  return (
-                    <TableRow key={category.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-3">
-                          <IconComponent className="h-5 w-5" style={{ color: category.color }} />
-                          {category.name}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                            <DropdownMenuItem>Edit</DropdownMenuItem>
-                             <DropdownMenuItem>Delete</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
         </Card>
       </TabsContent>
       <TabsContent value="recurring">

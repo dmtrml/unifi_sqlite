@@ -15,7 +15,8 @@ import {
   Landmark,
   Wallet,
   Repeat,
-  DollarSign
+  DollarSign,
+  Shapes,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -98,7 +99,7 @@ export default function AppHeader() {
                     </Link>
                     <Link
                         href="/transactions"
-                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl bg-muted px-3 py-2 text-foreground hover:text-foreground"
+                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
                     >
                         <Wallet className="h-5 w-5" />
                         Transactions
@@ -109,6 +110,13 @@ export default function AppHeader() {
                     >
                         <Landmark className="h-5 w-5" />
                         Accounts
+                    </Link>
+                     <Link
+                        href="/categories"
+                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+                    >
+                        <Shapes className="h-5 w-5" />
+                        Categories
                     </Link>
                     <Link
                         href="#"
