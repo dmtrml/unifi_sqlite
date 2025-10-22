@@ -95,7 +95,12 @@ function AccountsPageContent() {
                     <TableCell>
                       <Badge variant="outline">{account.type}</Badge>
                     </TableCell>
-                    <TableCell>${account.balance.toFixed(2)}</TableCell>
+                    <TableCell>
+                      {new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: account.currency || 'USD',
+                      }).format(account.balance)}
+                    </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

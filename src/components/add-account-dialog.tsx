@@ -37,13 +37,15 @@ import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useUser } from "@/firebase"
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import * as Icons from "lucide-react"
-import type { AccountType } from "@/lib/types"
+import type { AccountType, Currency } from "@/lib/types"
 
 const iconNames = [
   "Wallet", "Landmark", "CreditCard", "PiggyBank", "DollarSign"
 ];
 
 const accountTypes: AccountType[] = ["Cash", "Card", "Bank Account", "Deposit", "Loan"];
+const currencies: Currency[] = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS"];
+
 
 const accountFormSchema = z.object({
   name: z.string().min(1, "Account name is required."),
@@ -51,6 +53,7 @@ const accountFormSchema = z.object({
   balance: z.coerce.number(),
   color: z.string().min(1, "Color is required."),
   icon: z.string().min(1, "Icon is required."),
+  currency: z.string().min(1, "Currency is required."),
 })
 
 type AccountFormValues = z.infer<typeof accountFormSchema>
@@ -69,6 +72,7 @@ export function AddAccountDialog() {
       balance: 0,
       color: "hsl(var(--chart-1))",
       icon: "Wallet",
+      currency: "USD",
     },
   })
 
@@ -152,19 +156,43 @@ export function AddAccountDialog() {
                   )}
                 />
             </div>
-            <FormField
-              control={form.control}
-              name="balance"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Initial Balance</FormLabel>
-                  <FormControl>
-                    <Input type="number" placeholder="$0.00" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="balance"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Initial Balance</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="0.00" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="currency"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Currency</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a currency" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {currencies.map(currency => (
+                          <SelectItem key={currency} value={currency}>{currency}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}

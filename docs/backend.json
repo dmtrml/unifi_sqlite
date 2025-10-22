@@ -134,6 +134,11 @@
           "type": "string",
           "description": "The type of account.",
           "enum": ["Cash", "Card", "Bank Account", "Deposit", "Loan"]
+        },
+        "currency": {
+          "type": "string",
+          "description": "The currency of the account.",
+          "enum": ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS"]
         }
       },
       "required": [
@@ -143,7 +148,8 @@
         "balance",
         "color",
         "icon",
-        "type"
+        "type",
+        "currency"
       ]
     },
     "User": {
