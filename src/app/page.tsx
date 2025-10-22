@@ -9,6 +9,7 @@ import {
   Wallet,
   Repeat,
   DollarSign,
+  Landmark,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -44,6 +45,13 @@ export default function HomePage() {
               >
                 <Wallet className="h-4 w-4" />
                 Transactions
+              </Link>
+               <Link
+                href="#"
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+              >
+                <Landmark className="h-4 w-4" />
+                Accounts
               </Link>
               <Link
                 href="#"
