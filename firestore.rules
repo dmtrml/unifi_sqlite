@@ -1,159 +1,142 @@
 /**
- * @file Firebase Security Rules for BudgetWise Application
+ * @fileOverview Firestore Security Rules for a personal finance application.
  *
- * @description This ruleset enforces a strict user-ownership model for all data.
- * All data (users, transactions, categories, recurring transactions) is nested under
- * /users/{userId}, where {userId} MUST match the authenticated user's UID.
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model. Each user has complete control over their own data,
+ * including transactions, categories, budgets, and recurring transactions.  No data is shared between users.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profiles. The document ID is the Firebase auth UID.
- * - /users/{userId}/transactions/{transactionId}: Stores transaction data owned by the user.
- * - /users/{userId}/categories/{categoryId}: Stores category data owned by the user.
- * - /users/{userId}/recurringTransactions/{recurringTransactionId}: Stores recurring transaction data owned by the user.
+ * Data is organized hierarchically under `/users/{userId}`, where `{userId}` matches the Firebase Authentication UID.
+ * Each user has their own subcollections for `transactions`, `categories`, `budgets`, and `recurringTransactions`.
  *
  * Key Security Decisions:
- * - User listing is forbidden.
- * - Only authenticated users can access their own data.
- * - No public data access is allowed.
+ * - Users can only access data under their own `userId` path.
+ * - Data validation is relaxed to allow for rapid prototyping. Only authorization-critical fields are validated.
+ * - Listing of user subcollections is allowed only for the owner.
  *
  * Denormalization for Authorization:
- * - Each document (transaction, category, recurring transaction) contains a `userId` field
- *   that MUST match the `userId` in the path. This redundancy is enforced on creation and
- *   immutability is enforced on updates. This prevents unauthorized data access by ensuring
- *   path-based ownership.
+ *  N/A - The current structure inherently links all data to a specific user ID within the path.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Ensures only authenticated users can access their own user profile.
+     * @description Checks if the request is authenticated.
+     * @return {boolean} True if the request is authenticated, false otherwise.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the authenticated user ID matches the provided user ID.
+     * @param {string} userId The user ID to compare against.
+     * @return {boolean} True if the user is the owner, false otherwise.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the authenticated user is the owner and the resource exists.
+     * @param {string} userId The user ID to compare against.
+     * @return {boolean} True if the user is the existing owner, false otherwise.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Rules for user profiles.
      * @path /users/{userId}
-     * @allow (create) - Authenticated user creates their own profile with matching UID.
-     *   Example: request.auth.uid = "user123", resource.data.id = "user123"
-     * @allow (get, update, delete) - Authenticated user accesses their own profile.
-     *   Example: request.auth.uid = "user123", userId = "user123"
-     * @deny (create) - Authenticated user attempts to create a profile for a different user.
-     *   Example: request.auth.uid = "user123", resource.data.id = "user456"
-     * @deny (get, update, delete) - Authenticated user attempts to access another user's profile.
-     *   Example: request.auth.uid = "user123", userId = "user456"
-     * @principle Enforces document ownership and authenticated access to user profiles.
+     * @allow (create) User '6KFzzZECR4N20NOIkxAP91qskU32' can create their profile if their auth UID matches.
+     * @allow (get) User '6KFzzZECR4N20NOIkxAP91qskU32' can read their profile.
+     * @allow (update) User '6KFzzZECR4N20NOIkxAP91qskU32' can update their profile.
+     * @allow (delete) User '6KFzzZECR4N20NOIkxAP91qskU32' can delete their profile.
+     * @deny (create) User 'OTHER_UID' cannot create a profile under '6KFzzZECR4N20NOIkxAP91qskU32'.
+     * @principle Enforces document ownership and validates relational integrity.
      */
     match /users/{userId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
-      function isCreatingOwnedBy(userId) {
-          return request.auth != null && request.auth.uid == userId && request.resource.data.id == userId;
-      }
-
-      function isExistingOwner(userId) {
-          return isOwner(userId) && resource != null;
-      }
-
       allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isCreatingOwnedBy(userId);
+      allow list: if false; // User listing is not permitted.
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Manages access to transaction data for a specific user.
+     * @description Rules for user transactions.
      * @path /users/{userId}/transactions/{transactionId}
-     * @allow (create) - Authenticated user creates a new transaction under their user ID.
-     *   Example: request.auth.uid = "user123", resource.data.userId = "user123"
-     * @allow (get, update, delete) - Authenticated user accesses or modifies their own transaction.
-     *   Example: request.auth.uid = "user123", userId = "user123"
-     * @deny (create) - Authenticated user attempts to create a transaction under another user's ID.
-     *   Example: request.auth.uid = "user123", resource.data.userId = "user456"
-     * @deny (get, update, delete) - Authenticated user attempts to access another user's transaction.
-     *   Example: request.auth.uid = "user123", userId = "user456"
-     * @principle Enforces document ownership for transactions.
+     * @allow (create) User '6KFzzZECR4N20NOIkxAP91qskU32' can create a transaction under their user ID.
+     * @allow (get) User '6KFzzZECR4N20NOIkxAP91qskU32' can read a transaction under their user ID.
+     * @allow (list) User '6KFzzZECR4N20NOIkxAP91qskU32' can list transactions under their user ID.
+     * @allow (update) User '6KFzzZECR4N20NOIkxAP91qskU32' can update a transaction under their user ID.
+     * @allow (delete) User '6KFzzZECR4N20NOIkxAP91qskU32' can delete a transaction under their user ID.
+     * @deny (create) User 'OTHER_UID' cannot create a transaction under '6KFzzZECR4N20NOIkxAP91qskU32'.
+     * @principle Enforces document ownership.
      */
     match /users/{userId}/transactions/{transactionId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
-        function isCreatingOwnedBy(userId) {
-            return request.auth != null && request.auth.uid == userId && request.resource.data.userId == userId;
-        }
-
-      function isExistingOwner(userId) {
-          return isOwner(userId) && resource != null;
-      }
-
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
-      allow create: if isCreatingOwnedBy(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Manages access to category data for a specific user.
+     * @description Rules for user categories.
      * @path /users/{userId}/categories/{categoryId}
-     * @allow (create) - Authenticated user creates a new category under their user ID.
-     *   Example: request.auth.uid = "user123", resource.data.userId = "user123"
-     * @allow (get, update, delete) - Authenticated user accesses or modifies their own category.
-     *   Example: request.auth.uid = "user123", userId = "user123"
-     * @deny (create) - Authenticated user attempts to create a category under another user's ID.
-     *   Example: request.auth.uid = "user123", resource.data.userId = "user456"
-     * @deny (get, update, delete) - Authenticated user attempts to access another user's category.
-     *   Example: request.auth.uid = "user123", userId = "user456"
-     * @principle Enforces document ownership for categories.
+     * @allow (create) User '6KFzzZECR4N20NOIkxAP91qskU32' can create a category under their user ID.
+     * @allow (get) User '6KFzzZECR4N20NOIkxAP91qskU32' can read a category under their user ID.
+     * @allow (list) User '6KFzzZECR4N20NOIkxAP91qskU32' can list categories under their user ID.
+     * @allow (update) User '6KFzzZECR4N20NOIkxAP91qskU32' can update a category under their user ID.
+     * @allow (delete) User '6KFzzZECR4N20NOIkxAP91qskU32' can delete a category under their user ID.
+     * @deny (create) User 'OTHER_UID' cannot create a category under '6KFzzZECR4N20NOIkxAP91qskU32'.
+     * @principle Enforces document ownership.
      */
     match /users/{userId}/categories/{categoryId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
-        function isCreatingOwnedBy(userId) {
-            return request.auth != null && request.auth.uid == userId && request.resource.data.userId == userId;
-        }
-
-      function isExistingOwner(userId) {
-          return isOwner(userId) && resource != null;
-      }
-
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
-      allow create: if isCreatingOwnedBy(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+     /**
+      * @description Rules for user budgets.
+      * @path /users/{userId}/budgets/{budgetId}
+      * @allow (create) User '6KFzzZECR4N20NOIkxAP91qskU32' can create a budget under their user ID.
+      * @allow (get) User '6KFzzZECR4N20NOIkxAP91qskU32' can read a budget under their user ID.
+      * @allow (list) User '6KFzzZECR4N20NOIkxAP91qskU32' can list budgets under their user ID.
+      * @allow (update) User '6KFzzZECR4N20NOIkxAP91qskU32' can update a budget under their user ID.
+      * @allow (delete) User '6KFzzZECR4N20NOIkxAP91qskU32' can delete a budget under their user ID.
+      * @deny (create) User 'OTHER_UID' cannot create a budget under '6KFzzZECR4N20NOIkxAP91qskU32'.
+      * @principle Enforces document ownership.
+      */
+    match /users/{userId}/budgets/{budgetId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Manages access to recurring transaction data for a specific user.
+     * @description Rules for user recurring transactions.
      * @path /users/{userId}/recurringTransactions/{recurringTransactionId}
-     * @allow (create) - Authenticated user creates a new recurring transaction under their user ID.
-     *   Example: request.auth.uid = "user123", resource.data.userId = "user123"
-     * @allow (get, update, delete) - Authenticated user accesses or modifies their own recurring transaction.
-     *   Example: request.auth.uid = "user123", userId = "user123"
-     * @deny (create) - Authenticated user attempts to create a recurring transaction under another user's ID.
-     *   Example: request.auth.uid = "user123", resource.data.userId = "user456"
-     * @deny (get, update, delete) - Authenticated user attempts to access another user's recurring transaction.
-     *   Example: request.auth.uid = "user123", userId = "user456"
-     * @principle Enforces document ownership for recurring transactions.
+     * @allow (create) User '6KFzzZECR4N20NOIkxAP91qskU32' can create a recurring transaction under their user ID.
+     * @allow (get) User '6KFzzZECR4N20NOIkxAP91qskU32' can read a recurring transaction under their user ID.
+     * @allow (list) User '6KFzzZECR4N20NOIkxAP91qskU32' can list recurring transactions under their user ID.
+     * @allow (update) User '6KFzzZECR4N20NOIkxAP91qskU32' can update a recurring transaction under their user ID.
+     * @allow (delete) User '6KFzzZECR4N20NOIkxAP91qskU32' can delete a recurring transaction under their user ID.
+     * @deny (create) User 'OTHER_UID' cannot create a recurring transaction under '6KFzzZECR4N20NOIkxAP91qskU32'.
+     * @principle Enforces document ownership.
      */
     match /users/{userId}/recurringTransactions/{recurringTransactionId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
-      function isCreatingOwnedBy(userId) {
-          return request.auth != null && request.auth.uid == userId && request.resource.data.userId == userId;
-      }
-
-      function isExistingOwner(userId) {
-          return isOwner(userId) && resource != null;
-      }
-
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
-      allow create: if isCreatingOwnedBy(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
       allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
       allow delete: if isExistingOwner(userId);
     }
