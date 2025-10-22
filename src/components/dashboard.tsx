@@ -36,7 +36,6 @@ import { CategorySpendingChart } from "./dashboard/category-spending-chart"
 import { SummaryCards } from "./dashboard/summary-cards"
 import { Progress } from "./ui/progress"
 import { Skeleton } from "./ui/skeleton"
-import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login"
 import { AddCategoryDialog } from "./add-category-dialog"
 import * as Icons from "lucide-react"
 
@@ -61,18 +60,18 @@ function LoadingSkeleton() {
   )
 }
 
-function WelcomeMessage({ onLogin }: { onLogin: () => void }) {
+function WelcomeMessage() {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center">
       <Card className="max-w-md">
         <CardHeader>
           <CardTitle>Welcome to BudgetWise</CardTitle>
           <CardDescription>
-            To get started, please sign in. You can continue as a guest to explore the app.
+            Signing you in as a guest...
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={onLogin}>Continue as Guest</Button>
+          <Skeleton className="h-10 w-32" />
         </CardContent>
       </Card>
     </div>
@@ -83,8 +82,7 @@ function WelcomeMessage({ onLogin }: { onLogin: () => void }) {
 export default function Dashboard() {
   const { user, isUserLoading } = useUser()
   const firestore = useFirestore()
-  const auth = useAuth()
-
+  
   // Memoize Firestore queries
   const transactionsQuery = useMemoFirebase(() => 
     user ? query(collection(firestore, "users", user.uid, "transactions")) : null, 
@@ -110,17 +108,8 @@ export default function Dashboard() {
 
   const isLoading = isUserLoading || transactionsLoading || categoriesLoading || budgetsLoading || recurringLoading;
 
-  const handleGuestLogin = () => {
-    if (!auth) return;
-    initiateAnonymousSignIn(auth);
-  };
-  
-  if (isLoading) {
+  if (isLoading || !user) {
     return <LoadingSkeleton />;
-  }
-
-  if (!user) {
-    return <WelcomeMessage onLogin={handleGuestLogin} />;
   }
 
   const safeTransactions = transactions || [];
