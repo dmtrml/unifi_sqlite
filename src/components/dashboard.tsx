@@ -1,22 +1,9 @@
 "use client"
-
-import {
-  File,
-  ListFilter,
-  MoreHorizontal,
-  PlusCircle,
-  Search,
-} from "lucide-react"
+import * as React from "react"
+import { collection, query, where } from "firebase/firestore"
+import { useCollection, useFirestore, useUser, useMemoFirebase, useAuth } from "@/firebase"
 
 import { Badge } from "@/components/ui/badge"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -26,15 +13,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import {
   Table,
@@ -51,18 +29,111 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs"
 
-import { budgets, categories, expenses, recurringExpenses } from "@/lib/data"
-import type { Budget, Category, Expense, RecurringExpense } from "@/lib/types"
+import type { Budget, Category, Transaction, RecurringExpense } from "@/lib/types"
 
 import { MonthlySpendingChart } from "./dashboard/monthly-spending-chart"
 import { CategorySpendingChart } from "./dashboard/category-spending-chart"
 import { SummaryCards } from "./dashboard/summary-cards"
 import { Progress } from "./ui/progress"
+import { Skeleton } from "./ui/skeleton"
+import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login"
+
+function getCategoryName(categories: Category[], categoryId: string) {
+  return categories.find(c => c.id === categoryId)?.name ?? "Uncategorized"
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <Skeleton className="h-28" />
+        <Skeleton className="h-28" />
+        <Skeleton className="h-28" />
+      </div>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        <Skeleton className="col-span-4 h-80" />
+        <Skeleton className="col-span-3 h-80" />
+      </div>
+      <Skeleton className="h-64" />
+    </div>
+  )
+}
+
+function WelcomeMessage({ onLogin }: { onLogin: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-center">
+      <Card className="max-w-md">
+        <CardHeader>
+          <CardTitle>Welcome to BudgetWise</CardTitle>
+          <CardDescription>
+            To get started, please sign in. You can continue as a guest to explore the app.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={onLogin}>Continue as Guest</Button>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 
 export default function Dashboard() {
-  const totalExpenses = expenses.reduce((acc, exp) => acc + exp.amount, 0)
-  const totalBudget = budgets.reduce((acc, b) => acc + b.amount, 0)
-  const remainingBudget = totalBudget - totalExpenses
+  const { user, isUserLoading } = useUser()
+  const firestore = useFirestore()
+  const auth = useAuth()
+
+  // Memoize Firestore queries
+  const transactionsQuery = useMemoFirebase(() => 
+    user ? query(collection(firestore, "users", user.uid, "transactions")) : null, 
+    [user, firestore]
+  );
+  const categoriesQuery = useMemoFirebase(() => 
+    user ? query(collection(firestore, "users", user.uid, "categories")) : null, 
+    [user, firestore]
+  );
+  const budgetsQuery = useMemoFirebase(() => 
+    user ? query(collection(firestore, "users", user.uid, "budgets")) : null, 
+    [user, firestore]
+  );
+  const recurringQuery = useMemoFirebase(() => 
+    user ? query(collection(firestore, "users", user.uid, "recurringTransactions")) : null, 
+    [user, firestore]
+  );
+
+  const { data: transactions, isLoading: transactionsLoading } = useCollection<Transaction>(transactionsQuery);
+  const { data: categories, isLoading: categoriesLoading } = useCollection<Category>(categoriesQuery);
+  const { data: budgets, isLoading: budgetsLoading } = useCollection<Budget>(budgetsQuery);
+  const { data: recurringExpenses, isLoading: recurringLoading } = useCollection<RecurringExpense>(recurringQuery);
+
+  const isLoading = isUserLoading || transactionsLoading || categoriesLoading || budgetsLoading || recurringLoading;
+
+  const handleGuestLogin = () => {
+    initiateAnonymousSignIn(auth);
+  };
+  
+  if (isLoading) {
+    return <LoadingSkeleton />;
+  }
+
+  if (!user) {
+    return <WelcomeMessage onLogin={handleGuestLogin} />;
+  }
+
+  const safeTransactions = transactions || [];
+  const safeCategories = categories || [];
+  const safeBudgets = budgets || [];
+  const safeRecurringExpenses = recurringExpenses || [];
+
+  const totalExpenses = safeTransactions
+    .filter(t => t.transactionType === 'expense')
+    .reduce((acc, exp) => acc + exp.amount, 0)
+  
+  const totalIncome = safeTransactions
+    .filter(t => t.transactionType === 'income')
+    .reduce((acc, exp) => acc + exp.amount, 0)
+
+  const totalBudget = safeBudgets.reduce((acc, b) => acc + b.amount, 0)
 
   return (
     <Tabs defaultValue="dashboard">
@@ -79,7 +150,7 @@ export default function Dashboard() {
             <SummaryCards 
               totalBudget={totalBudget}
               totalExpenses={totalExpenses}
-              remainingBudget={remainingBudget}
+              totalIncome={totalIncome}
             />
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
             <Card className="col-span-4">
@@ -87,7 +158,7 @@ export default function Dashboard() {
                 <CardTitle>Monthly Spending</CardTitle>
               </CardHeader>
               <CardContent className="pl-2">
-                <MonthlySpendingChart />
+                <MonthlySpendingChart transactions={safeTransactions} />
               </CardContent>
             </Card>
             <Card className="col-span-4 lg:col-span-3">
@@ -98,7 +169,7 @@ export default function Dashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <CategorySpendingChart />
+                <CategorySpendingChart transactions={safeTransactions} categories={safeCategories} />
               </CardContent>
             </Card>
           </div>
@@ -110,21 +181,22 @@ export default function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-6">
-              {budgets.map(budget => {
-                const category = categories.find(c => c.id === budget.categoryId)
-                const spent = expenses
-                  .filter(e => e.categoryId === budget.categoryId)
+              {safeBudgets.map(budget => {
+                const category = getCategoryName(safeCategories, budget.categoryId)
+                const spent = safeTransactions
+                  .filter(e => e.categoryId === budget.categoryId && e.transactionType === 'expense')
                   .reduce((acc, e) => acc + e.amount, 0)
-                const progress = (spent / budget.amount) * 100
+                const progress = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
+
                 return (
                   <div key={budget.categoryId} className="grid gap-2">
                     <div className="flex items-center justify-between">
-                       <span className="font-medium">{category?.name}</span>
+                       <span className="font-medium">{category}</span>
                        <span className="text-sm text-muted-foreground">
                         ${spent.toFixed(2)} / ${budget.amount.toFixed(2)}
                        </span>
                     </div>
-                    <Progress value={progress} aria-label={`${category?.name} budget progress`} />
+                    <Progress value={progress} aria-label={`${category} budget progress`} />
                   </div>
                 )
               })}
@@ -137,7 +209,7 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle>Transactions</CardTitle>
             <CardDescription>
-              A list of all your recorded expenses.
+              A list of all your recorded expenses and income.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -146,21 +218,27 @@ export default function Dashboard() {
                 <TableRow>
                   <TableHead>Description</TableHead>
                   <TableHead>Category</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead className="text-right">Date</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {expenses.map((expense) => (
-                  <TableRow key={expense.id}>
-                    <TableCell className="font-medium">{expense.description}</TableCell>
+                {safeTransactions.map((transaction) => (
+                  <TableRow key={transaction.id}>
+                    <TableCell className="font-medium">{transaction.description}</TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {categories.find(c => c.id === expense.categoryId)?.name}
+                        {getCategoryName(safeCategories, transaction.categoryId)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">${expense.amount.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{new Date(expense.date).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <Badge variant={transaction.transactionType === 'expense' ? 'destructive' : 'default'}>
+                        {transaction.transactionType}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">${transaction.amount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{new Date(transaction.date.seconds * 1000).toLocaleDateString()}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -177,13 +255,13 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-              {budgets.map(budget => {
-                const category = categories.find(c => c.id === budget.categoryId);
+              {safeBudgets.map(budget => {
+                const category = getCategoryName(safeCategories, budget.categoryId);
                 return (
                   <div key={budget.categoryId} className="flex items-center justify-between p-2 rounded-lg border">
-                    <span className="font-medium text-sm">{category?.name}</span>
+                    <span className="font-medium text-sm">{category}</span>
                     <div className="flex items-center gap-2">
-                      <Input type="number" defaultValue={budget.amount} className="w-32 h-9" aria-label={`${category?.name} budget amount`} />
+                      <Input type="number" defaultValue={budget.amount} className="w-32 h-9" aria-label={`${category} budget amount`} />
                       <Button size="sm" variant="outline">Save</Button>
                     </div>
                   </div>
@@ -214,12 +292,12 @@ export default function Dashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recurringExpenses.map((expense) => (
+                {safeRecurringExpenses.map((expense) => (
                   <TableRow key={expense.id}>
                     <TableCell className="font-medium">{expense.description}</TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {categories.find(c => c.id === expense.categoryId)?.name}
+                        {getCategoryName(safeCategories, expense.categoryId)}
                       </Badge>
                     </TableCell>
                     <TableCell className="capitalize">{expense.frequency}</TableCell>

@@ -16,40 +16,54 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import { expenses, categories } from "@/lib/data"
+import type { Category, Transaction } from "@/lib/types"
 
-const categorySpending = categories.map(category => {
-  const total = expenses
-    .filter(expense => expense.categoryId === category.id)
-    .reduce((sum, expense) => sum + expense.amount, 0)
-  return {
-    category: category.name,
-    total,
-    fill: category.color,
-  }
-}).filter(item => item.total > 0);
+type CategorySpendingChartProps = {
+  transactions: Transaction[];
+  categories: Category[];
+}
 
-
-const chartConfig = categorySpending.reduce((acc, item) => {
-  acc[item.category] = {
-    label: item.category,
-    color: item.fill,
-  }
-  return acc
-}, {} as ChartConfig)
-
-export function CategorySpendingChart() {
+export function CategorySpendingChart({ transactions, categories }: CategorySpendingChartProps) {
   const [activeCategory, setActiveCategory] =
     React.useState<string | null>(null)
   const id = "pie-interactive"
+
+  const categorySpending = React.useMemo(() => {
+    return categories.map(category => {
+      const total = transactions
+        .filter(expense => expense.categoryId === category.id && expense.transactionType === 'expense')
+        .reduce((sum, expense) => sum + expense.amount, 0)
+      return {
+        category: category.name,
+        total,
+        fill: category.color,
+      }
+    }).filter(item => item.total > 0);
+  }, [transactions, categories])
+
+  const chartConfig = React.useMemo(() => {
+    return categorySpending.reduce((acc, item) => {
+      acc[item.category] = {
+        label: item.category,
+        color: item.fill,
+      }
+      return acc
+    }, {} as ChartConfig)
+  }, [categorySpending]);
+
+
   const activeIndex = React.useMemo(
     () => categorySpending.findIndex((item) => item.category === activeCategory),
-    [activeCategory]
+    [activeCategory, categorySpending]
   )
   
   const totalSpent = React.useMemo(() => {
     return categorySpending.reduce((acc, curr) => acc + curr.total, 0)
-  }, [])
+  }, [categorySpending])
+
+  if (categorySpending.length === 0) {
+    return <div className="flex items-center justify-center h-[250px] text-muted-foreground">No spending data available.</div>
+  }
 
   return (
     <ChartContainer

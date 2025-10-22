@@ -1,6 +1,7 @@
 "use client"
 
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import { format, getMonth, getYear } from "date-fns"
 
 import {
   ChartConfig,
@@ -8,15 +9,12 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
+import type { Transaction } from "@/lib/types"
+import React from "react"
 
-const chartData = [
-  { month: "January", spending: 1860 },
-  { month: "February", spending: 2050 },
-  { month: "March", spending: 2370 },
-  { month: "April", spending: 1980 },
-  { month: "May", spending: 2540 },
-  { month: "June", spending: 2200 },
-]
+type MonthlySpendingChartProps = {
+  transactions: Transaction[];
+}
 
 const chartConfig = {
   spending: {
@@ -25,7 +23,34 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-export function MonthlySpendingChart() {
+export function MonthlySpendingChart({ transactions }: MonthlySpendingChartProps) {
+
+  const chartData = React.useMemo(() => {
+    const currentYear = getYear(new Date());
+    const monthlySpending: { [key: string]: number } = {};
+
+    for (let i = 0; i < 12; i++) {
+        const monthName = format(new Date(currentYear, i), 'MMMM');
+        monthlySpending[monthName] = 0;
+    }
+
+    transactions.forEach(transaction => {
+      // Ensure transaction.date is a valid Date object
+      const transactionDate = new Date(transaction.date);
+      if (getYear(transactionDate) === currentYear && transaction.transactionType === 'expense') {
+        const monthName = format(transactionDate, 'MMMM');
+        monthlySpending[monthName] += transaction.amount;
+      }
+    });
+
+    return Object.keys(monthlySpending).map(month => ({
+      month,
+      spending: monthlySpending[month],
+    }));
+
+  }, [transactions]);
+
+
   return (
     <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
       <BarChart 

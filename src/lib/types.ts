@@ -1,3 +1,5 @@
+import { Timestamp } from "firebase/firestore";
+
 export type Category = {
   id: string;
   name: string;
@@ -5,12 +7,14 @@ export type Category = {
   color: string;
 };
 
-export type Expense = {
+export type Transaction = {
   id: string;
   categoryId: string;
   amount: number;
-  date: string;
+  date: Timestamp;
   description: string;
+  transactionType: 'expense' | 'income';
+  userId: string;
 };
 
 export type Budget = {

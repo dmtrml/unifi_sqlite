@@ -35,9 +35,27 @@ import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { BudgetWiseLogo } from "./icons"
 import { AddExpenseDialog } from "./add-expense-dialog"
+import { useCollection, useFirestore, useUser, useMemoFirebase, useAuth } from "@/firebase"
+import type { Category } from "@/lib/types"
+import { collection } from "firebase/firestore"
+import { signOut } from "firebase/auth";
 
 
 export default function AppHeader() {
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const auth = useAuth()
+
+  const categoriesQuery = useMemoFirebase(() => 
+    user ? collection(firestore, "users", user.uid, "categories") : null,
+    [user, firestore]
+  )
+  const { data: categories } = useCollection<Category>(categoriesQuery);
+
+  const handleLogout = () => {
+    signOut(auth);
+  }
+
   return (
     <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
         <Sheet>
@@ -126,23 +144,25 @@ export default function AppHeader() {
                 </div>
             </form>
         </div>
-        <AddExpenseDialog />
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="secondary" size="icon" className="rounded-full">
-                    <CircleUser className="h-5 w-5" />
-                    <span className="sr-only">Toggle user menu</span>
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>Settings</DropdownMenuItem>
-                <DropdownMenuItem>Support</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>Logout</DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
+        {user && <AddExpenseDialog categories={categories || []} />}
+        {user && (
+          <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                  <Button variant="secondary" size="icon" className="rounded-full">
+                      <CircleUser className="h-5 w-5" />
+                      <span className="sr-only">Toggle user menu</span>
+                  </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>{user.email || "My Account"}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>Settings</DropdownMenuItem>
+                  <DropdownMenuItem>Support</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
+              </DropdownMenuContent>
+          </DropdownMenu>
+        )}
     </header>
   )
 }

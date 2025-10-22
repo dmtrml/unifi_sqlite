@@ -6,14 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card"
 type SummaryCardsProps = {
     totalBudget: number;
     totalExpenses: number;
-    remainingBudget: number;
+    totalIncome: number;
 }
 
-export function SummaryCards({ totalBudget, totalExpenses, remainingBudget }: SummaryCardsProps) {
+export function SummaryCards({ totalBudget, totalExpenses, totalIncome }: SummaryCardsProps) {
+    const remainingBudget = totalBudget - totalExpenses;
     const cards = [
         {
-            title: "Total Budget",
-            amount: totalBudget,
+            title: "Total Income",
+            amount: totalIncome,
             icon: PiggyBank,
         },
         {
@@ -22,7 +23,7 @@ export function SummaryCards({ totalBudget, totalExpenses, remainingBudget }: Su
             icon: Wallet,
         },
         {
-            title: "Remaining",
+            title: "Remaining Budget",
             amount: remainingBudget,
             icon: DollarSign,
         },

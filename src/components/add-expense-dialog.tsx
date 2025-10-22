@@ -6,6 +6,7 @@ import { CalendarIcon, PlusCircle } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { format } from "date-fns"
+import { collection, doc, serverTimestamp, addDoc } from "firebase/firestore"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -36,11 +37,13 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import { categories } from "@/lib/data"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover"
 import { cn } from "@/lib/utils"
 import { Calendar } from "./ui/calendar"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth, useFirestore, useUser, useMemoFirebase } from "@/firebase"
+import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import type { Category } from "@/lib/types"
 
 const expenseFormSchema = z.object({
   description: z.string().min(1, "Description is required."),
@@ -49,13 +52,16 @@ const expenseFormSchema = z.object({
   date: z.date(),
   isRecurring: z.boolean().default(false),
   frequency: z.enum(["weekly", "bi-weekly", "monthly"]).optional(),
+  transactionType: z.enum(["expense", "income"]).default("expense"),
 })
 
 type ExpenseFormValues = z.infer<typeof expenseFormSchema>
 
-export function AddExpenseDialog() {
+export function AddExpenseDialog({ categories }: { categories: Category[] }) {
   const [open, setOpen] = React.useState(false)
   const { toast } = useToast()
+  const firestore = useFirestore()
+  const { user } = useUser()
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseFormSchema),
@@ -65,17 +71,50 @@ export function AddExpenseDialog() {
       categoryId: "",
       date: new Date(),
       isRecurring: false,
+      transactionType: "expense"
     },
   })
 
   const isRecurring = form.watch("isRecurring")
 
-  function onSubmit(data: ExpenseFormValues) {
-    toast({
-      title: "Expense Added",
-      description: `Successfully added ${data.description}.`,
-    })
-    console.log(data)
+  async function onSubmit(data: ExpenseFormValues) {
+    if (!user || !firestore) {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "You must be logged in to add an expense.",
+        })
+        return;
+    }
+
+    const { isRecurring, frequency, ...transactionData } = data;
+
+    if (isRecurring) {
+        const recurringRef = collection(firestore, `users/${user.uid}/recurringTransactions`);
+        await addDocumentNonBlocking(recurringRef, {
+            ...transactionData,
+            userId: user.uid,
+            startDate: serverTimestamp(),
+            frequency: frequency,
+        });
+        toast({
+            title: "Recurring Expense Added",
+            description: `Successfully added recurring expense: ${data.description}.`,
+        })
+
+    } else {
+        const transactionRef = collection(firestore, `users/${user.uid}/transactions`);
+        await addDocumentNonBlocking(transactionRef, {
+            ...transactionData,
+            userId: user.uid,
+            createdAt: serverTimestamp(),
+        });
+        toast({
+            title: "Expense Added",
+            description: `Successfully added ${data.description}.`,
+        });
+    }
+
     setOpen(false)
     form.reset()
   }
