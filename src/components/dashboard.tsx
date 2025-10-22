@@ -302,10 +302,8 @@ export default function Dashboard() {
                   return (
                     <TableRow key={category.id}>
                       <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                           <span className="flex h-8 w-8 items-center justify-center rounded-full" style={{ backgroundColor: category.color.replace(")", ", 0.2)").replace("hsl", "hsla") }}>
-                            <IconComponent className="h-4 w-4" style={{ color: category.color }} />
-                           </span>
+                        <div className="flex items-center gap-3">
+                          <IconComponent className="h-5 w-5" style={{ color: category.color }} />
                           {category.name}
                         </div>
                       </TableCell>
