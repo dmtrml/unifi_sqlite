@@ -1,7 +1,7 @@
 "use client"
 import * as React from "react"
-import { collection, query, where } from "firebase/firestore"
-import { useCollection, useFirestore, useUser, useMemoFirebase, useAuth } from "@/firebase"
+import { collection, query, where, doc, updateDoc, deleteDoc } from "firebase/firestore"
+import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -39,6 +39,11 @@ import { Skeleton } from "./ui/skeleton"
 import { AddCategoryDialog } from "./add-category-dialog"
 import { AddAccountDialog } from "./add-account-dialog"
 import * as Icons from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu"
+import { MoreHorizontal } from "lucide-react"
+import { EditTransactionDialog } from "./edit-transaction-dialog"
+import { DeleteTransactionDialog } from "./delete-transaction-dialog"
+import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
 function getCategoryName(categories: Category[], categoryId: string) {
   return categories.find(c => c.id === categoryId)?.name ?? "Uncategorized"
@@ -207,8 +212,9 @@ export default function Dashboard() {
                   <TableHead>Account</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Type</TableHead>
+                  <TableHead>Date</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-right">Date</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -230,8 +236,25 @@ export default function Dashboard() {
                         {transaction.transactionType}
                       </Badge>
                     </TableCell>
+                    <TableCell>{new Date(transaction.date.seconds * 1000).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right">${transaction.amount.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{new Date(transaction.date.seconds * 1000).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <EditTransactionDialog 
+                            transaction={transaction}
+                            categories={safeCategories}
+                            accounts={safeAccounts}
+                          />
+                          <DeleteTransactionDialog transactionId={transaction.id} />
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
