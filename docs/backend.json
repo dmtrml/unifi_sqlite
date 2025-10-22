@@ -1,0 +1,249 @@
+{
+  "entities": {
+    "Transaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Transaction",
+      "type": "object",
+      "description": "Represents a financial transaction, either an expense or income.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the transaction."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who owns the transaction. (Relationship: User 1:N Transaction)"
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Reference to the Category this transaction belongs to. (Relationship: Category 1:N Transaction)"
+        },
+        "date": {
+          "type": "string",
+          "description": "The date of the transaction.",
+          "format": "date-time"
+        },
+        "amount": {
+          "type": "number",
+          "description": "The amount of the transaction. Positive for income, negative for expense."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the transaction."
+        },
+        "transactionType": {
+          "type": "string",
+          "description": "The type of transaction (e.g., 'expense', 'income')."
+        },
+        "recurringTransactionId": {
+          "type": "string",
+          "description": "Reference to the RecurringTransaction, if this transaction is part of a recurring series. (Relationship: RecurringTransaction 1:N Transaction)"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "categoryId",
+        "date",
+        "amount",
+        "transactionType"
+      ]
+    },
+    "Category": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Category",
+      "type": "object",
+      "description": "Represents a category for classifying transactions.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the category."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who created the category. (Relationship: User 1:N Category)"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the category (e.g., 'Food', 'Rent')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the category."
+        },
+        "budgetedAmount": {
+          "type": "number",
+          "description": "The budgeted amount for this category per month."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "name"
+      ]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "name": {
+          "type": "string",
+          "description": "The user's display name."
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "name"
+      ]
+    },
+    "RecurringTransaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "RecurringTransaction",
+      "type": "object",
+      "description": "Represents a recurring transaction template.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the recurring transaction."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who owns the recurring transaction. (Relationship: User 1:N RecurringTransaction)"
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Reference to the Category for this recurring transaction. (Relationship: Category 1:N RecurringTransaction)"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "The start date of the recurring transaction series.",
+          "format": "date-time"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "The end date of the recurring transaction series (optional).",
+          "format": "date-time"
+        },
+        "amount": {
+          "type": "number",
+          "description": "The amount of the recurring transaction."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the recurring transaction."
+        },
+        "frequency": {
+          "type": "string",
+          "description": "How often the transaction occurs (e.g., 'monthly', 'bi-weekly', 'weekly')."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "categoryId",
+        "startDate",
+        "amount",
+        "frequency"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles. The `userId` is the Firebase Authentication UID. This path ensures that only the authenticated user can access their profile.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase Authentication UID of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/transactions/{transactionId}",
+        "definition": {
+          "entityName": "Transaction",
+          "schema": {
+            "$ref": "#/backend/entities/Transaction"
+          },
+          "description": "Stores transactions for each user. Path-based ownership ensures that only the user can access their transactions.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase Authentication UID of the user."
+            },
+            {
+              "name": "transactionId",
+              "description": "The unique ID of the transaction."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/categories/{categoryId}",
+        "definition": {
+          "entityName": "Category",
+          "schema": {
+            "$ref": "#/backend/entities/Category"
+          },
+          "description": "Stores categories for each user. Path-based ownership ensures that only the user can access their categories.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase Authentication UID of the user."
+            },
+            {
+              "name": "categoryId",
+              "description": "The unique ID of the category."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/recurringTransactions/{recurringTransactionId}",
+        "definition": {
+          "entityName": "RecurringTransaction",
+          "schema": {
+            "$ref": "#/backend/entities/RecurringTransaction"
+          },
+          "description": "Stores recurring transactions for each user. Path-based ownership ensures that only the user can access their recurring transactions.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase Authentication UID of the user."
+            },
+            {
+              "name": "recurringTransactionId",
+              "description": "The unique ID of the recurring transaction."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to ensure authorization independence, clarity, and scalability for the BudgetWise application.  By using path-based ownership, we avoid complex `get()` calls in our security rules, enabling atomic operations and easier debugging. The structure separates user-owned data into dedicated collections under each user's document, which simplifies security rules and allows for efficient querying of user-specific data.  Transactions, Categories, and RecurringTransactions are all organized under the respective user's document.\n\n**Authorization Independence:** The primary strategy for achieving authorization independence is through path-based ownership.  Each transaction, category, and recurring transaction is stored under the respective user's document (e.g., `/users/{userId}/transactions/{transactionId}`). This eliminates the need to perform `get()` requests to determine ownership, as the path itself inherently defines ownership.  Security rules can then directly enforce that only the user identified in the path can access the data.\n\n**QAPs Support:**\n*   **Secure List Operations:**  The path-based ownership model naturally supports secure `list` operations. Security rules can easily restrict listing transactions, categories, or recurring transactions to the user identified in the path, preventing unauthorized access to other users' data. Since all documents in each collection share the same authorization requirements, rules are simplified.\n\n*   **Data Integrity:** The chosen structure ensures that each document is associated with only one user, which makes querying and aggregating user-specific data simpler and more efficient."
+  }
+}
