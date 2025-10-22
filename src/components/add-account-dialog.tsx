@@ -37,13 +37,17 @@ import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useUser } from "@/firebase"
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import * as Icons from "lucide-react"
+import type { AccountType } from "@/lib/types"
 
 const iconNames = [
   "Wallet", "Landmark", "CreditCard", "PiggyBank", "DollarSign"
 ];
 
+const accountTypes: AccountType[] = ["Наличные", "Карта", "Банковский счет", "Депозит", "Кредит"];
+
 const accountFormSchema = z.object({
   name: z.string().min(1, "Account name is required."),
+  type: z.string().min(1, "Account type is required."),
   balance: z.coerce.number(),
   color: z.string().min(1, "Color is required."),
   icon: z.string().min(1, "Icon is required."),
@@ -61,6 +65,7 @@ export function AddAccountDialog() {
     resolver: zodResolver(accountFormSchema),
     defaultValues: {
       name: "",
+      type: "Карта",
       balance: 0,
       color: "hsl(var(--chart-1))",
       icon: "Wallet",
@@ -110,19 +115,43 @@ export function AddAccountDialog() {
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Account Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Checking Account" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Account Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Checking Account" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 <FormField
+                  control={form.control}
+                  name="type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Account Type</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {accountTypes.map(type => (
+                            <SelectItem key={type} value={type}>{type}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+            </div>
             <FormField
               control={form.control}
               name="balance"

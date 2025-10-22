@@ -9,6 +9,8 @@ export type Category = {
   type: 'expense' | 'income';
 };
 
+export type AccountType = "Наличные" | "Карта" | "Банковский счет" | "Депозит" | "Кредит";
+
 export type Account = {
   id: string;
   name: string;
@@ -16,6 +18,7 @@ export type Account = {
   icon: string;
   color: string;
   userId: string;
+  type: AccountType;
 }
 
 export type Transaction = {

@@ -129,6 +129,11 @@
         "icon": {
             "type": "string",
             "description": "The name of the lucide-react icon for the account."
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of account.",
+          "enum": ["Наличные", "Карта", "Банковский счет", "Депозит", "Кредит"]
         }
       },
       "required": [
@@ -137,7 +142,8 @@
         "name",
         "balance",
         "color",
-        "icon"
+        "icon",
+        "type"
       ]
     },
     "User": {

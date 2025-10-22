@@ -43,6 +43,7 @@ import { BudgetWiseLogo } from "@/components/icons"
 import type { Account } from "@/lib/types"
 import * as Icons from "lucide-react"
 import { MoreHorizontal } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 
 function AccountsPageContent() {
   const { user } = useUser()
@@ -75,6 +76,7 @@ function AccountsPageContent() {
             <TableHeader>
               <TableRow>
                 <TableHead>Account</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Balance</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -89,6 +91,9 @@ function AccountsPageContent() {
                          <IconComponent className="h-5 w-5" style={{ color: account.color }} />
                         {account.name}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{account.type}</Badge>
                     </TableCell>
                     <TableCell>${account.balance.toFixed(2)}</TableCell>
                     <TableCell className="text-right">
