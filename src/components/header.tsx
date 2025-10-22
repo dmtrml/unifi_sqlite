@@ -53,6 +53,7 @@ export default function AppHeader() {
   const { data: categories } = useCollection<Category>(categoriesQuery);
 
   const handleLogout = () => {
+    if (!auth) return;
     signOut(auth);
   }
 
@@ -144,7 +145,7 @@ export default function AppHeader() {
                 </div>
             </form>
         </div>
-        {user && <AddExpenseDialog categories={categories || []} />}
+        {user && categories && <AddExpenseDialog categories={categories} />}
         {user && (
           <DropdownMenu>
               <DropdownMenuTrigger asChild>
