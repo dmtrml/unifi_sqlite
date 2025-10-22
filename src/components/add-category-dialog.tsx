@@ -38,7 +38,11 @@ import { useFirestore, useUser } from "@/firebase"
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import * as Icons from "lucide-react"
 
-const iconNames = Object.keys(Icons).filter(key => key !== 'createLucideIcon' && key !== 'LucideIcon' && /^[A-Z]/.test(key));
+const iconNames = [
+  "Home", "ShoppingCart", "UtensilsCrossed", "HeartPulse", "Car", 
+  "Ticket", "Lightbulb", "ShoppingBag", "Gift", "Book", "Film", 
+  "Briefcase", "Plane", "Wrench", "MoreHorizontal"
+];
 
 const categoryFormSchema = z.object({
   name: z.string().min(1, "Category name is required."),
@@ -74,7 +78,7 @@ export function AddCategoryDialog() {
     }
 
     const categoryRef = collection(firestore, `users/${user.uid}/categories`);
-    await addDocumentNonBlocking(categoryRef, {
+    addDocumentNonBlocking(categoryRef, {
       ...data,
       userId: user.uid,
       createdAt: serverTimestamp(),
