@@ -5,6 +5,7 @@ export type Category = {
   name: string;
   icon: string;
   color: string;
+  userId: string;
 };
 
 export type Transaction = {

@@ -37,6 +37,8 @@ import { SummaryCards } from "./dashboard/summary-cards"
 import { Progress } from "./ui/progress"
 import { Skeleton } from "./ui/skeleton"
 import { initiateAnonymousSignIn } from "@/firebase/non-blocking-login"
+import { AddCategoryDialog } from "./add-category-dialog"
+import * as Icons from "lucide-react"
 
 function getCategoryName(categories: Category[], categoryId: string) {
   return categories.find(c => c.id === categoryId)?.name ?? "Uncategorized"
@@ -109,6 +111,7 @@ export default function Dashboard() {
   const isLoading = isUserLoading || transactionsLoading || categoriesLoading || budgetsLoading || recurringLoading;
 
   const handleGuestLogin = () => {
+    if (!auth) return;
     initiateAnonymousSignIn(auth);
   };
   
@@ -142,6 +145,7 @@ export default function Dashboard() {
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
           <TabsTrigger value="budgets">Budgets</TabsTrigger>
+          <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="recurring">Recurring</TabsTrigger>
         </TabsList>
       </div>
@@ -271,6 +275,51 @@ export default function Dashboard() {
           <CardFooter className="border-t pt-6">
             <Button>Save All Budgets</Button>
           </CardFooter>
+        </Card>
+      </TabsContent>
+       <TabsContent value="categories">
+        <Card>
+          <CardHeader className="flex flex-row items-center">
+            <div className="grid gap-2">
+              <CardTitle>Categories</CardTitle>
+              <CardDescription>
+                Manage your expense categories.
+              </CardDescription>
+            </div>
+            <AddCategoryDialog />
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {safeCategories.map((category) => {
+                   const IconComponent = (Icons as any)[category.icon] || Icons.MoreHorizontal;
+                  return (
+                    <TableRow key={category.id}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                           <span className="flex h-8 w-8 items-center justify-center rounded-full" style={{ backgroundColor: category.color.replace(")", ", 0.2)").replace("hsl", "hsla") }}>
+                            <IconComponent className="h-4 w-4" style={{ color: category.color }} />
+                           </span>
+                          {category.name}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon">
+                          <Icons.MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
         </Card>
       </TabsContent>
       <TabsContent value="recurring">
