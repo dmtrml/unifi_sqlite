@@ -84,6 +84,11 @@
         "icon": {
             "type": "string",
             "description": "The name of the lucide-react icon for the category."
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of category (e.g., 'expense', 'income').",
+          "enum": ["expense", "income"]
         }
       },
       "required": [
@@ -91,7 +96,8 @@
         "userId",
         "name",
         "color",
-        "icon"
+        "icon",
+        "type"
       ]
     },
     "Account": {

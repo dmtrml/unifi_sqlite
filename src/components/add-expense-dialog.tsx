@@ -83,6 +83,12 @@ export function AddExpenseDialog({ categories, accounts }: AddExpenseDialogProps
   })
 
   const isRecurring = form.watch("isRecurring")
+  const transactionType = form.watch("transactionType")
+
+  const filteredCategories = React.useMemo(() => {
+    return categories.filter(c => c.type === transactionType)
+  }, [categories, transactionType]);
+
 
   async function onSubmit(data: ExpenseFormValues) {
     if (!user || !firestore) {
@@ -243,7 +249,7 @@ export function AddExpenseDialog({ categories, accounts }: AddExpenseDialogProps
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {categories.map((category) => (
+                        {filteredCategories.map((category) => (
                           <SelectItem key={category.id} value={category.id}>
                             {category.name}
                           </SelectItem>

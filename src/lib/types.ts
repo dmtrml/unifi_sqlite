@@ -6,6 +6,7 @@ export type Category = {
   icon: string;
   color: string;
   userId: string;
+  type: 'expense' | 'income';
 };
 
 export type Account = {
