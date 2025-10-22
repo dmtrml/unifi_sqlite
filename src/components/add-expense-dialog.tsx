@@ -6,7 +6,7 @@ import { CalendarIcon, PlusCircle } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { format } from "date-fns"
-import { collection, serverTimestamp } from "firebase/firestore"
+import { collection, serverTimestamp, doc, runTransaction } from "firebase/firestore"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -89,7 +89,7 @@ export function AddExpenseDialog({ categories, accounts }: AddExpenseDialogProps
         toast({
             variant: "destructive",
             title: "Error",
-            description: "You must be logged in to add an expense.",
+            description: "You must be logged in to add a transaction.",
         })
         return;
     }
@@ -97,29 +97,56 @@ export function AddExpenseDialog({ categories, accounts }: AddExpenseDialogProps
     const { isRecurring, frequency, ...transactionData } = data;
 
     if (isRecurring) {
+        // Recurring transactions don't immediately affect the balance
         const recurringRef = collection(firestore, `users/${user.uid}/recurringTransactions`);
         addDocumentNonBlocking(recurringRef, {
             ...transactionData,
+            amount: transactionData.transactionType === 'expense' ? -Math.abs(transactionData.amount) : Math.abs(transactionData.amount),
             userId: user.uid,
             startDate: serverTimestamp(),
             frequency: frequency,
         });
         toast({
-            title: "Recurring Expense Added",
-            description: `Successfully added recurring expense: ${data.description}.`,
+            title: "Recurring Transaction Added",
+            description: `Successfully added recurring transaction: ${data.description}.`,
         })
 
     } else {
         const transactionRef = collection(firestore, `users/${user.uid}/transactions`);
-        addDocumentNonBlocking(transactionRef, {
-            ...transactionData,
-            userId: user.uid,
-            createdAt: serverTimestamp(),
-        });
-        toast({
-            title: "Expense Added",
-            description: `Successfully added ${data.description}.`,
-        });
+        const accountRef = doc(firestore, `users/${user.uid}/accounts`, data.accountId);
+        
+        try {
+            await runTransaction(firestore, async (transaction) => {
+                const accountDoc = await transaction.get(accountRef);
+                if (!accountDoc.exists()) {
+                    throw "Account not found!";
+                }
+
+                const currentBalance = accountDoc.data().balance;
+                const newBalance = data.transactionType === 'expense'
+                    ? currentBalance - data.amount
+                    : currentBalance + data.amount;
+
+                transaction.update(accountRef, { balance: newBalance });
+                transaction.set(doc(transactionRef), {
+                    ...transactionData,
+                    userId: user.uid,
+                    createdAt: serverTimestamp(),
+                });
+            });
+
+            toast({
+                title: "Transaction Added",
+                description: `Successfully added ${data.description}.`,
+            });
+        } catch (error) {
+            console.error("Transaction failed: ", error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Failed to add transaction.",
+            });
+        }
     }
 
     setOpen(false)
@@ -131,18 +158,39 @@ export function AddExpenseDialog({ categories, accounts }: AddExpenseDialogProps
       <DialogTrigger asChild>
         <Button size="sm" className="relative">
           <PlusCircle className="mr-2 h-4 w-4" />
-          Add Expense
+          Add Transaction
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Add Expense</DialogTitle>
+          <DialogTitle>Add Transaction</DialogTitle>
           <DialogDescription>
-            Record a new expense. Fill in the details below.
+            Record a new transaction. Fill in the details below.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="transactionType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Transaction Type</FormLabel>
+                     <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="expense">Expense</SelectItem>
+                        <SelectItem value="income">Income</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -224,7 +272,7 @@ export function AddExpenseDialog({ categories, accounts }: AddExpenseDialogProps
               name="date"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Date of expense</FormLabel>
+                  <FormLabel>Date of transaction</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -263,9 +311,9 @@ export function AddExpenseDialog({ categories, accounts }: AddExpenseDialogProps
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                     <div className="space-y-0.5">
-                      <FormLabel>Recurring Expense</FormLabel>
+                      <FormLabel>Recurring Transaction</FormLabel>
                       <FormDescription>
-                        Is this a recurring expense?
+                        Is this a recurring transaction?
                       </FormDescription>
                     </div>
                     <FormControl>
@@ -302,7 +350,7 @@ export function AddExpenseDialog({ categories, accounts }: AddExpenseDialogProps
                 />
               )}
             <DialogFooter>
-              <Button type="submit">Add Expense</Button>
+              <Button type="submit">Add Transaction</Button>
             </DialogFooter>
           </form>
         </Form>

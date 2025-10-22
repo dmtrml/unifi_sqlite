@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { doc } from "firebase/firestore"
+import { doc, runTransaction } from "firebase/firestore"
 import { Trash2 } from "lucide-react"
 
 import {
@@ -16,9 +16,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useUser } from "@/firebase"
-import { deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { useFirestore, useUser, useDoc } from "@/firebase"
 import { DropdownMenuItem } from "./ui/dropdown-menu"
+import type { Transaction } from "@/lib/types"
 
 interface DeleteTransactionDialogProps {
   transactionId: string;
@@ -40,12 +40,46 @@ export function DeleteTransactionDialog({ transactionId }: DeleteTransactionDial
     }
 
     const transactionRef = doc(firestore, `users/${user.uid}/transactions/${transactionId}`);
-    deleteDocumentNonBlocking(transactionRef);
+    
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const transactionDoc = await transaction.get(transactionRef);
+            if (!transactionDoc.exists()) {
+                throw "Transaction not found!";
+            }
+            const transactionData = transactionDoc.data() as Transaction;
+            const accountRef = doc(firestore, `users/${user.uid}/accounts/${transactionData.accountId}`);
+            const accountDoc = await transaction.get(accountRef);
 
-    toast({
-      title: "Transaction Deleted",
-      description: "The transaction has been successfully deleted.",
-    })
+            if (!accountDoc.exists()) {
+                // If account doesn't exist, just delete the transaction
+                transaction.delete(transactionRef);
+                return;
+            }
+
+            const currentBalance = accountDoc.data().balance;
+            // Reverse the transaction amount
+            const newBalance = transactionData.transactionType === 'expense'
+                ? currentBalance + transactionData.amount
+                : currentBalance - transactionData.amount;
+
+            transaction.update(accountRef, { balance: newBalance });
+            transaction.delete(transactionRef);
+        });
+
+        toast({
+            title: "Transaction Deleted",
+            description: "The transaction has been successfully deleted.",
+        });
+
+    } catch (error) {
+        console.error("Delete transaction failed: ", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to delete transaction.",
+        });
+    }
   }
 
   return (
@@ -61,7 +95,7 @@ export function DeleteTransactionDialog({ transactionId }: DeleteTransactionDial
           <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
           <AlertDialogDescription>
             This action cannot be undone. This will permanently delete this
-            transaction from our servers.
+            transaction and update the associated account balance.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

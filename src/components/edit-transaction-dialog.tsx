@@ -6,7 +6,7 @@ import { CalendarIcon, Edit } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { format } from "date-fns"
-import { doc } from "firebase/firestore"
+import { doc, runTransaction } from "firebase/firestore"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -40,7 +40,6 @@ import { cn } from "@/lib/utils"
 import { Calendar } from "./ui/calendar"
 import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useUser } from "@/firebase"
-import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import type { Category, Account, Transaction } from "@/lib/types"
 import { DropdownMenuItem } from "./ui/dropdown-menu"
 
@@ -61,7 +60,7 @@ interface EditTransactionDialogProps {
   accounts: Account[];
 }
 
-export function EditTransactionDialog({ transaction, categories, accounts }: EditTransactionDialogProps) {
+export function EditTransactionDialog({ transaction: originalTransaction, categories, accounts }: EditTransactionDialogProps) {
   const [open, setOpen] = React.useState(false)
   const { toast } = useToast()
   const firestore = useFirestore()
@@ -70,8 +69,8 @@ export function EditTransactionDialog({ transaction, categories, accounts }: Edi
   const form = useForm<EditTransactionFormValues>({
     resolver: zodResolver(editTransactionFormSchema),
     defaultValues: {
-      ...transaction,
-      date: transaction.date.toDate(),
+      ...originalTransaction,
+      date: originalTransaction.date.toDate(),
     },
   })
 
@@ -85,15 +84,59 @@ export function EditTransactionDialog({ transaction, categories, accounts }: Edi
       return
     }
 
-    const transactionRef = doc(firestore, `users/${user.uid}/transactions/${transaction.id}`);
-    updateDocumentNonBlocking(transactionRef, data);
+    const transactionRef = doc(firestore, `users/${user.uid}/transactions/${originalTransaction.id}`);
+    
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            // 1. Get original transaction data from the server for consistency
+            const originalDoc = await transaction.get(transactionRef);
+            if (!originalDoc.exists()) {
+                throw "Original transaction not found!";
+            }
+            const originalData = originalDoc.data() as Transaction;
+            
+            // 2. Revert old transaction from the original account
+            const originalAccountRef = doc(firestore, `users/${user.uid}/accounts/${originalData.accountId}`);
+            const originalAccountDoc = await transaction.get(originalAccountRef);
+            if (originalAccountDoc.exists()) {
+                const originalBalance = originalAccountDoc.data().balance;
+                const revertedBalance = originalData.transactionType === 'expense'
+                    ? originalBalance + originalData.amount
+                    : originalBalance - originalData.amount;
+                transaction.update(originalAccountRef, { balance: revertedBalance });
+            }
 
-    toast({
-      title: "Transaction Updated",
-      description: "Your transaction has been successfully updated.",
-    })
+            // 3. Apply new transaction to the new/updated account
+            const newAccountRef = doc(firestore, `users/${user.uid}/accounts/${data.accountId}`);
+            const newAccountDoc = await transaction.get(newAccountRef);
+            if (!newAccountDoc.exists()) {
+                throw "New account not found!";
+            }
+            const newBalance = newAccountDoc.data().balance;
+            const updatedBalance = data.transactionType === 'expense'
+                ? newBalance - data.amount
+                : newBalance + data.amount;
+            transaction.update(newAccountRef, { balance: updatedBalance });
 
-    setOpen(false)
+            // 4. Update the transaction document itself
+            transaction.update(transactionRef, data);
+        });
+
+        toast({
+            title: "Transaction Updated",
+            description: "Your transaction and account balances have been successfully updated.",
+        });
+
+        setOpen(false)
+
+    } catch (error) {
+        console.error("Transaction update failed: ", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to update transaction. Balances have been reverted.",
+        });
+    }
   }
 
   return (
