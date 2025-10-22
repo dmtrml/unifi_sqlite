@@ -133,7 +133,7 @@
         "type": {
           "type": "string",
           "description": "The type of account.",
-          "enum": ["Наличные", "Карта", "Банковский счет", "Депозит", "Кредит"]
+          "enum": ["Cash", "Card", "Bank Account", "Deposit", "Loan"]
         }
       },
       "required": [

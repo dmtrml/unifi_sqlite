@@ -43,7 +43,7 @@ const iconNames = [
   "Wallet", "Landmark", "CreditCard", "PiggyBank", "DollarSign"
 ];
 
-const accountTypes: AccountType[] = ["Наличные", "Карта", "Банковский счет", "Депозит", "Кредит"];
+const accountTypes: AccountType[] = ["Cash", "Card", "Bank Account", "Deposit", "Loan"];
 
 const accountFormSchema = z.object({
   name: z.string().min(1, "Account name is required."),
@@ -65,7 +65,7 @@ export function AddAccountDialog() {
     resolver: zodResolver(accountFormSchema),
     defaultValues: {
       name: "",
-      type: "Карта",
+      type: "Card",
       balance: 0,
       color: "hsl(var(--chart-1))",
       icon: "Wallet",

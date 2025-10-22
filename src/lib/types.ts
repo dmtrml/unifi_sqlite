@@ -9,7 +9,7 @@ export type Category = {
   type: 'expense' | 'income';
 };
 
-export type AccountType = "Наличные" | "Карта" | "Банковский счет" | "Депозит" | "Кредит";
+export type AccountType = "Cash" | "Card" | "Bank Account" | "Deposit" | "Loan";
 
 export type Account = {
   id: string;
