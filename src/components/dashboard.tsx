@@ -133,7 +133,6 @@ export default function Dashboard() {
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
-          <TabsTrigger value="accounts">Accounts</TabsTrigger>
           <TabsTrigger value="budgets">Budgets</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="recurring">Recurring</TabsTrigger>
@@ -264,59 +263,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </TabsContent>
-      <TabsContent value="accounts">
-        <Card>
-          <CardHeader className="flex flex-row items-center">
-            <div className="grid gap-2">
-              <CardTitle>Accounts</CardTitle>
-              <CardDescription>
-                Manage your financial accounts.
-              </CardDescription>
-            </div>
-            <AddAccountDialog />
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Account</TableHead>
-                  <TableHead>Balance</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {safeAccounts.map((account) => {
-                   const IconComponent = (Icons as any)[account.icon] || Icons.MoreHorizontal;
-                  return (
-                    <TableRow key={account.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-3">
-                           <IconComponent className="h-5 w-5" style={{ color: account.color }} />
-                          {account.name}
-                        </div>
-                      </TableCell>
-                      <TableCell>${account.balance.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                            <EditAccountDialog account={account} />
-                            <DeleteAccountDialog accountId={account.id} />
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </TabsContent>
       <TabsContent value="budgets">
       <Card>
           <CardHeader>
@@ -375,9 +321,17 @@ export default function Dashboard() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon">
-                          <Icons.MoreHorizontal className="h-4 w-4" />
-                        </Button>
+                         <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem>Edit</DropdownMenuItem>
+                             <DropdownMenuItem>Delete</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   )
@@ -426,5 +380,3 @@ export default function Dashboard() {
     </Tabs>
   )
 }
-
-    

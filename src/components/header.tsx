@@ -90,7 +90,7 @@ export default function AppHeader() {
                         <span className="sr-only">BudgetWise</span>
                     </Link>
                     <Link
-                        href="#"
+                        href="/"
                         className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
                     >
                         <Home className="h-5 w-5" />
@@ -104,7 +104,7 @@ export default function AppHeader() {
                         Transactions
                     </Link>
                     <Link
-                        href="#"
+                        href="/accounts"
                         className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
                     >
                         <Landmark className="h-5 w-5" />

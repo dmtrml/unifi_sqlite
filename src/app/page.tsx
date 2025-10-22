@@ -1,6 +1,5 @@
 import Link from "next/link"
 import {
-  Bell,
   Home,
   LineChart,
   Package2,
@@ -12,7 +11,6 @@ import {
   Landmark,
 } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Dashboard from "@/components/dashboard"
@@ -33,7 +31,7 @@ export default function HomePage() {
           <div className="flex-1">
             <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
               <Link
-                href="#"
+                href="/"
                 className="flex items-center gap-3 rounded-lg bg-muted px-3 py-2 text-primary transition-all hover:text-primary"
               >
                 <Home className="h-4 w-4" />
@@ -47,7 +45,7 @@ export default function HomePage() {
                 Transactions
               </Link>
                <Link
-                href="#"
+                href="/accounts"
                 className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
               >
                 <Landmark className="h-4 w-4" />
@@ -77,7 +75,7 @@ export default function HomePage() {
             </nav>
           </div>
           <div className="mt-auto p-4">
-            <Card x-chunk="dashboard-02-chunk-0">
+            <Card>
               <CardHeader className="p-2 pt-0 md:p-4">
                 <CardTitle>Upgrade to Pro</CardTitle>
               </CardHeader>
