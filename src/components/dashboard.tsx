@@ -44,6 +44,8 @@ import { MoreHorizontal } from "lucide-react"
 import { EditTransactionDialog } from "./edit-transaction-dialog"
 import { DeleteTransactionDialog } from "./delete-transaction-dialog"
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { EditAccountDialog } from "./edit-account-dialog"
+import { DeleteAccountDialog } from "./delete-account-dialog"
 
 function getCategoryName(categories: Category[], categoryId: string) {
   return categories.find(c => c.id === categoryId)?.name ?? "Uncategorized"
@@ -279,7 +281,7 @@ export default function Dashboard() {
                 <TableRow>
                   <TableHead>Account</TableHead>
                   <TableHead>Balance</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -294,10 +296,18 @@ export default function Dashboard() {
                         </div>
                       </TableCell>
                       <TableCell>${account.balance.toFixed(2)}</TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon">
-                          <Icons.MoreHorizontal className="h-4 w-4" />
-                        </Button>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <EditAccountDialog account={account} />
+                            <DeleteAccountDialog accountId={account.id} />
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   )
@@ -416,3 +426,5 @@ export default function Dashboard() {
     </Tabs>
   )
 }
+
+    
