@@ -14,6 +14,10 @@
           "type": "string",
           "description": "Reference to the User who owns the transaction."
         },
+        "accountId": {
+            "type": "string",
+            "description": "Reference to the Account this transaction belongs to."
+        },
         "categoryId": {
           "type": "string",
           "description": "Reference to the Category this transaction belongs to."
@@ -44,6 +48,7 @@
       "required": [
         "id",
         "userId",
+        "accountId",
         "categoryId",
         "date",
         "amount",
@@ -89,6 +94,46 @@
         "icon"
       ]
     },
+    "Account": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Account",
+      "type": "object",
+      "description": "Represents a financial account.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the account."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who owns the account."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the account (e.g., 'Checking', 'Credit Card')."
+        },
+        "balance": {
+          "type": "number",
+          "description": "The current balance of the account."
+        },
+        "color": {
+            "type": "string",
+            "description": "The color associated with the account for UI elements."
+        },
+        "icon": {
+            "type": "string",
+            "description": "The name of the lucide-react icon for the account."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "name",
+        "balance",
+        "color",
+        "icon"
+      ]
+    },
     "User": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
@@ -127,6 +172,10 @@
           "type": "string",
           "description": "Reference to the User who owns the recurring transaction."
         },
+        "accountId": {
+            "type": "string",
+            "description": "Reference to the Account for this recurring transaction."
+        },
         "categoryId": {
           "type": "string",
           "description": "Reference to the Category for this recurring transaction."
@@ -158,6 +207,7 @@
       "required": [
         "id",
         "userId",
+        "accountId",
         "categoryId",
         "startDate",
         "amount",
@@ -251,6 +301,16 @@
             "$ref": "#/entities/RecurringTransaction"
           },
           "description": "Stores recurring transactions for each user."
+        }
+      },
+      {
+        "path": "/users/{userId}/accounts/{accountId}",
+        "definition": {
+          "entityName": "Account",
+          "schema": {
+            "$ref": "#/entities/Account"
+          },
+          "description": "Stores financial accounts for each user."
         }
       }
     ]

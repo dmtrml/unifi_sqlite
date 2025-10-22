@@ -8,8 +8,18 @@ export type Category = {
   userId: string;
 };
 
+export type Account = {
+  id: string;
+  name: string;
+  balance: number;
+  icon: string;
+  color: string;
+  userId: string;
+}
+
 export type Transaction = {
   id: string;
+  accountId: string;
   categoryId: string;
   amount: number;
   date: Timestamp;
@@ -25,6 +35,7 @@ export type Budget = {
 
 export type RecurringExpense = {
     id: string;
+    accountId: string;
     categoryId: string;
     amount: number;
     description: string;

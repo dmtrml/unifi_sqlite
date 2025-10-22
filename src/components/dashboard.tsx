@@ -29,7 +29,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs"
 
-import type { Budget, Category, Transaction, RecurringExpense } from "@/lib/types"
+import type { Budget, Category, Transaction, RecurringExpense, Account } from "@/lib/types"
 
 import { MonthlySpendingChart } from "./dashboard/monthly-spending-chart"
 import { CategorySpendingChart } from "./dashboard/category-spending-chart"
@@ -37,10 +37,15 @@ import { SummaryCards } from "./dashboard/summary-cards"
 import { Progress } from "./ui/progress"
 import { Skeleton } from "./ui/skeleton"
 import { AddCategoryDialog } from "./add-category-dialog"
+import { AddAccountDialog } from "./add-account-dialog"
 import * as Icons from "lucide-react"
 
 function getCategoryName(categories: Category[], categoryId: string) {
   return categories.find(c => c.id === categoryId)?.name ?? "Uncategorized"
+}
+
+function getAccountName(accounts: Account[], accountId: string) {
+  return accounts.find(a => a.id === accountId)?.name ?? "Uncategorized"
 }
 
 function LoadingSkeleton() {
@@ -60,24 +65,6 @@ function LoadingSkeleton() {
   )
 }
 
-function WelcomeMessage() {
-  return (
-    <div className="flex flex-col items-center justify-center h-full text-center">
-      <Card className="max-w-md">
-        <CardHeader>
-          <CardTitle>Welcome to BudgetWise</CardTitle>
-          <CardDescription>
-            Signing you in as a guest...
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-10 w-32" />
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
 
 export default function Dashboard() {
   const { user, isUserLoading } = useUser()
@@ -92,6 +79,10 @@ export default function Dashboard() {
     user ? query(collection(firestore, "users", user.uid, "categories")) : null, 
     [user, firestore]
   );
+  const accountsQuery = useMemoFirebase(() =>
+    user ? query(collection(firestore, "users", user.uid, "accounts")) : null,
+    [user, firestore]
+  );
   const budgetsQuery = useMemoFirebase(() => 
     user ? query(collection(firestore, "users", user.uid, "budgets")) : null, 
     [user, firestore]
@@ -103,10 +94,11 @@ export default function Dashboard() {
 
   const { data: transactions, isLoading: transactionsLoading } = useCollection<Transaction>(transactionsQuery);
   const { data: categories, isLoading: categoriesLoading } = useCollection<Category>(categoriesQuery);
+  const { data: accounts, isLoading: accountsLoading } = useCollection<Account>(accountsQuery);
   const { data: budgets, isLoading: budgetsLoading } = useCollection<Budget>(budgetsQuery);
   const { data: recurringExpenses, isLoading: recurringLoading } = useCollection<RecurringExpense>(recurringQuery);
 
-  const isLoading = isUserLoading || transactionsLoading || categoriesLoading || budgetsLoading || recurringLoading;
+  const isLoading = isUserLoading || transactionsLoading || categoriesLoading || budgetsLoading || recurringLoading || accountsLoading;
 
   if (isLoading || !user) {
     return <LoadingSkeleton />;
@@ -116,6 +108,7 @@ export default function Dashboard() {
   const safeCategories = categories || [];
   const safeBudgets = budgets || [];
   const safeRecurringExpenses = recurringExpenses || [];
+  const safeAccounts = accounts || [];
 
   const totalExpenses = safeTransactions
     .filter(t => t.transactionType === 'expense')
@@ -133,6 +126,7 @@ export default function Dashboard() {
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
+          <TabsTrigger value="accounts">Accounts</TabsTrigger>
           <TabsTrigger value="budgets">Budgets</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="recurring">Recurring</TabsTrigger>
@@ -210,6 +204,7 @@ export default function Dashboard() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Description</TableHead>
+                  <TableHead>Account</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
@@ -220,6 +215,11 @@ export default function Dashboard() {
                 {safeTransactions.map((transaction) => (
                   <TableRow key={transaction.id}>
                     <TableCell className="font-medium">{transaction.description}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {getAccountName(safeAccounts, transaction.accountId)}
+                      </Badge>
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline">
                         {getCategoryName(safeCategories, transaction.categoryId)}
@@ -234,6 +234,51 @@ export default function Dashboard() {
                     <TableCell className="text-right">{new Date(transaction.date.seconds * 1000).toLocaleDateString()}</TableCell>
                   </TableRow>
                 ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </TabsContent>
+      <TabsContent value="accounts">
+        <Card>
+          <CardHeader className="flex flex-row items-center">
+            <div className="grid gap-2">
+              <CardTitle>Accounts</CardTitle>
+              <CardDescription>
+                Manage your financial accounts.
+              </CardDescription>
+            </div>
+            <AddAccountDialog />
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Account</TableHead>
+                  <TableHead>Balance</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {safeAccounts.map((account) => {
+                   const IconComponent = (Icons as any)[account.icon] || Icons.MoreHorizontal;
+                  return (
+                    <TableRow key={account.id}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-3">
+                           <IconComponent className="h-5 w-5" style={{ color: account.color }} />
+                          {account.name}
+                        </div>
+                      </TableCell>
+                      <TableCell>${account.balance.toFixed(2)}</TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon">
+                          <Icons.MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </CardContent>

@@ -6,7 +6,7 @@ import { CalendarIcon, PlusCircle } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { format } from "date-fns"
-import { collection, doc, serverTimestamp, addDoc } from "firebase/firestore"
+import { collection, serverTimestamp } from "firebase/firestore"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -41,13 +41,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover"
 import { cn } from "@/lib/utils"
 import { Calendar } from "./ui/calendar"
 import { useToast } from "@/hooks/use-toast"
-import { useAuth, useFirestore, useUser, useMemoFirebase } from "@/firebase"
+import { useFirestore, useUser } from "@/firebase"
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import type { Category } from "@/lib/types"
+import type { Category, Account } from "@/lib/types"
 
 const expenseFormSchema = z.object({
   description: z.string().min(1, "Description is required."),
   amount: z.coerce.number().positive("Amount must be positive."),
+  accountId: z.string().min(1, "Account is required."),
   categoryId: z.string().min(1, "Category is required."),
   date: z.date(),
   isRecurring: z.boolean().default(false),
@@ -57,7 +58,12 @@ const expenseFormSchema = z.object({
 
 type ExpenseFormValues = z.infer<typeof expenseFormSchema>
 
-export function AddExpenseDialog({ categories }: { categories: Category[] }) {
+interface AddExpenseDialogProps {
+  categories: Category[];
+  accounts: Account[];
+}
+
+export function AddExpenseDialog({ categories, accounts }: AddExpenseDialogProps) {
   const [open, setOpen] = React.useState(false)
   const { toast } = useToast()
   const firestore = useFirestore()
@@ -68,6 +74,7 @@ export function AddExpenseDialog({ categories }: { categories: Category[] }) {
     defaultValues: {
       description: "",
       amount: 0,
+      accountId: "",
       categoryId: "",
       date: new Date(),
       isRecurring: false,
@@ -91,7 +98,7 @@ export function AddExpenseDialog({ categories }: { categories: Category[] }) {
 
     if (isRecurring) {
         const recurringRef = collection(firestore, `users/${user.uid}/recurringTransactions`);
-        await addDocumentNonBlocking(recurringRef, {
+        addDocumentNonBlocking(recurringRef, {
             ...transactionData,
             userId: user.uid,
             startDate: serverTimestamp(),
@@ -104,7 +111,7 @@ export function AddExpenseDialog({ categories }: { categories: Category[] }) {
 
     } else {
         const transactionRef = collection(firestore, `users/${user.uid}/transactions`);
-        await addDocumentNonBlocking(transactionRef, {
+        addDocumentNonBlocking(transactionRef, {
             ...transactionData,
             userId: user.uid,
             createdAt: serverTimestamp(),
@@ -152,6 +159,31 @@ export function AddExpenseDialog({ categories }: { categories: Category[] }) {
               />
               <FormField
                 control={form.control}
+                name="accountId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Account</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select an account" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {accounts.map((account) => (
+                          <SelectItem key={account.id} value={account.id}>
+                            {account.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+             <FormField
+                control={form.control}
                 name="categoryId"
                 render={({ field }) => (
                   <FormItem>
@@ -174,7 +206,6 @@ export function AddExpenseDialog({ categories }: { categories: Category[] }) {
                   </FormItem>
                 )}
               />
-            </div>
             <FormField
               control={form.control}
               name="description"

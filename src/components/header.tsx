@@ -36,8 +36,8 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { BudgetWiseLogo } from "./icons"
 import { AddExpenseDialog } from "./add-expense-dialog"
 import { useCollection, useFirestore, useUser, useMemoFirebase, useAuth } from "@/firebase"
-import type { Category } from "@/lib/types"
-import { collection } from "firebase/firestore"
+import type { Category, Account } from "@/lib/types"
+import { collection, query } from "firebase/firestore"
 import { signOut } from "firebase/auth";
 
 
@@ -47,10 +47,16 @@ export default function AppHeader() {
   const auth = useAuth()
 
   const categoriesQuery = useMemoFirebase(() => 
-    user ? collection(firestore, "users", user.uid, "categories") : null,
+    user ? query(collection(firestore, "users", user.uid, "categories")) : null,
     [user, firestore]
   )
   const { data: categories } = useCollection<Category>(categoriesQuery);
+
+  const accountsQuery = useMemoFirebase(() =>
+    user ? query(collection(firestore, "users", user.uid, "accounts")) : null,
+    [user, firestore]
+  );
+  const { data: accounts } = useCollection<Account>(accountsQuery);
 
   const handleLogout = () => {
     if (!auth) return;
@@ -145,7 +151,7 @@ export default function AppHeader() {
                 </div>
             </form>
         </div>
-        {user && categories && <AddExpenseDialog categories={categories} />}
+        {user && categories && accounts && <AddExpenseDialog categories={categories} accounts={accounts} />}
         {user && (
           <DropdownMenu>
               <DropdownMenuTrigger asChild>
