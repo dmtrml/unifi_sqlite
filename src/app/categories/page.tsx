@@ -102,7 +102,7 @@ function CategoriesPageContent() {
   );
   const { data: categories } = useCollection<Category>(categoriesQuery);
   
-  const expenseCategories = React.useMemo(() => (categories || []).filter(c => c.type === 'expense'), [categories]);
+  const expenseCategories = React.useMemo(() => (categories || []).filter(c => !c.type || c.type === 'expense'), [categories]);
   const incomeCategories = React.useMemo(() => (categories || []).filter(c => c.type === 'income'), [categories]);
 
   return (

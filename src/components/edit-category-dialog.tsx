@@ -71,7 +71,10 @@ export function EditCategoryDialog({ category }: EditCategoryDialogProps) {
 
   const form = useForm<EditCategoryFormValues>({
     resolver: zodResolver(editCategoryFormSchema),
-    defaultValues: category,
+    defaultValues: {
+      ...category,
+      type: category.type || 'expense'
+    },
   })
   
   const categoryType = form.watch("type");
