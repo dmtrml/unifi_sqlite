@@ -97,7 +97,7 @@ export default function AppHeader() {
                         Dashboard
                     </Link>
                     <Link
-                        href="#"
+                        href="/transactions"
                         className="mx-[-0.65rem] flex items-center gap-4 rounded-xl bg-muted px-3 py-2 text-foreground hover:text-foreground"
                     >
                         <Wallet className="h-5 w-5" />

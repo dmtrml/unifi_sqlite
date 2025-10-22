@@ -132,7 +132,6 @@ export default function Dashboard() {
       <div className="flex items-center">
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="transactions">Transactions</TabsTrigger>
           <TabsTrigger value="budgets">Budgets</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="recurring">Recurring</TabsTrigger>
@@ -196,72 +195,6 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
-      </TabsContent>
-      <TabsContent value="transactions">
-        <Card>
-          <CardHeader>
-            <CardTitle>Transactions</CardTitle>
-            <CardDescription>
-              A list of all your recorded expenses and income.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Account</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {safeTransactions.map((transaction) => (
-                  <TableRow key={transaction.id}>
-                    <TableCell className="font-medium">{transaction.description}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {getAccountName(safeAccounts, transaction.accountId)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {getCategoryName(safeCategories, transaction.categoryId)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={transaction.transactionType === 'expense' ? 'destructive' : 'default'}>
-                        {transaction.transactionType}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{new Date(transaction.date.seconds * 1000).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-right">${transaction.amount.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <EditTransactionDialog 
-                            transaction={transaction}
-                            categories={safeCategories}
-                            accounts={safeAccounts}
-                          />
-                          <DeleteTransactionDialog transactionId={transaction.id} />
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
       </TabsContent>
       <TabsContent value="budgets">
       <Card>

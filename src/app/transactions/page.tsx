@@ -13,6 +13,7 @@ import {
   Wallet
 } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -34,62 +35,93 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { AddAccountDialog } from "@/components/add-account-dialog"
-import { EditAccountDialog } from "@/components/edit-account-dialog"
-import { DeleteAccountDialog } from "@/components/delete-account-dialog"
 import AppHeader from "@/components/header"
 import { BudgetWiseLogo } from "@/components/icons"
-import type { Account } from "@/lib/types"
-import * as Icons from "lucide-react"
+import type { Account, Category, Transaction } from "@/lib/types"
 import { MoreHorizontal } from "lucide-react"
+import { EditTransactionDialog } from "@/components/edit-transaction-dialog"
+import { DeleteTransactionDialog } from "@/components/delete-transaction-dialog"
 
-function AccountsPageContent() {
+function getCategoryName(categories: Category[], categoryId: string) {
+  return categories.find(c => c.id === categoryId)?.name ?? "Uncategorized"
+}
+
+function getAccountName(accounts: Account[], accountId: string) {
+  return accounts.find(a => a.id === accountId)?.name ?? "No Account"
+}
+
+
+function TransactionsPageContent() {
   const { user } = useUser()
   const firestore = useFirestore()
 
+  const transactionsQuery = useMemoFirebase(() => 
+    user ? query(collection(firestore, "users", user.uid, "transactions")) : null, 
+    [user, firestore]
+  );
+  const categoriesQuery = useMemoFirebase(() => 
+    user ? query(collection(firestore, "users", user.uid, "categories")) : null, 
+    [user, firestore]
+  );
   const accountsQuery = useMemoFirebase(() =>
     user ? query(collection(firestore, "users", user.uid, "accounts")) : null,
     [user, firestore]
   );
+
+  const { data: transactions } = useCollection<Transaction>(transactionsQuery);
+  const { data: categories } = useCollection<Category>(categoriesQuery);
   const { data: accounts } = useCollection<Account>(accountsQuery);
+  
+  const safeTransactions = transactions || [];
+  const safeCategories = categories || [];
   const safeAccounts = accounts || [];
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
       <div className="flex items-center">
-        <h1 className="text-lg font-semibold md:text-2xl">Accounts</h1>
+        <h1 className="text-lg font-semibold md:text-2xl">Transactions</h1>
       </div>
-      <Card>
-        <CardHeader className="flex flex-row items-center">
-          <div className="grid gap-2">
-            <CardTitle>Accounts</CardTitle>
+       <Card>
+          <CardHeader>
+            <CardTitle>All Transactions</CardTitle>
             <CardDescription>
-              Manage your financial accounts.
+              A list of all your recorded expenses and income.
             </CardDescription>
-          </div>
-          <AddAccountDialog />
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Account</TableHead>
-                <TableHead>Balance</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {safeAccounts.map((account) => {
-                 const IconComponent = (Icons as any)[account.icon] || Icons.MoreHorizontal;
-                return (
-                  <TableRow key={account.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-3">
-                         <IconComponent className="h-5 w-5" style={{ color: account.color }} />
-                        {account.name}
-                      </div>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Account</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {safeTransactions.map((transaction) => (
+                  <TableRow key={transaction.id}>
+                    <TableCell className="font-medium">{transaction.description}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {getAccountName(safeAccounts, transaction.accountId)}
+                      </Badge>
                     </TableCell>
-                    <TableCell>${account.balance.toFixed(2)}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {getCategoryName(safeCategories, transaction.categoryId)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={transaction.transactionType === 'expense' ? 'destructive' : 'default'}>
+                        {transaction.transactionType}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{new Date(transaction.date.seconds * 1000).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-right">${transaction.amount.toFixed(2)}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -98,23 +130,26 @@ function AccountsPageContent() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                          <EditAccountDialog account={account} />
-                          <DeleteAccountDialog accountId={account.id} />
+                          <EditTransactionDialog 
+                            transaction={transaction}
+                            categories={safeCategories}
+                            accounts={safeAccounts}
+                          />
+                          <DeleteTransactionDialog transactionId={transaction.id} />
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
     </main>
   );
 }
 
-export default function AccountsPage() {
+export default function TransactionsPage() {
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
       <aside className="hidden border-r bg-muted/40 md:block">
@@ -136,14 +171,14 @@ export default function AccountsPage() {
               </Link>
               <Link
                 href="/transactions"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+                className="flex items-center gap-3 rounded-lg bg-muted px-3 py-2 text-primary transition-all hover:text-primary"
               >
                 <Wallet className="h-4 w-4" />
                 Transactions
               </Link>
               <Link
                 href="/accounts"
-                className="flex items-center gap-3 rounded-lg bg-muted px-3 py-2 text-primary transition-all hover:text-primary"
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
               >
                 <Landmark className="h-4 w-4" />
                 Accounts
@@ -187,7 +222,7 @@ export default function AccountsPage() {
       </aside>
       <div className="flex flex-col">
         <AppHeader />
-        <AccountsPageContent />
+        <TransactionsPageContent />
       </div>
     </div>
   )
