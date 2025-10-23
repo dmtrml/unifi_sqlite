@@ -44,6 +44,7 @@ import { MoreHorizontal } from "lucide-react"
 import { EditTransactionDialog } from "@/components/edit-transaction-dialog"
 import { DeleteTransactionDialog } from "@/components/delete-transaction-dialog"
 import * as Icons from "lucide-react"
+import { format, isToday, isYesterday, formatDistanceToNow } from "date-fns"
 
 function getCategory(categories: Category[], categoryId?: string): Category | undefined {
   if (!categoryId) return undefined;
@@ -80,6 +81,24 @@ function TransactionsPageContent() {
   const safeCategories = categories || [];
   const safeAccounts = accounts || [];
 
+  const groupedTransactions = React.useMemo(() => {
+    return safeTransactions.reduce((acc, transaction) => {
+      const dateStr = format(new Date(transaction.date.seconds * 1000), "yyyy-MM-dd");
+      if (!acc[dateStr]) {
+        acc[dateStr] = [];
+      }
+      acc[dateStr].push(transaction);
+      return acc;
+    }, {} as Record<string, Transaction[]>);
+  }, [safeTransactions]);
+
+  const formatDateHeader = (dateStr: string) => {
+    const date = new Date(dateStr);
+    if (isToday(date)) return "Today";
+    if (isYesterday(date)) return "Yesterday";
+    return format(date, "MMMM d, yyyy");
+  };
+
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
       <div className="flex items-center">
@@ -106,121 +125,133 @@ function TransactionsPageContent() {
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                {safeTransactions.map((transaction) => {
-                  const category = getCategory(safeCategories, transaction.categoryId);
-                  const account = getAccount(safeAccounts, transaction.accountId);
-                  const fromAccount = getAccount(safeAccounts, transaction.fromAccountId);
-                  const toAccount = getAccount(safeAccounts, transaction.toAccountId);
-
-                  return (
-                    <TableRow key={transaction.id}>
-                      <TableCell className="font-medium">{transaction.description}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {transaction.transactionType === 'transfer' 
-                            ? `${fromAccount?.name} -> ${toAccount?.name}` 
-                            : (account?.name ?? "No Account")}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {category?.name ?? "Uncategorized"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={transaction.transactionType === 'expense' ? 'destructive' : transaction.transactionType === 'income' ? 'default' : 'secondary'}>
-                          {transaction.transactionType}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{new Date(transaction.date.seconds * 1000).toLocaleDateString()}</TableCell>
-                      <TableCell className="text-right">${transaction.amount.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                            <EditTransactionDialog 
-                              transaction={transaction}
-                              categories={safeCategories}
-                              accounts={safeAccounts}
-                            />
-                            <DeleteTransactionDialog transactionId={transaction.id} />
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-            
-            {/* Mobile List */}
-            <div className="md:hidden">
-                <div className="space-y-4">
-                {safeTransactions.map((transaction) => {
+              {Object.entries(groupedTransactions).map(([date, transactions]) => (
+                <TableBody key={date}>
+                  <TableRow>
+                    <TableCell colSpan={7} className="font-semibold text-muted-foreground pt-6">
+                      {formatDateHeader(date)}
+                    </TableCell>
+                  </TableRow>
+                  {transactions.map((transaction) => {
                     const category = getCategory(safeCategories, transaction.categoryId);
                     const account = getAccount(safeAccounts, transaction.accountId);
                     const fromAccount = getAccount(safeAccounts, transaction.fromAccountId);
                     const toAccount = getAccount(safeAccounts, transaction.toAccountId);
-                    
-                    const isTransfer = transaction.transactionType === 'transfer';
-                    const MainIcon = isTransfer ? ArrowRightLeft : (category && (Icons as any)[category.icon]) || Icons.MoreHorizontal;
-                    const mainIconColor = isTransfer ? 'hsl(var(--foreground))' : category?.color;
 
                     return (
-                        <div key={transaction.id} className="flex items-center justify-between rounded-lg border p-3">
-                            <div className="flex items-center gap-3">
-                                <MainIcon className="h-6 w-6" style={{color: mainIconColor}}/>
-                                <div className="flex flex-col">
-                                    <span className="font-medium">{isTransfer ? "Transfer" : (category?.name ?? "Uncategorized")}</span>
-                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                       {isTransfer ? (
-                                         <>
-                                            <span className="truncate max-w-[100px]">{fromAccount?.name ?? ''}</span>
-                                            <ArrowRightLeft className="h-3 w-3 mx-1" />
-                                            <span className="truncate max-w-[100px]">{toAccount?.name ?? ''}</span>
-                                         </>
-                                       ) : (
-                                         <>
-                                           <Landmark className="h-3 w-3" />
-                                           <span>{account?.name ?? "No Account"}</span>
-                                         </>
-                                       )}
+                      <TableRow key={transaction.id}>
+                        <TableCell className="font-medium">{transaction.description}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {transaction.transactionType === 'transfer' 
+                              ? `${fromAccount?.name} -> ${toAccount?.name}` 
+                              : (account?.name ?? "No Account")}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {category?.name ?? "Uncategorized"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={transaction.transactionType === 'expense' ? 'destructive' : transaction.transactionType === 'income' ? 'default' : 'secondary'}>
+                            {transaction.transactionType}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{new Date(transaction.date.seconds * 1000).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-right">${transaction.amount.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                              <EditTransactionDialog 
+                                transaction={transaction}
+                                categories={safeCategories}
+                                accounts={safeAccounts}
+                              />
+                              <DeleteTransactionDialog transactionId={transaction.id} />
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              ))}
+            </Table>
+            
+            {/* Mobile List */}
+            <div className="md:hidden space-y-4">
+              {Object.entries(groupedTransactions).map(([date, transactions]) => (
+                <div key={date} className="space-y-2">
+                   <h3 className="font-semibold text-muted-foreground px-1 pt-4">{formatDateHeader(date)}</h3>
+                   <div className="space-y-4">
+                    {transactions.map((transaction) => {
+                        const category = getCategory(safeCategories, transaction.categoryId);
+                        const account = getAccount(safeAccounts, transaction.accountId);
+                        const fromAccount = getAccount(safeAccounts, transaction.fromAccountId);
+                        const toAccount = getAccount(safeAccounts, transaction.toAccountId);
+                        
+                        const isTransfer = transaction.transactionType === 'transfer';
+                        const MainIcon = isTransfer ? ArrowRightLeft : (category && (Icons as any)[category.icon]) || Icons.MoreHorizontal;
+                        const mainIconColor = isTransfer ? 'hsl(var(--foreground))' : category?.color;
+
+                        return (
+                            <div key={transaction.id} className="flex items-center justify-between rounded-lg border p-3">
+                                <div className="flex items-center gap-3">
+                                    <MainIcon className="h-6 w-6" style={{color: mainIconColor}}/>
+                                    <div className="flex flex-col">
+                                        <span className="font-medium">{isTransfer ? "Transfer" : (category?.name ?? "Uncategorized")}</span>
+                                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                          {isTransfer ? (
+                                            <>
+                                                <span className="truncate max-w-[100px]">{fromAccount?.name ?? ''}</span>
+                                                <ArrowRightLeft className="h-3 w-3 mx-1" />
+                                                <span className="truncate max-w-[100px]">{toAccount?.name ?? ''}</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Landmark className="h-3 w-3" />
+                                              <span>{account?.name ?? "No Account"}</span>
+                                            </>
+                                          )}
+                                        </div>
+                                        <span className="text-xs text-muted-foreground truncate max-w-[150px]">{transaction.description}</span>
                                     </div>
-                                    <span className="text-xs text-muted-foreground truncate max-w-[150px]">{transaction.description}</span>
+                                </div>
+                                <div className="flex flex-col items-end">
+                                    <span className={`font-bold ${transaction.transactionType === 'expense' ? 'text-destructive' : isTransfer ? '' : 'text-primary'}`}>
+                                        {transaction.transactionType === 'expense' ? '-' : transaction.transactionType === 'income' ? '+' : ''}${transaction.amount.toFixed(2)}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                        {new Date(transaction.date.seconds * 1000).toLocaleDateString()}
+                                    </span>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="-mr-2 h-8 w-8">
+                                                <MoreHorizontal className="h-4 w-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent>
+                                            <EditTransactionDialog 
+                                                transaction={transaction}
+                                                categories={safeCategories}
+                                                accounts={safeAccounts}
+                                            />
+                                            <DeleteTransactionDialog transactionId={transaction.id} />
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </div>
                             </div>
-                            <div className="flex flex-col items-end">
-                                <span className={`font-bold ${transaction.transactionType === 'expense' ? 'text-destructive' : isTransfer ? '' : 'text-primary'}`}>
-                                    {transaction.transactionType === 'expense' ? '-' : transaction.transactionType === 'income' ? '+' : ''}${transaction.amount.toFixed(2)}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                    {new Date(transaction.date.seconds * 1000).toLocaleDateString()}
-                                </span>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="-mr-2 h-8 w-8">
-                                            <MoreHorizontal className="h-4 w-4" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent>
-                                        <EditTransactionDialog 
-                                            transaction={transaction}
-                                            categories={safeCategories}
-                                            accounts={safeAccounts}
-                                        />
-                                        <DeleteTransactionDialog transactionId={transaction.id} />
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
-                        </div>
-                    )
-                })}
+                        )
+                    })}
+                   </div>
                 </div>
+              ))}
             </div>
           </CardContent>
         </Card>
