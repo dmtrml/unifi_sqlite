@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { format } from "date-fns"
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns"
 import { Calendar as CalendarIcon, FilterX } from "lucide-react"
 import { DateRange } from "react-day-picker"
 
@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { Account, Category } from "@/lib/types"
+import { Separator } from "./ui/separator"
 
 interface TransactionFiltersProps {
   dateRange: DateRange | undefined;
@@ -45,6 +46,50 @@ export function TransactionFilters({
   onCategoryChange,
   onReset,
 }: TransactionFiltersProps) {
+
+  const presets = [
+    {
+      name: "today",
+      label: "Today",
+      getDateRange: () => ({ from: new Date(), to: new Date() }),
+    },
+    {
+      name: "yesterday",
+      label: "Yesterday",
+      getDateRange: () => ({
+        from: subDays(new Date(), 1),
+        to: subDays(new Date(), 1),
+      }),
+    },
+    {
+      name: "last7",
+      label: "Last 7 days",
+      getDateRange: () => ({ from: subDays(new Date(), 6), to: new Date() }),
+    },
+    {
+      name: "thisMonth",
+      label: "This month",
+      getDateRange: () => ({
+        from: startOfMonth(new Date()),
+        to: endOfMonth(new Date()),
+      }),
+    },
+    {
+      name: "last30",
+      label: "Last 30 days",
+      getDateRange: () => ({ from: subDays(new Date(), 29), to: new Date() }),
+    },
+    {
+      name: "thisYear",
+      label: "This year",
+      getDateRange: () => ({
+        from: startOfYear(new Date()),
+        to: endOfYear(new Date()),
+      }),
+    },
+  ]
+
+
   return (
     <div className="flex flex-col md:flex-row gap-2 md:items-center mb-4">
       <Popover>
@@ -72,7 +117,19 @@ export function TransactionFilters({
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
+        <PopoverContent className="w-auto p-0 flex" align="start">
+          <div className="flex flex-col space-y-2 p-3 pr-2 border-r">
+             {presets.map(({ name, label, getDateRange }) => (
+              <Button
+                key={name}
+                variant="ghost"
+                className="justify-start"
+                onClick={() => onDateChange(getDateRange())}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
           <Calendar
             initialFocus
             mode="range"
