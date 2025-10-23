@@ -39,12 +39,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { BudgetWiseLogo } from "./icons"
-import { AddExpenseDialog } from "./add-expense-dialog"
+import { AddTransactionDialog } from "./add-transaction-dialog"
 import { useCollection, useFirestore, useUser, useMemoFirebase, useAuth } from "@/firebase"
 import type { Category, Account } from "@/lib/types"
 import { collection, query } from "firebase/firestore"
 import { signOut } from "firebase/auth";
-import { TransferDialog } from "./transfer-dialog"
 
 
 export default function AppHeader() {
@@ -176,8 +175,7 @@ export default function AppHeader() {
             </form>
         </div>
         <div className="flex items-center gap-2">
-            {user && accounts && <TransferDialog accounts={accounts} />}
-            {user && categories && accounts && <AddExpenseDialog categories={categories} accounts={accounts} />}
+            {user && categories && accounts && <AddTransactionDialog categories={categories} accounts={accounts} />}
         </div>
         {user && (
           <DropdownMenu>

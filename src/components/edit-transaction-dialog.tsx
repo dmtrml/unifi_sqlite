@@ -91,7 +91,10 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
     if (transactionType === 'expense') {
       return categories.filter(c => c.type === 'expense' || !c.type);
     }
-    return categories.filter(c => c.type === transactionType)
+     if (transactionType === 'income') {
+      return categories.filter(c => c.type === 'income');
+    }
+    return [];
   }, [categories, transactionType]);
 
 
