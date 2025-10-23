@@ -15,6 +15,7 @@ import {
   CircleHelp,
   CreditCard,
   PiggyBank,
+  Handshake,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
