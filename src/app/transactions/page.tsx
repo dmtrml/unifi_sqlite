@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { collection, query } from "firebase/firestore"
+import { collection, query, orderBy } from "firebase/firestore"
 import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase"
 import Link from "next/link"
 import {
@@ -60,7 +60,7 @@ function TransactionsPageContent() {
   const firestore = useFirestore()
 
   const transactionsQuery = useMemoFirebase(() => 
-    user ? query(collection(firestore, "users", user.uid, "transactions")) : null, 
+    user ? query(collection(firestore, "users", user.uid, "transactions"), orderBy("date", "desc")) : null, 
     [user, firestore]
   );
   const categoriesQuery = useMemoFirebase(() => 
