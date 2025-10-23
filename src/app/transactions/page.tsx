@@ -44,8 +44,7 @@ import { MoreHorizontal } from "lucide-react"
 import { EditTransactionDialog } from "@/components/edit-transaction-dialog"
 import { DeleteTransactionDialog } from "@/components/delete-transaction-dialog"
 import * as Icons from "lucide-react"
-import { format, parseISO } from "date-fns"
-import { formatInTimeZone, fromZonedTime } from "date-fns-tz"
+import { format, parseISO, startOfDay, isToday, isYesterday } from "date-fns"
 
 function getCategory(categories: Category[], categoryId?: string): Category | undefined {
   if (!categoryId) return undefined;
@@ -85,7 +84,7 @@ function TransactionsPageContent() {
   const groupedTransactions = React.useMemo(() => {
     return safeTransactions.reduce((acc, transaction) => {
       const jsDate = new Date(transaction.date.seconds * 1000);
-      const dateStr = formatInTimeZone(jsDate, 'UTC', 'yyyy-MM-dd');
+      const dateStr = format(jsDate, 'yyyy-MM-dd');
       
       if (!acc[dateStr]) {
         acc[dateStr] = [];
@@ -96,19 +95,13 @@ function TransactionsPageContent() {
   }, [safeTransactions]);
 
   const formatDateHeader = (dateStr: string) => {
-    const timeZone = 'UTC';
-    const now = new Date();
-    
-    // Get today's and yesterday's date strings in UTC
-    const todayStr = formatInTimeZone(now, timeZone, 'yyyy-MM-dd');
-    const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-    const yesterdayStr = formatInTimeZone(yesterday, timeZone, 'yyyy-MM-dd');
+    // The date string is in 'yyyy-MM-dd' format from the local timezone conversion.
+    // We need to parse it carefully to avoid timezone shifts.
+    const date = parseISO(dateStr);
 
-    if (dateStr === todayStr) return "Today";
-    if (dateStr === yesterdayStr) return "Yesterday";
+    if (isToday(date)) return "Today";
+    if (isYesterday(date)) return "Yesterday";
     
-    // Parse the UTC date string correctly by appending time to avoid timezone shifts
-    const date = parseISO(dateStr + 'T00:00:00Z');
     return format(date, "MMMM d, yyyy");
   };
 
