@@ -37,7 +37,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { BudgetWiseLogo } from "./icons"
 import { AddExpenseDialog } from "./add-expense-dialog"
 import { useCollection, useFirestore, useUser, useMemoFirebase, useAuth } from "@/firebase"
@@ -82,14 +82,18 @@ export default function AppHeader() {
                 </Button>
             </SheetTrigger>
             <SheetContent side="left" className="flex flex-col">
+                <SheetHeader>
+                    <SheetTitle>
+                        <Link
+                            href="#"
+                            className="flex items-center gap-2 text-lg font-semibold"
+                        >
+                            <BudgetWiseLogo className="h-6 w-6" />
+                            <span>BudgetWise</span>
+                        </Link>
+                    </SheetTitle>
+                </SheetHeader>
                 <nav className="grid gap-2 text-lg font-medium">
-                    <Link
-                        href="#"
-                        className="flex items-center gap-2 text-lg font-semibold"
-                    >
-                        <BudgetWiseLogo className="h-6 w-6" />
-                        <span className="sr-only">BudgetWise</span>
-                    </Link>
                     <Link
                         href="/"
                         className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
