@@ -70,6 +70,7 @@ export function TransferDialog({ accounts }: TransferDialogProps) {
     defaultValues: {
       amount: 0,
       date: new Date(),
+      description: "",
     },
   })
 
@@ -107,6 +108,7 @@ export function TransferDialog({ accounts }: TransferDialogProps) {
 
             transaction.set(doc(transactionRef), {
                 ...data,
+                description: data.description || "",
                 userId: user.uid,
                 transactionType: 'transfer',
                 createdAt: serverTimestamp(),
