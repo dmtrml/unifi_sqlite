@@ -47,7 +47,7 @@ const accountIconMap: Record<AccountType, string> = {
     "Card": "CreditCard",
     "Bank Account": "Landmark",
     "Deposit": "PiggyBank",
-    "Loan": "Handshake"
+    "Loan": "HandCoins"
 };
 
 const editAccountFormSchema = z.object({
