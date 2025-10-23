@@ -6,7 +6,6 @@ import { Edit } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { doc } from "firebase/firestore"
-import * as Icons from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -40,20 +39,22 @@ import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import type { Account, AccountType, Currency } from "@/lib/types"
 import { DropdownMenuItem } from "./ui/dropdown-menu"
 
-const iconNames = [
-  "Wallet", "Landmark", "CreditCard", "PiggyBank", "DollarSign"
-];
-
 const accountTypes: AccountType[] = ["Cash", "Card", "Bank Account", "Deposit", "Loan"];
 const currencies: Currency[] = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS"];
 
+const accountIconMap: Record<AccountType, string> = {
+    "Cash": "Wallet",
+    "Card": "CreditCard",
+    "Bank Account": "Landmark",
+    "Deposit": "PiggyBank",
+    "Loan": "CircleHelp"
+};
 
 const editAccountFormSchema = z.object({
   name: z.string().min(1, "Account name is required."),
   type: z.string().min(1, "Account type is required."),
   balance: z.coerce.number(),
   color: z.string().min(1, "Color is required."),
-  icon: z.string().min(1, "Icon is required."),
   currency: z.string().min(1, "Currency is required."),
 })
 
@@ -89,7 +90,12 @@ export function EditAccountDialog({ account }: EditAccountDialogProps) {
     }
 
     const accountRef = doc(firestore, `users/${user.uid}/accounts/${account.id}`);
-    updateDocumentNonBlocking(accountRef, data);
+    const icon = accountIconMap[data.type as AccountType] || "MoreHorizontal";
+    
+    updateDocumentNonBlocking(accountRef, {
+      ...data,
+      icon,
+    });
 
     toast({
       title: "Account Updated",
@@ -190,7 +196,7 @@ export function EditAccountDialog({ account }: EditAccountDialogProps) {
                 )}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <FormField
                 control={form.control}
                 name="color"
@@ -209,36 +215,6 @@ export function EditAccountDialog({ account }: EditAccountDialogProps) {
                         <SelectItem value="hsl(var(--chart-3))">Green</SelectItem>
                         <SelectItem value="hsl(var(--chart-4))">Purple</SelectItem>
                         <SelectItem value="hsl(var(--chart-5))">Indigo</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="icon"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Icon</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select an icon" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="max-h-60">
-                        {iconNames.map(iconName => {
-                          const IconComponent = (Icons as any)[iconName];
-                          return (
-                            <SelectItem key={iconName} value={iconName}>
-                               <div className="flex items-center gap-2">
-                                <IconComponent className="h-4 w-4" />
-                                <span>{iconName}</span>
-                               </div>
-                            </SelectItem>
-                          )
-                        })}
                       </SelectContent>
                     </Select>
                     <FormMessage />

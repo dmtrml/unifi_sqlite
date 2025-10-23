@@ -36,23 +36,24 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useUser } from "@/firebase"
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import * as Icons from "lucide-react"
 import type { AccountType, Currency } from "@/lib/types"
-
-const iconNames = [
-  "Wallet", "Landmark", "CreditCard", "PiggyBank", "DollarSign"
-];
 
 const accountTypes: AccountType[] = ["Cash", "Card", "Bank Account", "Deposit", "Loan"];
 const currencies: Currency[] = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS"];
 
+const accountIconMap: Record<AccountType, string> = {
+    "Cash": "Wallet",
+    "Card": "CreditCard",
+    "Bank Account": "Landmark",
+    "Deposit": "PiggyBank",
+    "Loan": "CircleHelp"
+};
 
 const accountFormSchema = z.object({
   name: z.string().min(1, "Account name is required."),
   type: z.string().min(1, "Account type is required."),
   balance: z.coerce.number(),
   color: z.string().min(1, "Color is required."),
-  icon: z.string().min(1, "Icon is required."),
   currency: z.string().min(1, "Currency is required."),
 })
 
@@ -71,7 +72,6 @@ export function AddAccountDialog() {
       type: "Card",
       balance: 0,
       color: "hsl(var(--chart-1))",
-      icon: "Wallet",
       currency: "USD",
     },
   })
@@ -87,8 +87,11 @@ export function AddAccountDialog() {
     }
 
     const accountRef = collection(firestore, `users/${user.uid}/accounts`);
+    const icon = accountIconMap[data.type as AccountType] || "MoreHorizontal";
+    
     addDocumentNonBlocking(accountRef, {
       ...data,
+      icon,
       userId: user.uid,
       createdAt: serverTimestamp(),
     });
@@ -193,7 +196,7 @@ export function AddAccountDialog() {
                 )}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <FormField
                 control={form.control}
                 name="color"
@@ -212,36 +215,6 @@ export function AddAccountDialog() {
                         <SelectItem value="hsl(var(--chart-3))">Green</SelectItem>
                         <SelectItem value="hsl(var(--chart-4))">Purple</SelectItem>
                         <SelectItem value="hsl(var(--chart-5))">Indigo</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="icon"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Icon</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select an icon" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="max-h-60">
-                        {iconNames.map(iconName => {
-                          const IconComponent = (Icons as any)[iconName];
-                          return (
-                            <SelectItem key={iconName} value={iconName}>
-                               <div className="flex items-center gap-2">
-                                <IconComponent className="h-4 w-4" />
-                                <span>{iconName}</span>
-                               </div>
-                            </SelectItem>
-                          )
-                        })}
                       </SelectContent>
                     </Select>
                     <FormMessage />
