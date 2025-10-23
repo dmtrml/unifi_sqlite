@@ -37,9 +37,9 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
-import { Calendar } from "./ui/calendar"
+import { Calendar } from "@/components/ui/calendar"
 import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useUser } from "@/firebase"
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
@@ -86,6 +86,9 @@ export function AddExpenseDialog({ categories, accounts }: AddExpenseDialogProps
   const transactionType = form.watch("transactionType")
 
   const filteredCategories = React.useMemo(() => {
+    if (transactionType === 'expense') {
+      return categories.filter(c => c.type === 'expense' || !c.type);
+    }
     return categories.filter(c => c.type === transactionType)
   }, [categories, transactionType]);
 
