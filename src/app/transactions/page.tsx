@@ -84,9 +84,7 @@ function TransactionsPageContent() {
 
   const groupedTransactions = React.useMemo(() => {
     return safeTransactions.reduce((acc, transaction) => {
-      // Convert Firestore timestamp to a JS Date object
       const jsDate = new Date(transaction.date.seconds * 1000);
-      // Format the date in the UTC timezone to get the correct date string
       const dateStr = formatInTimeZone(jsDate, 'UTC', 'yyyy-MM-dd');
       
       if (!acc[dateStr]) {
@@ -98,21 +96,19 @@ function TransactionsPageContent() {
   }, [safeTransactions]);
 
   const formatDateHeader = (dateStr: string) => {
-    // Parse the UTC date string. parseISO treats it as local if no Z is present.
-    // We add 'T00:00:00' to make it explicit we're at the start of that day in UTC.
-    const date = parseISO(dateStr + 'T00:00:00');
+    const timeZone = 'UTC';
+    const now = new Date();
     
-    // We get today's date in UTC to compare against
-    const todayInUTC = fromZonedTime(new Date(), 'UTC');
-    const todayStr = format(todayInUTC, 'yyyy-MM-dd');
-
-    const yesterdayInUTC = new Date(todayInUTC);
-    yesterdayInUTC.setDate(yesterdayInUTC.getDate() - 1);
-    const yesterdayStr = format(yesterdayInUTC, 'yyyy-MM-dd');
+    // Get today's and yesterday's date strings in UTC
+    const todayStr = formatInTimeZone(now, timeZone, 'yyyy-MM-dd');
+    const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    const yesterdayStr = formatInTimeZone(yesterday, timeZone, 'yyyy-MM-dd');
 
     if (dateStr === todayStr) return "Today";
     if (dateStr === yesterdayStr) return "Yesterday";
     
+    // Parse the UTC date string correctly by appending time to avoid timezone shifts
+    const date = parseISO(dateStr + 'T00:00:00Z');
     return format(date, "MMMM d, yyyy");
   };
 
