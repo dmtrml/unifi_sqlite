@@ -44,7 +44,7 @@ import { MoreHorizontal } from "lucide-react"
 import { EditTransactionDialog } from "@/components/edit-transaction-dialog"
 import { DeleteTransactionDialog } from "@/components/delete-transaction-dialog"
 import * as Icons from "lucide-react"
-import { format, isToday, isYesterday, formatDistanceToNow, parseISO } from "date-fns"
+import { format, parseISO } from "date-fns"
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz"
 
 function getCategory(categories: Category[], categoryId?: string): Category | undefined {
@@ -363,5 +363,3 @@ export default function TransactionsPage() {
     </div>
   )
 }
-
-    
