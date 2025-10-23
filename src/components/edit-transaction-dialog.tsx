@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { CalendarIcon, Edit } from "lucide-react"
+import { CalendarIcon, Edit, ArrowRightLeft } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { format } from "date-fns"
@@ -35,22 +35,33 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
-import { Calendar } from "./ui/calendar"
+import { Calendar } from "@/components/ui/calendar"
 import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useUser } from "@/firebase"
 import type { Category, Account, Transaction } from "@/lib/types"
-import { DropdownMenuItem } from "./ui/dropdown-menu"
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 
 const editTransactionFormSchema = z.object({
   description: z.string().min(1, "Description is required."),
   amount: z.coerce.number().positive("Amount must be positive."),
-  accountId: z.string().min(1, "Account is required."),
-  categoryId: z.string().min(1, "Category is required."),
+  accountId: z.string().optional(),
+  categoryId: z.string().optional(),
+  fromAccountId: z.string().optional(),
+  toAccountId: z.string().optional(),
   date: z.date(),
-  transactionType: z.enum(["expense", "income"]),
-})
+  transactionType: z.enum(["expense", "income", "transfer"]),
+}).refine(data => {
+    if (data.transactionType === 'transfer') {
+        return !!data.fromAccountId && !!data.toAccountId && data.fromAccountId !== data.toAccountId;
+    }
+    return !!data.accountId && !!data.categoryId;
+}, {
+    message: "Invalid account or category selection for transaction type.",
+    path: ["accountId"],
+});
+
 
 type EditTransactionFormValues = z.infer<typeof editTransactionFormSchema>
 
@@ -73,6 +84,16 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
       date: originalTransaction.date.toDate(),
     },
   })
+  
+  const transactionType = form.watch("transactionType");
+
+  const filteredCategories = React.useMemo(() => {
+    if (transactionType === 'expense') {
+      return categories.filter(c => c.type === 'expense' || !c.type);
+    }
+    return categories.filter(c => c.type === transactionType)
+  }, [categories, transactionType]);
+
 
   async function onSubmit(data: EditTransactionFormValues) {
     if (!user || !firestore) {
@@ -87,54 +108,63 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
     const transactionRef = doc(firestore, `users/${user.uid}/transactions/${originalTransaction.id}`);
     
     try {
-        await runTransaction(firestore, async (transaction) => {
-            // 1. Get original transaction data from the server for consistency
-            const originalDoc = await transaction.get(transactionRef);
+        await runTransaction(firestore, async (dbTransaction) => {
+            const originalDoc = await dbTransaction.get(transactionRef);
             if (!originalDoc.exists()) {
-                throw "Original transaction not found!";
+                throw new Error("Original transaction not found!");
             }
             const originalData = originalDoc.data() as Transaction;
-            
-            // 2. Revert old transaction from the original account
-            const originalAccountRef = doc(firestore, `users/${user.uid}/accounts/${originalData.accountId}`);
-            const originalAccountDoc = await transaction.get(originalAccountRef);
-            if (originalAccountDoc.exists()) {
-                const originalBalance = originalAccountDoc.data().balance;
-                const revertedBalance = originalData.transactionType === 'expense'
-                    ? originalBalance + originalData.amount
-                    : originalBalance - originalData.amount;
-                transaction.update(originalAccountRef, { balance: revertedBalance });
+
+            // Revert old transaction
+            if (originalData.transactionType === 'transfer') {
+                const fromAccRef = doc(firestore, `users/${user.uid}/accounts/${originalData.fromAccountId}`);
+                const toAccRef = doc(firestore, `users/${user.uid}/accounts/${originalData.toAccountId}`);
+                const fromAccDoc = await dbTransaction.get(fromAccRef);
+                const toAccDoc = await dbTransaction.get(toAccRef);
+                if (fromAccDoc.exists()) dbTransaction.update(fromAccRef, { balance: fromAccDoc.data().balance + originalData.amount });
+                if (toAccDoc.exists()) dbTransaction.update(toAccRef, { balance: toAccDoc.data().balance - originalData.amount });
+            } else {
+                 const accRef = doc(firestore, `users/${user.uid}/accounts/${originalData.accountId}`);
+                 const accDoc = await dbTransaction.get(accRef);
+                 if (accDoc.exists()) {
+                     const revertedBalance = originalData.transactionType === 'expense' ? accDoc.data().balance + originalData.amount : accDoc.data().balance - originalData.amount;
+                     dbTransaction.update(accRef, { balance: revertedBalance });
+                 }
             }
 
-            // 3. Apply new transaction to the new/updated account
-            const newAccountRef = doc(firestore, `users/${user.uid}/accounts/${data.accountId}`);
-            const newAccountDoc = await transaction.get(newAccountRef);
-            if (!newAccountDoc.exists()) {
-                throw "New account not found!";
-            }
-            const newBalance = newAccountDoc.data().balance;
-            const updatedBalance = data.transactionType === 'expense'
-                ? newBalance - data.amount
-                : newBalance + data.amount;
-            transaction.update(newAccountRef, { balance: updatedBalance });
+            // Apply new transaction
+            if (data.transactionType === 'transfer') {
+                 const fromAccRef = doc(firestore, `users/${user.uid}/accounts/${data.fromAccountId}`);
+                 const toAccRef = doc(firestore, `users/${user.uid}/accounts/${data.toAccountId}`);
+                 const fromAccDoc = await dbTransaction.get(fromAccRef);
+                 const toAccDoc = await dbTransaction.get(toAccRef);
+                 if (!fromAccDoc.exists() || !toAccDoc.exists()) throw new Error("Account not found for transfer.");
+                 
+                 dbTransaction.update(fromAccRef, { balance: fromAccDoc.data().balance - data.amount });
+                 dbTransaction.update(toAccRef, { balance: toAccDoc.data().balance + data.amount });
+                 dbTransaction.update(transactionRef, {...data, accountId: null, categoryId: null});
+            } else {
+                const accRef = doc(firestore, `users/${user.uid}/accounts/${data.accountId}`);
+                const accDoc = await dbTransaction.get(accRef);
+                if (!accDoc.exists()) throw new Error("Account not found.");
 
-            // 4. Update the transaction document itself
-            transaction.update(transactionRef, data);
+                const newBalance = data.transactionType === 'expense' ? accDoc.data().balance - data.amount : accDoc.data().balance + data.amount;
+                dbTransaction.update(accRef, { balance: newBalance });
+                dbTransaction.update(transactionRef, {...data, fromAccountId: null, toAccountId: null});
+            }
         });
 
         toast({
             title: "Transaction Updated",
-            description: "Your transaction and account balances have been successfully updated.",
+            description: "Your transaction has been successfully updated.",
         });
-
-        setOpen(false)
-
-    } catch (error) {
+        setOpen(false);
+    } catch (error: any) {
         console.error("Transaction update failed: ", error);
         toast({
             variant: "destructive",
             title: "Error",
-            description: "Failed to update transaction. Balances have been reverted.",
+            description: error.message || "Failed to update transaction. Balances have not been changed.",
         });
     }
   }
@@ -156,14 +186,19 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-               <FormField
+              <FormField
                 control={form.control}
                 name="transactionType"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Type</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={(value) => {
+                      field.onChange(value);
+                      form.setValue('categoryId', '');
+                      form.setValue('accountId', '');
+                      form.setValue('fromAccountId', '');
+                      form.setValue('toAccountId', '');
+                    }} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select transaction type" />
@@ -172,12 +207,14 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
                       <SelectContent>
                         <SelectItem value="expense">Expense</SelectItem>
                         <SelectItem value="income">Income</SelectItem>
+                        <SelectItem value="transfer">Transfer</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
               <FormField
                 control={form.control}
                 name="amount"
@@ -191,57 +228,87 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
                   </FormItem>
                 )}
               />
-            </div>
-             <div className="grid grid-cols-2 gap-4">
-                <FormField
-                    control={form.control}
-                    name="accountId"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Account</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                            <SelectTrigger>
-                            <SelectValue placeholder="Select an account" />
-                            </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                            {accounts.map((account) => (
-                            <SelectItem key={account.id} value={account.id}>
-                                {account.name}
-                            </SelectItem>
-                            ))}
-                        </SelectContent>
-                        </Select>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-                <FormField
-                    control={form.control}
-                    name="categoryId"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Category</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                            <SelectTrigger>
-                            <SelectValue placeholder="Select a category" />
-                            </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                            {categories.map((category) => (
-                            <SelectItem key={category.id} value={category.id}>
-                                {category.name}
-                            </SelectItem>
-                            ))}
-                        </SelectContent>
-                        </Select>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-             </div>
+
+            {transactionType === 'transfer' ? (
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="fromAccountId"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>From</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger><SelectValue placeholder="Select account" /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                            </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="toAccountId"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>To</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger><SelectValue placeholder="Select account" /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                            </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                </div>
+            ) : (
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="accountId"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Account</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger><SelectValue placeholder="Select account" /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                            </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="categoryId"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Category</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                            <FormControl>
+                                <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {filteredCategories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                            </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                </div>
+            )}
+            
             <FormField
               control={form.control}
               name="description"

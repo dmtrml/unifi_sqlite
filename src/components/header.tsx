@@ -44,6 +44,7 @@ import { useCollection, useFirestore, useUser, useMemoFirebase, useAuth } from "
 import type { Category, Account } from "@/lib/types"
 import { collection, query } from "firebase/firestore"
 import { signOut } from "firebase/auth";
+import { TransferDialog } from "./transfer-dialog"
 
 
 export default function AppHeader() {
@@ -174,7 +175,10 @@ export default function AppHeader() {
                 </div>
             </form>
         </div>
-        {user && categories && accounts && <AddExpenseDialog categories={categories} accounts={accounts} />}
+        <div className="flex items-center gap-2">
+            {user && accounts && <TransferDialog accounts={accounts} />}
+            {user && categories && accounts && <AddExpenseDialog categories={categories} accounts={accounts} />}
+        </div>
         {user && (
           <DropdownMenu>
               <DropdownMenuTrigger asChild>

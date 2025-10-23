@@ -12,6 +12,7 @@ import {
   Landmark,
   Wallet,
   Shapes,
+  ArrowRightLeft
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -44,12 +45,14 @@ import { EditTransactionDialog } from "@/components/edit-transaction-dialog"
 import { DeleteTransactionDialog } from "@/components/delete-transaction-dialog"
 import * as Icons from "lucide-react"
 
-function getCategory(categories: Category[], categoryId: string): Category | undefined {
+function getCategory(categories: Category[], categoryId?: string): Category | undefined {
+  if (!categoryId) return undefined;
   return categories.find(c => c.id === categoryId)
 }
 
-function getAccount(accounts: Account[], accountId: string): Account | undefined {
-    return accounts.find(a => a.id === accountId)
+function getAccount(accounts: Account[], accountId?: string): Account | undefined {
+  if (!accountId) return undefined;
+  return accounts.find(a => a.id === accountId)
 }
 
 function TransactionsPageContent() {
@@ -107,12 +110,17 @@ function TransactionsPageContent() {
                 {safeTransactions.map((transaction) => {
                   const category = getCategory(safeCategories, transaction.categoryId);
                   const account = getAccount(safeAccounts, transaction.accountId);
+                  const fromAccount = getAccount(safeAccounts, transaction.fromAccountId);
+                  const toAccount = getAccount(safeAccounts, transaction.toAccountId);
+
                   return (
                     <TableRow key={transaction.id}>
                       <TableCell className="font-medium">{transaction.description}</TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {account?.name ?? "No Account"}
+                          {transaction.transactionType === 'transfer' 
+                            ? `${fromAccount?.name} -> ${toAccount?.name}` 
+                            : (account?.name ?? "No Account")}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -121,7 +129,7 @@ function TransactionsPageContent() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={transaction.transactionType === 'expense' ? 'destructive' : 'default'}>
+                        <Badge variant={transaction.transactionType === 'expense' ? 'destructive' : transaction.transactionType === 'income' ? 'default' : 'secondary'}>
                           {transaction.transactionType}
                         </Badge>
                       </TableCell>
@@ -156,25 +164,39 @@ function TransactionsPageContent() {
                 {safeTransactions.map((transaction) => {
                     const category = getCategory(safeCategories, transaction.categoryId);
                     const account = getAccount(safeAccounts, transaction.accountId);
-                    const CategoryIcon = (category && (Icons as any)[category.icon]) || Icons.MoreHorizontal;
-                    const AccountIcon = (account && (Icons as any)[account.icon]) || Icons.Landmark;
+                    const fromAccount = getAccount(safeAccounts, transaction.fromAccountId);
+                    const toAccount = getAccount(safeAccounts, transaction.toAccountId);
                     
+                    const isTransfer = transaction.transactionType === 'transfer';
+                    const MainIcon = isTransfer ? ArrowRightLeft : (category && (Icons as any)[category.icon]) || Icons.MoreHorizontal;
+                    const mainIconColor = isTransfer ? 'hsl(var(--foreground))' : category?.color;
+
                     return (
                         <div key={transaction.id} className="flex items-center justify-between rounded-lg border p-3">
                             <div className="flex items-center gap-3">
-                                <CategoryIcon className="h-6 w-6" style={{color: category?.color}}/>
+                                <MainIcon className="h-6 w-6" style={{color: mainIconColor}}/>
                                 <div className="flex flex-col">
-                                    <span className="font-medium">{category?.name ?? "Uncategorized"}</span>
+                                    <span className="font-medium">{isTransfer ? "Transfer" : (category?.name ?? "Uncategorized")}</span>
                                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                        <AccountIcon className="h-3 w-3" />
-                                        <span>{account?.name ?? "No Account"}</span>
+                                       {isTransfer ? (
+                                         <>
+                                            <span className="truncate max-w-[100px]">{fromAccount?.name ?? ''}</span>
+                                            <ArrowRightLeft className="h-3 w-3 mx-1" />
+                                            <span className="truncate max-w-[100px]">{toAccount?.name ?? ''}</span>
+                                         </>
+                                       ) : (
+                                         <>
+                                           <Landmark className="h-3 w-3" />
+                                           <span>{account?.name ?? "No Account"}</span>
+                                         </>
+                                       )}
                                     </div>
                                     <span className="text-xs text-muted-foreground truncate max-w-[150px]">{transaction.description}</span>
                                 </div>
                             </div>
                             <div className="flex flex-col items-end">
-                                <span className={`font-bold ${transaction.transactionType === 'expense' ? 'text-destructive' : 'text-primary'}`}>
-                                    {transaction.transactionType === 'expense' ? '-' : '+'}${transaction.amount.toFixed(2)}
+                                <span className={`font-bold ${transaction.transactionType === 'expense' ? 'text-destructive' : isTransfer ? '' : 'text-primary'}`}>
+                                    {transaction.transactionType === 'expense' ? '-' : transaction.transactionType === 'income' ? '+' : ''}${transaction.amount.toFixed(2)}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
                                     {new Date(transaction.date.seconds * 1000).toLocaleDateString()}
@@ -291,5 +313,3 @@ export default function TransactionsPage() {
     </div>
   )
 }
-
-    

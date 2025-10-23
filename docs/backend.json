@@ -4,7 +4,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Transaction",
       "type": "object",
-      "description": "Represents a financial transaction, either an expense or income.",
+      "description": "Represents a financial transaction, either an expense, income or a transfer.",
       "properties": {
         "id": {
           "type": "string",
@@ -16,7 +16,15 @@
         },
         "accountId": {
             "type": "string",
-            "description": "Reference to the Account this transaction belongs to."
+            "description": "Reference to the Account this transaction belongs to (for expense/income)."
+        },
+        "fromAccountId": {
+            "type": "string",
+            "description": "Reference to the source Account for a transfer."
+        },
+        "toAccountId": {
+            "type": "string",
+            "description": "Reference to the destination Account for a transfer."
         },
         "categoryId": {
           "type": "string",
@@ -37,8 +45,8 @@
         },
         "transactionType": {
           "type": "string",
-          "description": "The type of transaction (e.g., 'expense', 'income').",
-          "enum": ["expense", "income"]
+          "description": "The type of transaction (e.g., 'expense', 'income', 'transfer').",
+          "enum": ["expense", "income", "transfer"]
         },
         "recurringTransactionId": {
           "type": "string",
@@ -48,8 +56,6 @@
       "required": [
         "id",
         "userId",
-        "accountId",
-        "categoryId",
         "date",
         "amount",
         "transactionType"

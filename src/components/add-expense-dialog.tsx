@@ -185,7 +185,10 @@ export function AddExpenseDialog({ categories, accounts }: AddExpenseDialogProps
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Transaction Type</FormLabel>
-                     <Select onValueChange={field.onChange} defaultValue={field.value}>
+                     <Select onValueChange={(value) => {
+                        field.onChange(value)
+                        form.setValue('categoryId', '')
+                     }} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select type" />
@@ -245,7 +248,7 @@ export function AddExpenseDialog({ categories, accounts }: AddExpenseDialogProps
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Category</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select a category" />

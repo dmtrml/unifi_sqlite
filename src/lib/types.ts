@@ -25,12 +25,14 @@ export type Account = {
 
 export type Transaction = {
   id: string;
-  accountId: string;
-  categoryId: string;
+  accountId?: string; // Optional for transfers
+  fromAccountId?: string; // For transfers
+  toAccountId?: string; // For transfers
+  categoryId?: string; // Optional for transfers
   amount: number;
   date: Timestamp;
   description: string;
-  transactionType: 'expense' | 'income';
+  transactionType: 'expense' | 'income' | 'transfer';
   userId: string;
 };
 
@@ -47,5 +49,3 @@ export type RecurringExpense = {
     description: string;
     frequency: 'weekly' | 'bi-weekly' | 'monthly';
 }
-
-    
