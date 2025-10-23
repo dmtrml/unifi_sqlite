@@ -42,15 +42,15 @@ import type { Account, Category, Transaction } from "@/lib/types"
 import { MoreHorizontal } from "lucide-react"
 import { EditTransactionDialog } from "@/components/edit-transaction-dialog"
 import { DeleteTransactionDialog } from "@/components/delete-transaction-dialog"
+import * as Icons from "lucide-react"
 
-function getCategoryName(categories: Category[], categoryId: string) {
-  return categories.find(c => c.id === categoryId)?.name ?? "Uncategorized"
+function getCategory(categories: Category[], categoryId: string): Category | undefined {
+  return categories.find(c => c.id === categoryId)
 }
 
-function getAccountName(accounts: Account[], accountId: string) {
-  return accounts.find(a => a.id === accountId)?.name ?? "No Account"
+function getAccount(accounts: Account[], accountId: string): Account | undefined {
+    return accounts.find(a => a.id === accountId)
 }
-
 
 function TransactionsPageContent() {
   const { user } = useUser()
@@ -90,7 +90,8 @@ function TransactionsPageContent() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
+            {/* Desktop Table */}
+            <Table className="hidden md:table">
               <TableHeader>
                 <TableRow>
                   <TableHead>Description</TableHead>
@@ -103,47 +104,102 @@ function TransactionsPageContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {safeTransactions.map((transaction) => (
-                  <TableRow key={transaction.id}>
-                    <TableCell className="font-medium">{transaction.description}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {getAccountName(safeAccounts, transaction.accountId)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {getCategoryName(safeCategories, transaction.categoryId)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={transaction.transactionType === 'expense' ? 'destructive' : 'default'}>
-                        {transaction.transactionType}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{new Date(transaction.date.seconds * 1000).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-right">${transaction.amount.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <EditTransactionDialog 
-                            transaction={transaction}
-                            categories={safeCategories}
-                            accounts={safeAccounts}
-                          />
-                          <DeleteTransactionDialog transactionId={transaction.id} />
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {safeTransactions.map((transaction) => {
+                  const category = getCategory(safeCategories, transaction.categoryId);
+                  const account = getAccount(safeAccounts, transaction.accountId);
+                  return (
+                    <TableRow key={transaction.id}>
+                      <TableCell className="font-medium">{transaction.description}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {account?.name ?? "No Account"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {category?.name ?? "Uncategorized"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={transaction.transactionType === 'expense' ? 'destructive' : 'default'}>
+                          {transaction.transactionType}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{new Date(transaction.date.seconds * 1000).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-right">${transaction.amount.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <EditTransactionDialog 
+                              transaction={transaction}
+                              categories={safeCategories}
+                              accounts={safeAccounts}
+                            />
+                            <DeleteTransactionDialog transactionId={transaction.id} />
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
+            
+            {/* Mobile List */}
+            <div className="md:hidden">
+                <div className="space-y-4">
+                {safeTransactions.map((transaction) => {
+                    const category = getCategory(safeCategories, transaction.categoryId);
+                    const account = getAccount(safeAccounts, transaction.accountId);
+                    const CategoryIcon = (category && (Icons as any)[category.icon]) || Icons.MoreHorizontal;
+                    const AccountIcon = (account && (Icons as any)[account.icon]) || Icons.Landmark;
+                    
+                    return (
+                        <div key={transaction.id} className="flex items-center justify-between rounded-lg border p-3">
+                            <div className="flex items-center gap-3">
+                                <CategoryIcon className="h-6 w-6" style={{color: category?.color}}/>
+                                <div className="flex flex-col">
+                                    <span className="font-medium">{category?.name ?? "Uncategorized"}</span>
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                        <AccountIcon className="h-3 w-3" />
+                                        <span>{account?.name ?? "No Account"}</span>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground truncate max-w-[150px]">{transaction.description}</span>
+                                </div>
+                            </div>
+                            <div className="flex flex-col items-end">
+                                <span className={`font-bold ${transaction.transactionType === 'expense' ? 'text-destructive' : 'text-primary'}`}>
+                                    {transaction.transactionType === 'expense' ? '-' : '+'}${transaction.amount.toFixed(2)}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                    {new Date(transaction.date.seconds * 1000).toLocaleDateString()}
+                                </span>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="-mr-2 h-8 w-8">
+                                            <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent>
+                                        <EditTransactionDialog 
+                                            transaction={transaction}
+                                            categories={safeCategories}
+                                            accounts={safeAccounts}
+                                        />
+                                        <DeleteTransactionDialog transactionId={transaction.id} />
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
+                        </div>
+                    )
+                })}
+                </div>
+            </div>
           </CardContent>
         </Card>
     </main>
@@ -235,3 +291,5 @@ export default function TransactionsPage() {
     </div>
   )
 }
+
+    

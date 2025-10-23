@@ -47,3 +47,5 @@ export type RecurringExpense = {
     description: string;
     frequency: 'weekly' | 'bi-weekly' | 'monthly';
 }
+
+    
