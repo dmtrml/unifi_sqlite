@@ -44,7 +44,7 @@ import type { Category, Account, Transaction } from "@/lib/types"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 
 const editTransactionFormSchema = z.object({
-  description: z.string().min(1, "Description is required."),
+  description: z.string().optional(),
   amount: z.coerce.number().positive("Amount must be positive."),
   accountId: z.string().optional(),
   categoryId: z.string().optional(),
@@ -82,6 +82,7 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
     defaultValues: {
       ...originalTransaction,
       date: originalTransaction.date.toDate(),
+      description: originalTransaction.description || "",
     },
   })
   
@@ -117,6 +118,11 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
                 throw new Error("Original transaction not found!");
             }
             const originalData = originalDoc.data() as Transaction;
+            
+            const newData = {
+              ...data,
+              description: data.description || ""
+            }
 
             // Revert old transaction
             if (originalData.transactionType === 'transfer') {
@@ -136,24 +142,24 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
             }
 
             // Apply new transaction
-            if (data.transactionType === 'transfer') {
-                 const fromAccRef = doc(firestore, `users/${user.uid}/accounts/${data.fromAccountId}`);
-                 const toAccRef = doc(firestore, `users/${user.uid}/accounts/${data.toAccountId}`);
+            if (newData.transactionType === 'transfer') {
+                 const fromAccRef = doc(firestore, `users/${user.uid}/accounts/${newData.fromAccountId}`);
+                 const toAccRef = doc(firestore, `users/${user.uid}/accounts/${newData.toAccountId}`);
                  const fromAccDoc = await dbTransaction.get(fromAccRef);
                  const toAccDoc = await dbTransaction.get(toAccRef);
                  if (!fromAccDoc.exists() || !toAccDoc.exists()) throw new Error("Account not found for transfer.");
                  
-                 dbTransaction.update(fromAccRef, { balance: fromAccDoc.data().balance - data.amount });
-                 dbTransaction.update(toAccRef, { balance: toAccDoc.data().balance + data.amount });
-                 dbTransaction.update(transactionRef, {...data, accountId: null, categoryId: null});
+                 dbTransaction.update(fromAccRef, { balance: fromAccDoc.data().balance - newData.amount });
+                 dbTransaction.update(toAccRef, { balance: toAccDoc.data().balance + newData.amount });
+                 dbTransaction.update(transactionRef, {...newData, accountId: null, categoryId: null});
             } else {
-                const accRef = doc(firestore, `users/${user.uid}/accounts/${data.accountId}`);
+                const accRef = doc(firestore, `users/${user.uid}/accounts/${newData.accountId}`);
                 const accDoc = await dbTransaction.get(accRef);
                 if (!accDoc.exists()) throw new Error("Account not found.");
 
-                const newBalance = data.transactionType === 'expense' ? accDoc.data().balance - data.amount : accDoc.data().balance + data.amount;
+                const newBalance = newData.transactionType === 'expense' ? accDoc.data().balance - newData.amount : accDoc.data().balance + newData.amount;
                 dbTransaction.update(accRef, { balance: newBalance });
-                dbTransaction.update(transactionRef, {...data, fromAccountId: null, toAccountId: null});
+                dbTransaction.update(transactionRef, {...newData, fromAccountId: null, toAccountId: null});
             }
         });
 

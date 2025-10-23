@@ -46,7 +46,7 @@ import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import type { Category, Account } from "@/lib/types"
 
 const transactionFormSchema = z.object({
-  description: z.string().min(1, "Description is required."),
+  description: z.string().optional(),
   amount: z.coerce.number().positive("Amount must be positive."),
   accountId: z.string().optional(),
   categoryId: z.string().optional(),
@@ -134,19 +134,23 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
     try {
         await runTransaction(firestore, async (transaction) => {
              const { isRecurring, frequency, ...transactionData } = data;
+             const finalTransactionData = {
+                ...transactionData,
+                description: transactionData.description || ""
+             }
 
-            if (transactionData.transactionType === 'transfer') {
-                 const fromAccountRef = doc(firestore, `users/${user.uid}/accounts`, transactionData.fromAccountId!);
-                 const toAccountRef = doc(firestore, `users/${user.uid}/accounts`, transactionData.toAccountId!);
+            if (finalTransactionData.transactionType === 'transfer') {
+                 const fromAccountRef = doc(firestore, `users/${user.uid}/accounts`, finalTransactionData.fromAccountId!);
+                 const toAccountRef = doc(firestore, `users/${user.uid}/accounts`, finalTransactionData.toAccountId!);
                  const fromAccountDoc = await transaction.get(fromAccountRef);
                  const toAccountDoc = await transaction.get(toAccountRef);
                  if (!fromAccountDoc.exists() || !toAccountDoc.exists()) throw new Error("Account not found for transfer.");
                  
-                 transaction.update(fromAccountRef, { balance: fromAccountDoc.data().balance - transactionData.amount });
-                 transaction.update(toAccountRef, { balance: toAccountDoc.data().balance + transactionData.amount });
+                 transaction.update(fromAccountRef, { balance: fromAccountDoc.data().balance - finalTransactionData.amount });
+                 transaction.update(toAccountRef, { balance: toAccountDoc.data().balance + finalTransactionData.amount });
 
                  transaction.set(doc(transactionsRef), {
-                    ...transactionData,
+                    ...finalTransactionData,
                     userId: user.uid,
                     createdAt: serverTimestamp(),
                     categoryId: null,
@@ -154,20 +158,20 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
                 });
 
             } else {
-                const accountRef = doc(firestore, `users/${user.uid}/accounts`, transactionData.accountId!);
+                const accountRef = doc(firestore, `users/${user.uid}/accounts`, finalTransactionData.accountId!);
                 const accountDoc = await transaction.get(accountRef);
                 if (!accountDoc.exists()) {
                     throw "Account not found!";
                 }
 
                 const currentBalance = accountDoc.data().balance;
-                const newBalance = transactionData.transactionType === 'expense'
-                    ? currentBalance - transactionData.amount
-                    : currentBalance + transactionData.amount;
+                const newBalance = finalTransactionData.transactionType === 'expense'
+                    ? currentBalance - finalTransactionData.amount
+                    : currentBalance + finalTransactionData.amount;
 
                 transaction.update(accountRef, { balance: newBalance });
                 transaction.set(doc(transactionsRef), {
-                    ...transactionData,
+                    ...finalTransactionData,
                     userId: user.uid,
                     createdAt: serverTimestamp(),
                     fromAccountId: null,
