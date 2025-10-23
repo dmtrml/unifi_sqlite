@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/chart"
 import type { Transaction } from "@/lib/types"
 import React from "react"
+import { fromZonedTime } from "date-fns-tz"
 
 type MonthlySpendingChartProps = {
   transactions: Transaction[];
@@ -35,8 +36,11 @@ export function MonthlySpendingChart({ transactions }: MonthlySpendingChartProps
     }
 
     transactions.forEach(transaction => {
-      // Ensure transaction.date is a valid Date object
-      const transactionDate = new Date(transaction.date);
+      // Convert Firestore timestamp to a JS Date object
+      const jsDate = new Date(transaction.date.seconds * 1000);
+      // Treat the date as if it's in UTC to avoid timezone shifts
+      const transactionDate = fromZonedTime(jsDate, 'UTC');
+
       if (getYear(transactionDate) === currentYear && transaction.transactionType === 'expense') {
         const monthName = format(transactionDate, 'MMMM');
         monthlySpending[monthName] += transaction.amount;
@@ -84,3 +88,5 @@ export function MonthlySpendingChart({ transactions }: MonthlySpendingChartProps
     </ChartContainer>
   )
 }
+
+    

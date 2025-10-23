@@ -44,7 +44,8 @@ import { MoreHorizontal } from "lucide-react"
 import { EditTransactionDialog } from "@/components/edit-transaction-dialog"
 import { DeleteTransactionDialog } from "@/components/delete-transaction-dialog"
 import * as Icons from "lucide-react"
-import { format, isToday, isYesterday, formatDistanceToNow } from "date-fns"
+import { format, isToday, isYesterday, formatDistanceToNow, parseISO } from "date-fns"
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz"
 
 function getCategory(categories: Category[], categoryId?: string): Category | undefined {
   if (!categoryId) return undefined;
@@ -83,7 +84,11 @@ function TransactionsPageContent() {
 
   const groupedTransactions = React.useMemo(() => {
     return safeTransactions.reduce((acc, transaction) => {
-      const dateStr = format(new Date(transaction.date.seconds * 1000), "yyyy-MM-dd");
+      // Convert Firestore timestamp to a JS Date object
+      const jsDate = new Date(transaction.date.seconds * 1000);
+      // Format the date in the UTC timezone to get the correct date string
+      const dateStr = formatInTimeZone(jsDate, 'UTC', 'yyyy-MM-dd');
+      
       if (!acc[dateStr]) {
         acc[dateStr] = [];
       }
@@ -93,9 +98,21 @@ function TransactionsPageContent() {
   }, [safeTransactions]);
 
   const formatDateHeader = (dateStr: string) => {
-    const date = new Date(dateStr);
-    if (isToday(date)) return "Today";
-    if (isYesterday(date)) return "Yesterday";
+    // Parse the UTC date string. parseISO treats it as local if no Z is present.
+    // We add 'T00:00:00' to make it explicit we're at the start of that day in UTC.
+    const date = parseISO(dateStr + 'T00:00:00');
+    
+    // We get today's date in UTC to compare against
+    const todayInUTC = fromZonedTime(new Date(), 'UTC');
+    const todayStr = format(todayInUTC, 'yyyy-MM-dd');
+
+    const yesterdayInUTC = new Date(todayInUTC);
+    yesterdayInUTC.setDate(yesterdayInUTC.getDate() - 1);
+    const yesterdayStr = format(yesterdayInUTC, 'yyyy-MM-dd');
+
+    if (dateStr === todayStr) return "Today";
+    if (dateStr === yesterdayStr) return "Yesterday";
+    
     return format(date, "MMMM d, yyyy");
   };
 
@@ -113,84 +130,86 @@ function TransactionsPageContent() {
           </CardHeader>
           <CardContent>
             {/* Desktop Table */}
-            <Table className="hidden md:table">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Account</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              {Object.entries(groupedTransactions).map(([date, transactions]) => (
-                <TableBody key={date}>
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="font-semibold text-muted-foreground pt-6">
-                      {formatDateHeader(date)}
-                    </TableCell>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Account</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                  {transactions.map((transaction) => {
-                    const category = getCategory(safeCategories, transaction.categoryId);
-                    const account = getAccount(safeAccounts, transaction.accountId);
-                    const fromAccount = getAccount(safeAccounts, transaction.fromAccountId);
-                    const toAccount = getAccount(safeAccounts, transaction.toAccountId);
+                </TableHeader>
+                {Object.entries(groupedTransactions).map(([date, transactionsInGroup]) => (
+                  <TableBody key={date}>
+                    <TableRow>
+                      <TableCell colSpan={7} className="font-semibold text-muted-foreground pt-6">
+                        {formatDateHeader(date)}
+                      </TableCell>
+                    </TableRow>
+                    {transactionsInGroup.map((transaction) => {
+                      const category = getCategory(safeCategories, transaction.categoryId);
+                      const account = getAccount(safeAccounts, transaction.accountId);
+                      const fromAccount = getAccount(safeAccounts, transaction.fromAccountId);
+                      const toAccount = getAccount(safeAccounts, transaction.toAccountId);
 
-                    return (
-                      <TableRow key={transaction.id}>
-                        <TableCell className="font-medium">{transaction.description}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {transaction.transactionType === 'transfer' 
-                              ? `${fromAccount?.name} -> ${toAccount?.name}` 
-                              : (account?.name ?? "No Account")}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {category?.name ?? "Uncategorized"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={transaction.transactionType === 'expense' ? 'destructive' : transaction.transactionType === 'income' ? 'default' : 'secondary'}>
-                            {transaction.transactionType}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{new Date(transaction.date.seconds * 1000).toLocaleDateString()}</TableCell>
-                        <TableCell className="text-right">${transaction.amount.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                              <EditTransactionDialog 
-                                transaction={transaction}
-                                categories={safeCategories}
-                                accounts={safeAccounts}
-                              />
-                              <DeleteTransactionDialog transactionId={transaction.id} />
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              ))}
-            </Table>
+                      return (
+                        <TableRow key={transaction.id}>
+                          <TableCell className="font-medium">{transaction.description}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {transaction.transactionType === 'transfer' 
+                                ? `${fromAccount?.name} -> ${toAccount?.name}` 
+                                : (account?.name ?? "No Account")}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {category?.name ?? "Uncategorized"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={transaction.transactionType === 'expense' ? 'destructive' : transaction.transactionType === 'income' ? 'default' : 'secondary'}>
+                              {transaction.transactionType}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{new Date(transaction.date.seconds * 1000).toLocaleDateString()}</TableCell>
+                          <TableCell className="text-right">${transaction.amount.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent>
+                                <EditTransactionDialog 
+                                  transaction={transaction}
+                                  categories={safeCategories}
+                                  accounts={safeAccounts}
+                                />
+                                <DeleteTransactionDialog transactionId={transaction.id} />
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                ))}
+              </Table>
+            </div>
             
             {/* Mobile List */}
             <div className="md:hidden space-y-4">
-              {Object.entries(groupedTransactions).map(([date, transactions]) => (
+              {Object.entries(groupedTransactions).map(([date, transactionsInGroup]) => (
                 <div key={date} className="space-y-2">
                    <h3 className="font-semibold text-muted-foreground px-1 pt-4">{formatDateHeader(date)}</h3>
                    <div className="space-y-4">
-                    {transactions.map((transaction) => {
+                    {transactionsInGroup.map((transaction) => {
                         const category = getCategory(safeCategories, transaction.categoryId);
                         const account = getAccount(safeAccounts, transaction.accountId);
                         const fromAccount = getAccount(safeAccounts, transaction.fromAccountId);
@@ -344,3 +363,5 @@ export default function TransactionsPage() {
     </div>
   )
 }
+
+    
