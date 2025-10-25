@@ -52,15 +52,21 @@ const editTransactionFormSchema = z.object({
   toAccountId: z.string().optional(),
   date: z.date(),
   transactionType: z.enum(["expense", "income", "transfer"]),
-  expenseType: z.enum(["mandatory", "optional"]).optional(),
-  incomeType: z.enum(["active", "passive"]).optional(),
 }).refine(data => {
     if (data.transactionType === 'transfer') {
         return !!data.fromAccountId && !!data.toAccountId && data.fromAccountId !== data.toAccountId;
     }
-    return !!data.accountId && !!data.categoryId;
+    return true; // For expense/income, main fields are validated by the form itself
 }, {
-    message: "Invalid account or category selection for transaction type.",
+    message: "For transfers, 'From' and 'To' accounts must be selected and different.",
+    path: ["fromAccountId"],
+}).refine(data => {
+    if (data.transactionType === 'expense' || data.transactionType === 'income') {
+        return !!data.accountId && !!data.categoryId;
+    }
+    return true;
+}, {
+    message: "Account and Category are required for expenses and incomes.",
     path: ["accountId"],
 });
 
@@ -85,8 +91,6 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
       ...originalTransaction,
       date: originalTransaction.date.toDate(),
       description: originalTransaction.description || "",
-      expenseType: originalTransaction.expenseType || "optional",
-      incomeType: originalTransaction.incomeType || "active",
     },
   })
   
@@ -130,23 +134,30 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
 
             // Revert old transaction
             if (originalData.transactionType === 'transfer') {
-                const fromAccRef = doc(firestore, `users/${user.uid}/accounts/${originalData.fromAccountId}`);
-                const toAccRef = doc(firestore, `users/${user.uid}/accounts/${originalData.toAccountId}`);
-                const fromAccDoc = await dbTransaction.get(fromAccRef);
-                const toAccDoc = await dbTransaction.get(toAccRef);
-                if (fromAccDoc.exists()) dbTransaction.update(fromAccRef, { balance: fromAccDoc.data().balance + originalData.amount });
-                if (toAccDoc.exists()) dbTransaction.update(toAccRef, { balance: toAccDoc.data().balance - originalData.amount });
+                if(originalData.fromAccountId) {
+                    const fromAccRef = doc(firestore, `users/${user.uid}/accounts/${originalData.fromAccountId}`);
+                    const fromAccDoc = await dbTransaction.get(fromAccRef);
+                    if (fromAccDoc.exists()) dbTransaction.update(fromAccRef, { balance: fromAccDoc.data().balance + originalData.amount });
+                }
+                if(originalData.toAccountId) {
+                    const toAccRef = doc(firestore, `users/${user.uid}/accounts/${originalData.toAccountId}`);
+                    const toAccDoc = await dbTransaction.get(toAccRef);
+                    if (toAccDoc.exists()) dbTransaction.update(toAccRef, { balance: toAccDoc.data().balance - originalData.amount });
+                }
             } else {
-                 const accRef = doc(firestore, `users/${user.uid}/accounts/${originalData.accountId}`);
-                 const accDoc = await dbTransaction.get(accRef);
-                 if (accDoc.exists()) {
-                     const revertedBalance = originalData.transactionType === 'expense' ? accDoc.data().balance + originalData.amount : accDoc.data().balance - originalData.amount;
-                     dbTransaction.update(accRef, { balance: revertedBalance });
+                 if(originalData.accountId) {
+                    const accRef = doc(firestore, `users/${user.uid}/accounts/${originalData.accountId}`);
+                    const accDoc = await dbTransaction.get(accRef);
+                    if (accDoc.exists()) {
+                        const revertedBalance = originalData.transactionType === 'expense' ? accDoc.data().balance + originalData.amount : accDoc.data().balance - originalData.amount;
+                        dbTransaction.update(accRef, { balance: revertedBalance });
+                    }
                  }
             }
 
             // Apply new transaction
             if (newData.transactionType === 'transfer') {
+                 if(!newData.fromAccountId || !newData.toAccountId) throw new Error("Source and destination accounts are required for transfer.");
                  const fromAccRef = doc(firestore, `users/${user.uid}/accounts/${newData.fromAccountId}`);
                  const toAccRef = doc(firestore, `users/${user.uid}/accounts/${newData.toAccountId}`);
                  const fromAccDoc = await dbTransaction.get(fromAccRef);
@@ -155,20 +166,16 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
                  
                  dbTransaction.update(fromAccRef, { balance: fromAccDoc.data().balance - newData.amount });
                  dbTransaction.update(toAccRef, { balance: toAccDoc.data().balance + newData.amount });
-                 dbTransaction.update(transactionRef, {...newData, accountId: null, categoryId: null, incomeType: null, expenseType: null});
+                 dbTransaction.update(transactionRef, {...newData, accountId: null, categoryId: null});
             } else {
+                if(!newData.accountId) throw new Error("Account is required.");
                 const accRef = doc(firestore, `users/${user.uid}/accounts/${newData.accountId}`);
                 const accDoc = await dbTransaction.get(accRef);
                 if (!accDoc.exists()) throw new Error("Account not found.");
 
                 const newBalance = newData.transactionType === 'expense' ? accDoc.data().balance - newData.amount : accDoc.data().balance + newData.amount;
                 dbTransaction.update(accRef, { balance: newBalance });
-                dbTransaction.update(transactionRef, {
-                    ...newData,
-                    fromAccountId: null,
-                    toAccountId: null,
-                    ...(newData.transactionType === 'expense' ? { incomeType: null } : { expenseType: null })
-                });
+                dbTransaction.update(transactionRef, {...newData, fromAccountId: null, toAccountId: null});
             }
         });
 
@@ -247,54 +254,6 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
                 )}
               />
               
-              {transactionType === 'expense' && (
-                <FormField
-                  control={form.control}
-                  name="expenseType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Expense Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select expense type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="optional">Optional</SelectItem>
-                          <SelectItem value="mandatory">Mandatory</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-
-              {transactionType === 'income' && (
-                <FormField
-                  control={form.control}
-                  name="incomeType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Income Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select income type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="passive">Passive</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-
             {transactionType === 'transfer' ? (
                 <div className="grid grid-cols-2 gap-4">
                     <FormField
