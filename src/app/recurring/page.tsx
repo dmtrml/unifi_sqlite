@@ -1,24 +1,82 @@
+
+"use client"
+
+import * as React from "react"
 import Link from "next/link"
 import {
   Home,
   LineChart,
-  Package2,
-  Settings,
-  Users,
-  Wallet,
   Repeat,
   DollarSign,
   Landmark,
+  Wallet,
   Shapes,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import Dashboard from "@/components/dashboard"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import AppHeader from "@/components/header"
 import { BudgetWiseLogo } from "@/components/icons"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { AddRecurringTransactionDialog } from "@/components/add-recurring-transaction-dialog"
 
-export default function HomePage() {
+function RecurringPageContent() {
+  return (
+    <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
+      <div className="flex items-center">
+        <h1 className="text-lg font-semibold md:text-2xl">Recurring Transactions</h1>
+      </div>
+      <Card>
+        <CardHeader className="flex flex-row items-center">
+          <div className="grid gap-2">
+            <CardTitle>Recurring Transactions</CardTitle>
+            <CardDescription>
+              Manage your recurring expenses and income.
+            </CardDescription>
+          </div>
+          <AddRecurringTransactionDialog />
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Description</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Account</TableHead>
+                <TableHead>Frequency</TableHead>
+                <TableHead>Next Date</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+                <TableRow>
+                    <TableCell colSpan={7} className="text-center h-24">
+                        No recurring transactions yet.
+                    </TableCell>
+                </TableRow>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </main>
+  );
+}
+
+export default function RecurringPage() {
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
       <aside className="hidden border-r bg-muted/40 md:block">
@@ -33,7 +91,7 @@ export default function HomePage() {
             <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
               <Link
                 href="/"
-                className="flex items-center gap-3 rounded-lg bg-muted px-3 py-2 text-primary transition-all hover:text-primary"
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
               >
                 <Home className="h-4 w-4" />
                 Dashboard
@@ -45,7 +103,7 @@ export default function HomePage() {
                 <Wallet className="h-4 w-4" />
                 Transactions
               </Link>
-               <Link
+              <Link
                 href="/accounts"
                 className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
               >
@@ -68,7 +126,7 @@ export default function HomePage() {
               </Link>
               <Link
                 href="/recurring"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+                className="flex items-center gap-3 rounded-lg bg-muted px-3 py-2 text-primary transition-all hover:text-primary"
               >
                 <Repeat className="h-4 w-4" />
                 Recurring
@@ -98,12 +156,7 @@ export default function HomePage() {
       </aside>
       <div className="flex flex-col">
         <AppHeader />
-        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
-          <div className="flex items-center">
-            <h1 className="text-lg font-semibold md:text-2xl">Dashboard</h1>
-          </div>
-          <Dashboard />
-        </main>
+        <RecurringPageContent />
       </div>
     </div>
   )

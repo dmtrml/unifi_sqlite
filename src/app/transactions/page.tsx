@@ -394,7 +394,7 @@ export default function TransactionsPage() {
                 Budgets
               </Link>
               <Link
-                href="#"
+                href="/recurring"
                 className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
               >
                 <Repeat className="h-4 w-4" />

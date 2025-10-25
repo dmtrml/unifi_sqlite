@@ -130,7 +130,7 @@ export default function AppHeader() {
                         Budgets
                     </Link>
                     <Link
-                        href="#"
+                        href="/recurring"
                         className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
                     >
                         <Repeat className="h-5 w-5" />
