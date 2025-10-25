@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { collection, query } from "firebase/firestore"
+import { collection, query, where, getDocs, doc } from "firebase/firestore"
 import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase"
 import * as Icons from "lucide-react"
 
@@ -28,10 +28,13 @@ import { Input } from "@/components/ui/input"
 import AppHeader from "@/components/header"
 import { BudgetWiseLogo } from "@/components/icons"
 import type { Category, Budget } from "@/lib/types"
+import { useToast } from "@/hooks/use-toast"
+import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
 function BudgetsPageContent() {
   const { user } = useUser()
   const firestore = useFirestore()
+  const { toast } = useToast()
   const [budgetAmounts, setBudgetAmounts] = React.useState<Record<string, number | string>>({})
 
   const categoriesQuery = useMemoFirebase(() =>
@@ -64,6 +67,44 @@ function BudgetsPageContent() {
   const handleAmountChange = (categoryId: string, value: string) => {
     setBudgetAmounts(prev => ({ ...prev, [categoryId]: value }));
   }
+  
+  const handleSaveBudget = async (categoryId: string) => {
+    if (!user || !firestore) {
+      toast({ title: "Error", description: "You must be logged in.", variant: "destructive" });
+      return;
+    }
+    const amount = parseFloat(String(budgetAmounts[categoryId]));
+    if (isNaN(amount) || amount < 0) {
+      toast({ title: "Invalid Amount", description: "Please enter a valid positive number.", variant: "destructive" });
+      return;
+    }
+
+    const budgetsRef = collection(firestore, `users/${user.uid}/budgets`);
+    const q = query(budgetsRef, where("categoryId", "==", categoryId));
+    
+    try {
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.empty) {
+        // Create new budget
+        addDocumentNonBlocking(budgetsRef, {
+          userId: user.uid,
+          categoryId: categoryId,
+          amount: amount,
+        });
+        toast({ title: "Budget Saved", description: "Your new budget has been saved." });
+      } else {
+        // Update existing budget
+        const budgetDoc = querySnapshot.docs[0];
+        const budgetRef = doc(firestore, `users/${user.uid}/budgets/${budgetDoc.id}`);
+        updateDocumentNonBlocking(budgetRef, { amount: amount });
+        toast({ title: "Budget Updated", description: "Your budget has been successfully updated." });
+      }
+    } catch (error) {
+       console.error("Error saving budget: ", error);
+       toast({ title: "Error", description: "Failed to save budget.", variant: "destructive" });
+    }
+  }
+
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
@@ -100,7 +141,7 @@ function BudgetsPageContent() {
                          aria-label={`${category.name} budget amount`} 
                        />
                     </div>
-                    <Button size="sm" variant="outline">Save</Button>
+                    <Button size="sm" variant="outline" onClick={() => handleSaveBudget(category.id)}>Save</Button>
                   </div>
                 </div>
               )

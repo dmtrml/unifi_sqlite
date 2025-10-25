@@ -132,7 +132,6 @@ export default function Dashboard() {
       <div className="flex items-center">
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="budgets">Budgets</TabsTrigger>
           <TabsTrigger value="recurring">Recurring</TabsTrigger>
         </TabsList>
       </div>
@@ -194,33 +193,6 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
-      </TabsContent>
-      <TabsContent value="budgets">
-      <Card>
-          <CardHeader>
-            <CardTitle>Category Budgets</CardTitle>
-            <CardDescription>
-              Set and manage your monthly budget for each category.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-              {safeBudgets.map(budget => {
-                const category = getCategoryName(safeCategories, budget.categoryId);
-                return (
-                  <div key={budget.categoryId} className="flex items-center justify-between p-2 rounded-lg border">
-                    <span className="font-medium text-sm">{category}</span>
-                    <div className="flex items-center gap-2">
-                      <Input type="number" defaultValue={budget.amount} className="w-32 h-9" aria-label={`${category} budget amount`} />
-                      <Button size="sm" variant="outline">Save</Button>
-                    </div>
-                  </div>
-                )
-              })}
-          </CardContent>
-          <CardFooter className="border-t pt-6">
-            <Button>Save All Budgets</Button>
-          </CardFooter>
-        </Card>
       </TabsContent>
       <TabsContent value="recurring">
         <Card>
