@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { PlusCircle } from "lucide-react"
+import { Edit } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -12,15 +12,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import type { Category, Account } from "@/lib/types"
+import { DropdownMenuItem } from "./ui/dropdown-menu"
+import type { RecurringTransaction, Category, Account } from "@/lib/types"
 
-interface AddRecurringTransactionDialogProps {
-    categories: Category[];
-    accounts: Account[];
+interface EditRecurringTransactionDialogProps {
+  recurringTransaction: RecurringTransaction;
+  categories: Category[];
+  accounts: Account[];
 }
 
 
-export function AddRecurringTransactionDialog({ categories, accounts }: AddRecurringTransactionDialogProps) {
+export function EditRecurringTransactionDialog({ recurringTransaction, categories, accounts }: EditRecurringTransactionDialogProps) {
   const [open, setOpen] = React.useState(false)
   
   // TODO: Implement the form and logic
@@ -28,16 +30,16 @@ export function AddRecurringTransactionDialog({ categories, accounts }: AddRecur
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="relative ml-auto">
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Add Recurring Transaction
-        </Button>
+        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+          <Edit className="mr-2 h-4 w-4" />
+          Edit
+        </DropdownMenuItem>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Add Recurring Transaction</DialogTitle>
+          <DialogTitle>Edit Recurring Transaction</DialogTitle>
           <DialogDescription>
-            Create a new template for recurring transactions. This will not create a transaction immediately.
+            Update the details of your recurring transaction template.
           </DialogDescription>
         </DialogHeader>
         <div className="py-8 text-center text-muted-foreground">

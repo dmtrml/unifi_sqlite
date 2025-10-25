@@ -43,11 +43,13 @@ export type Budget = {
   amount: number;
 };
 
-export type RecurringExpense = {
-    id: string;
-    accountId: string;
-    categoryId: string;
-    amount: number;
-    description: string;
-    frequency: 'weekly' | 'bi-weekly' | 'monthly';
-}
+export type RecurringTransaction = {
+  id: string;
+  accountId: string;
+  categoryId: string;
+  amount: number;
+  description: string;
+  frequency: 'weekly' | 'bi-weekly' | 'monthly';
+  startDate: Timestamp;
+  userId: string;
+};
