@@ -82,6 +82,7 @@ function TransactionsPageContent() {
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
   const [accountId, setAccountId] = React.useState<string>("all");
   const [categoryId, setCategoryId] = React.useState<string>("all");
+  const [searchQuery, setSearchQuery] = React.useState<string>("");
 
   const transactionsQuery = useMemoFirebase(() => 
     user ? query(collection(firestore, "users", user.uid, "transactions"), orderBy("date", "desc")) : null, 
@@ -137,6 +138,7 @@ function TransactionsPageContent() {
     setDateRange(undefined);
     setAccountId("all");
     setCategoryId("all");
+    setSearchQuery("");
   }
 
 
@@ -162,6 +164,8 @@ function TransactionsPageContent() {
               categories={safeCategories}
               selectedCategory={categoryId}
               onCategoryChange={setCategoryId}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
               onReset={handleFiltersReset}
             />
             {/* Desktop Table */}
