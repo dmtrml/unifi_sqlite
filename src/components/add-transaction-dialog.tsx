@@ -35,7 +35,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
@@ -62,13 +61,11 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
       description: "",
       amount: 0,
       date: new Date(),
-      isRecurring: false,
       transactionType: "expense",
       expenseType: "optional",
     },
   })
 
-  const isRecurring = form.watch("isRecurring")
   const transactionType = form.watch("transactionType")
 
   React.useEffect(() => {
@@ -77,7 +74,6 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
       description: "",
       amount: 0,
       date: new Date(),
-      isRecurring: false,
       transactionType: "expense",
       expenseType: "optional",
     });
@@ -108,7 +104,7 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
 
     try {
         await runTransaction(firestore, async (transaction) => {
-             const { isRecurring, frequency, ...transactionData } = data;
+             const { ...transactionData } = data;
              
              const finalTransactionData = {
                 ...transactionData,
@@ -452,53 +448,6 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
                 </FormItem>
               )}
             />
-             {/* Not available for transfers */}
-             {transactionType !== 'transfer' && 
-                <FormField
-                    control={form.control}
-                    name="isRecurring"
-                    render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                        <div className="space-y-0.5">
-                        <FormLabel>Recurring Transaction</FormLabel>
-                        <FormDescription>
-                            Is this a recurring transaction?
-                        </FormDescription>
-                        </div>
-                        <FormControl>
-                        <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                        />
-                        </FormControl>
-                    </FormItem>
-                    )}
-                />
-             }
-              {isRecurring && transactionType !== 'transfer' && (
-                <FormField
-                  control={form.control}
-                  name="frequency"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Frequency</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select frequency" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="weekly">Weekly</SelectItem>
-                          <SelectItem value="bi-weekly">Bi-weekly</SelectItem>
-                          <SelectItem value="monthly">Monthly</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
             <DialogFooter>
               <Button type="submit">Add Transaction</Button>
             </DialogFooter>

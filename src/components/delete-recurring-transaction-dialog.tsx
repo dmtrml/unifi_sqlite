@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Trash2 } from "lucide-react"
+import { doc } from "firebase/firestore"
 
 import {
   AlertDialog,
@@ -15,6 +16,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { DropdownMenuItem } from "./ui/dropdown-menu"
+import { useToast } from "@/hooks/use-toast"
+import { useFirestore, useUser } from "@/firebase"
+import { deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
 
 interface DeleteRecurringTransactionDialogProps {
@@ -22,8 +26,28 @@ interface DeleteRecurringTransactionDialogProps {
 }
 
 export function DeleteRecurringTransactionDialog({ recurringTransactionId }: DeleteRecurringTransactionDialogProps) {
-  
-  // TODO: Implement the deletion logic
+  const { toast } = useToast()
+  const firestore = useFirestore()
+  const { user } = useUser()
+
+  const handleDelete = async () => {
+    if (!user || !firestore) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "You must be logged in to delete a recurring transaction.",
+      })
+      return
+    }
+
+    const recurringRef = doc(firestore, `users/${user.uid}/recurringTransactions/${recurringTransactionId}`);
+    deleteDocumentNonBlocking(recurringRef);
+
+    toast({
+      title: "Recurring Transaction Deleted",
+      description: "The recurring transaction template has been successfully deleted.",
+    })
+  }
 
   return (
     <AlertDialog>
@@ -43,7 +67,7 @@ export function DeleteRecurringTransactionDialog({ recurringTransactionId }: Del
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={() => console.log("delete")}>Continue</AlertDialogAction>
+          <AlertDialogAction onClick={handleDelete}>Continue</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

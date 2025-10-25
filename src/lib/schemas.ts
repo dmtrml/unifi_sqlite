@@ -26,6 +26,11 @@ const transferSchema = baseSchema.extend({
   toAccountId: z.string({ required_error: "Destination account is required." }).min(1, "Destination account is required."),
 });
 
+const recurringSchema = z.object({
+  isRecurring: z.boolean().optional(),
+  frequency: z.enum(["weekly", "bi-weekly", "monthly"]).optional(),
+})
+
 export const transactionFormSchema = z.discriminatedUnion("transactionType", [
   expenseSchema,
   incomeSchema,

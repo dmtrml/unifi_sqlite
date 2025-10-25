@@ -1,19 +1,55 @@
 "use client"
 
 import * as React from "react"
-import { Edit } from "lucide-react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { CalendarIcon, Edit } from "lucide-react"
+import { useForm } from "react-hook-form"
+import { z } from "zod"
+import { format } from "date-fns"
+import { doc } from "firebase/firestore"
+import { cn } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
+import { useFirestore, useUser } from "@/firebase"
+import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
 import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { DropdownMenuItem } from "./ui/dropdown-menu"
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import type { RecurringTransaction, Category, Account } from "@/lib/types"
+import { recurringTransactionFormSchema } from "@/lib/schemas"
+import { DropdownMenuItem } from "./ui/dropdown-menu"
+
+type RecurringTransactionFormValues = z.infer<typeof recurringTransactionFormSchema>;
 
 interface EditRecurringTransactionDialogProps {
   recurringTransaction: RecurringTransaction;
@@ -24,9 +60,49 @@ interface EditRecurringTransactionDialogProps {
 
 export function EditRecurringTransactionDialog({ recurringTransaction, categories, accounts }: EditRecurringTransactionDialogProps) {
   const [open, setOpen] = React.useState(false)
+  const { toast } = useToast()
+  const firestore = useFirestore()
+  const { user } = useUser()
+
+  const form = useForm<RecurringTransactionFormValues>({
+    resolver: zodResolver(recurringTransactionFormSchema),
+    defaultValues: {
+      ...recurringTransaction,
+      startDate: recurringTransaction.startDate.toDate(),
+    },
+  })
+
+  React.useEffect(() => {
+    if (open) {
+      form.reset({
+        ...recurringTransaction,
+        startDate: recurringTransaction.startDate.toDate(),
+      })
+    }
+  }, [open, recurringTransaction, form])
   
-  // TODO: Implement the form and logic
-  
+  async function onSubmit(data: RecurringTransactionFormValues) {
+     if (!user || !firestore) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "You must be logged in to edit a transaction.",
+      })
+      return
+    }
+
+    const recurringRef = doc(firestore, `users/${user.uid}/recurringTransactions/${recurringTransaction.id}`);
+    
+    updateDocumentNonBlocking(recurringRef, data);
+
+    toast({
+      title: "Recurring Transaction Updated",
+      description: `Successfully updated: ${data.description}.`,
+    })
+
+    setOpen(false)
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -42,9 +118,155 @@ export function EditRecurringTransactionDialog({ recurringTransaction, categorie
             Update the details of your recurring transaction template.
           </DialogDescription>
         </DialogHeader>
-        <div className="py-8 text-center text-muted-foreground">
-            <p>Form coming soon...</p>
-        </div>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="e.g., Monthly Rent" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+             <FormField
+                control={form.control}
+                name="amount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Amount</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="$0.00" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+            <div className="grid grid-cols-2 gap-4">
+               <FormField
+                  control={form.control}
+                  name="accountId"
+                  render={({ field }) => (
+                  <FormItem>
+                      <FormLabel>Account</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                          <SelectTrigger>
+                          <SelectValue placeholder="Select an account" />
+                          </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                          {accounts.map((account) => (
+                          <SelectItem key={account.id} value={account.id}>
+                              {account.name}
+                          </SelectItem>
+                          ))}
+                      </SelectContent>
+                      </Select>
+                      <FormMessage />
+                  </FormItem>
+                  )}
+              />
+              <FormField
+                  control={form.control}
+                  name="categoryId"
+                  render={({ field }) => (
+                  <FormItem>
+                      <FormLabel>Category</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
+                      <FormControl>
+                          <SelectTrigger>
+                          <SelectValue placeholder="Select a category" />
+                          </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                          {categories.map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                              {category.name}
+                          </SelectItem>
+                          ))}
+                      </SelectContent>
+                      </Select>
+                      <FormMessage />
+                  </FormItem>
+                  )}
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+                <FormField
+                    control={form.control}
+                    name="frequency"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Frequency</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                            <SelectTrigger>
+                            <SelectValue placeholder="Select frequency" />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="bi-weekly">Bi-weekly</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                        </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+
+                <FormField
+                    control={form.control}
+                    name="startDate"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                        <FormLabel>Start Date</FormLabel>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                            <FormControl>
+                                <Button
+                                variant={"outline"}
+                                className={cn(
+                                    "w-full pl-3 text-left font-normal",
+                                    !field.value && "text-muted-foreground"
+                                )}
+                                >
+                                {field.value ? (
+                                    format(field.value, "PPP")
+                                ) : (
+                                    <span>Pick a date</span>
+                                )}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                            </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                initialFocus
+                            />
+                            </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            </div>
+            <DialogFooter>
+              <Button type="submit">Save Changes</Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   )
