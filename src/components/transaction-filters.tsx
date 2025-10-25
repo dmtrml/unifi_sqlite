@@ -25,12 +25,12 @@ import { Separator } from "./ui/separator"
 import { Input } from "./ui/input"
 
 interface TransactionFiltersProps {
-  dateRange: DateRange | undefined;
+  dateRange?: DateRange | undefined;
   onDateChange: (date: DateRange | undefined) => void;
-  accounts: Account[];
+  accounts?: Account[];
   selectedAccount: string;
   onAccountChange: (accountId: string) => void;
-  categories: Category[];
+  categories?: Category[];
   selectedCategory: string;
   onCategoryChange: (categoryId: string) => void;
   searchQuery: string;
@@ -163,7 +163,7 @@ export function TransactionFilters({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Accounts</SelectItem>
-            {accounts.map((account) => (
+            {accounts && accounts.map((account) => (
               <SelectItem key={account.id} value={account.id}>
                 {account.name}
               </SelectItem>
@@ -177,7 +177,7 @@ export function TransactionFilters({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
-            {categories.map((category) => (
+            {categories && categories.map((category) => (
               <SelectItem key={category.id} value={category.id}>
                 {category.name}
               </SelectItem>
@@ -193,5 +193,3 @@ export function TransactionFilters({
     </div>
   )
 }
-
-    

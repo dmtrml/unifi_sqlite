@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import {
   Bell,
   CircleUser,
@@ -44,12 +45,24 @@ import { useCollection, useFirestore, useUser, useMemoFirebase, useAuth } from "
 import type { Category, Account } from "@/lib/types"
 import { collection, query } from "firebase/firestore"
 import { signOut } from "firebase/auth";
+import { cn } from "@/lib/utils"
 
+
+const navItems = [
+    { href: "/", label: "Dashboard", icon: Home },
+    { href: "/transactions", label: "Transactions", icon: Wallet },
+    { href: "/accounts", label: "Accounts", icon: Landmark },
+    { href: "/categories", label: "Categories", icon: Shapes },
+    { href: "/budgets", label: "Budgets", icon: DollarSign },
+    { href: "/recurring", label: "Recurring", icon: Repeat },
+    { href: "#", label: "Reports", icon: LineChart },
+]
 
 export default function AppHeader() {
   const { user } = useUser();
   const firestore = useFirestore();
   const auth = useAuth()
+  const pathname = usePathname()
 
   const categoriesQuery = useMemoFirebase(() => 
     user ? query(collection(firestore, "users", user.uid, "categories")) : null,
@@ -85,7 +98,7 @@ export default function AppHeader() {
                 <SheetHeader>
                     <SheetTitle>
                         <Link
-                            href="#"
+                            href="/"
                             className="flex items-center gap-2 text-lg font-semibold"
                         >
                             <BudgetWiseLogo className="h-6 w-6" />
@@ -94,55 +107,19 @@ export default function AppHeader() {
                     </SheetTitle>
                 </SheetHeader>
                 <nav className="grid gap-2 text-lg font-medium">
-                    <Link
-                        href="/"
-                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                    >
-                        <Home className="h-5 w-5" />
-                        Dashboard
-                    </Link>
-                    <Link
-                        href="/transactions"
-                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                    >
-                        <Wallet className="h-5 w-5" />
-                        Transactions
-                    </Link>
-                    <Link
-                        href="/accounts"
-                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                    >
-                        <Landmark className="h-5 w-5" />
-                        Accounts
-                    </Link>
-                     <Link
-                        href="/categories"
-                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                    >
-                        <Shapes className="h-5 w-5" />
-                        Categories
-                    </Link>
-                    <Link
-                        href="/budgets"
-                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                    >
-                        <DollarSign className="h-5 w-5" />
-                        Budgets
-                    </Link>
-                    <Link
-                        href="/recurring"
-                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                    >
-                        <Repeat className="h-5 w-5" />
-                        Recurring
-                    </Link>
-                    <Link
-                        href="#"
-                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                    >
-                        <LineChart className="h-5 w-5" />
-                        Reports
-                    </Link>
+                     {navItems.map((item) => (
+                        <Link
+                            key={item.label}
+                            href={item.href}
+                            className={cn(
+                                "mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground",
+                                pathname === item.href && "text-foreground bg-muted"
+                            )}
+                        >
+                            <item.icon className="h-5 w-5" />
+                            {item.label}
+                        </Link>
+                    ))}
                 </nav>
                 <div className="mt-auto">
                     <Card>
@@ -163,7 +140,6 @@ export default function AppHeader() {
             </SheetContent>
         </Sheet>
         <div className="w-full flex-1">
-            {/* Search input removed from here */}
         </div>
         <div className="flex items-center gap-2">
             {user && categories && accounts && <AddTransactionDialog categories={categories} accounts={accounts} />}
