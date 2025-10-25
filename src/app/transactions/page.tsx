@@ -66,14 +66,16 @@ function formatDateHeader(dateStr: string) {
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
 
-  const todayStr = formatInTimeZone(today, timeZone, 'yyyy-MM-dd');
-  const yesterdayStr = formatInTimeZone(yesterday, timeZone, 'yyyy-MM-dd');
+  const todayStr = format(today, 'yyyy-MM-dd');
+  const yesterdayStr = format(yesterday, 'yyyy-MM-dd');
   
   if (dateStr === todayStr) return "Today";
   if (dateStr === yesterdayStr) return "Yesterday";
   
-  const date = new Date(dateStr); // The date string is already in 'yyyy-MM-dd' from local timezone
-  return format(date, "MMMM d, yyyy");
+  const date = new Date(dateStr);
+  // Add timezone offset to display date correctly in local time
+  const zonedDate = new Date(date.valueOf() + date.getTimezoneOffset() * 60 * 1000);
+  return format(zonedDate, "MMMM d, yyyy");
 }
 
 function TransactionsPageContent() {
@@ -123,10 +125,9 @@ function TransactionsPageContent() {
 
 
   const groupedTransactions = React.useMemo(() => {
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     return filteredTransactions.reduce((acc, transaction) => {
       const jsDate = new Date(transaction.date.seconds * 1000);
-      const dateStr = formatInTimeZone(jsDate, timeZone, 'yyyy-MM-dd');
+      const dateStr = format(jsDate, 'yyyy-MM-dd');
       
       if (!acc[dateStr]) {
         acc[dateStr] = [];
