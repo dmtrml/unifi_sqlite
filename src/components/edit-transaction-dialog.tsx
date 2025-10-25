@@ -42,42 +42,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useUser } from "@/firebase"
 import type { Category, Account, Transaction } from "@/lib/types"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
+import { editTransactionFormSchema, type EditTransactionFormValues } from "@/lib/schemas"
 
-const editTransactionFormSchema = z.object({
-  description: z.string().optional(),
-  amount: z.coerce.number().positive("Amount must be positive."),
-  date: z.date(),
-  transactionType: z.enum(["expense", "income", "transfer"]),
-  // Optional fields that will be validated based on transactionType
-  accountId: z.string().optional(),
-  categoryId: z.string().optional(),
-  fromAccountId: z.string().optional(),
-  toAccountId: z.string().optional(),
-  expenseType: z.enum(["mandatory", "optional"]).optional(),
-  incomeType: z.enum(["active", "passive"]).optional(),
-}).superRefine((data, ctx) => {
-  if (data.transactionType === 'transfer') {
-    if (!data.fromAccountId) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Source account is required.", path: ['fromAccountId'] });
-    }
-    if (!data.toAccountId) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Destination account is required.", path: ['toAccountId'] });
-    }
-    if (data.fromAccountId && data.toAccountId && data.fromAccountId === data.toAccountId) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Accounts must be different.", path: ['toAccountId'] });
-    }
-  } else { // 'expense' or 'income'
-    if (!data.accountId) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Account is required.", path: ['accountId'] });
-    }
-    if (!data.categoryId) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Category is required.", path: ['categoryId'] });
-    }
-  }
-});
-
-
-type EditTransactionFormValues = z.infer<typeof editTransactionFormSchema>
 
 interface EditTransactionDialogProps {
   transaction: Transaction;
@@ -93,26 +59,24 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
 
   const form = useForm<EditTransactionFormValues>({
     resolver: zodResolver(editTransactionFormSchema),
-    defaultValues: {
-      ...originalTransaction,
-      date: originalTransaction.date.toDate(),
-      description: originalTransaction.description || "",
-      expenseType: originalTransaction.expenseType || "optional",
-      incomeType: originalTransaction.incomeType || "active",
-    },
   })
   
   const transactionType = form.watch("transactionType");
 
   React.useEffect(() => {
     if (open) {
-      form.reset({
+      const defaultValues: EditTransactionFormValues = {
         ...originalTransaction,
         date: originalTransaction.date.toDate(),
         description: originalTransaction.description || "",
-        expenseType: originalTransaction.expenseType || "optional",
-        incomeType: originalTransaction.incomeType || "active",
-      });
+      } as any; // We cast to any because TS can't infer the discriminated union type yet
+
+      if (defaultValues.transactionType === 'expense') {
+        defaultValues.expenseType = originalTransaction.expenseType || "optional";
+      } else if (defaultValues.transactionType === 'income') {
+        defaultValues.incomeType = originalTransaction.incomeType || "active";
+      }
+      form.reset(defaultValues);
     }
   }, [open, originalTransaction, form]);
 
@@ -153,9 +117,10 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
               description: data.description || ""
             }
 
+            // --- 1. GATHER ALL READS ---
             const accountRefsToRead: { [key: string]: DocumentReference } = {};
-            const accountData: { [key: string]: DocumentData } = {};
-
+            
+            // Original transaction accounts
             if (originalData.transactionType === 'transfer') {
               if (originalData.fromAccountId) accountRefsToRead.originalFrom = doc(firestore, `users/${user.uid}/accounts/${originalData.fromAccountId}`);
               if (originalData.toAccountId) accountRefsToRead.originalTo = doc(firestore, `users/${user.uid}/accounts/${originalData.toAccountId}`);
@@ -163,58 +128,86 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
               if (originalData.accountId) accountRefsToRead.originalAccount = doc(firestore, `users/${user.uid}/accounts/${originalData.accountId}`);
             }
 
+            // New transaction accounts
             if (newData.transactionType === 'transfer') {
               if (newData.fromAccountId) accountRefsToRead.newFrom = doc(firestore, `users/${user.uid}/accounts/${newData.fromAccountId}`);
               if (newData.toAccountId) accountRefsToRead.newTo = doc(firestore, `users/${user.uid}/accounts/${newData.toAccountId}`);
-            } else {
+            } else { // Expense or Income
               if (newData.accountId) accountRefsToRead.newAccount = doc(firestore, `users/${user.uid}/accounts/${newData.accountId}`);
             }
-            
-            for (const key in accountRefsToRead) {
-                const docSnap = await dbTransaction.get(accountRefsToRead[key]);
-                if (!docSnap.exists()) {
-                    throw new Error(`Account with ID ${accountRefsToRead[key].id} not found. Transaction cannot be completed.`);
-                }
-                accountData[key] = docSnap.data();
-            }
 
+            const accountDocs = await Promise.all(
+              Object.values(accountRefsToRead).map(ref => dbTransaction.get(ref))
+            );
+
+            const accountIdToDocMap = new Map<string, DocumentData>();
+            accountDocs.forEach(docSnap => {
+              if(docSnap.exists()){
+                accountIdToDocMap.set(docSnap.id, docSnap.data());
+              }
+            });
+
+            // --- 2. CALCULATE BALANCE CHANGES ---
             const balanceChanges: { [accountId: string]: number } = {};
 
+            // Revert original transaction
             if (originalData.transactionType === 'transfer') {
               if (originalData.fromAccountId) balanceChanges[originalData.fromAccountId] = (balanceChanges[originalData.fromAccountId] || 0) + originalData.amount;
               if (originalData.toAccountId) balanceChanges[originalData.toAccountId] = (balanceChanges[originalData.toAccountId] || 0) - originalData.amount;
-            } else {
+            } else { // Expense or Income
               if (originalData.accountId) {
                 const change = originalData.transactionType === 'expense' ? originalData.amount : -originalData.amount;
                 balanceChanges[originalData.accountId] = (balanceChanges[originalData.accountId] || 0) + change;
               }
             }
 
+            // Apply new transaction
             if (newData.transactionType === 'transfer') {
               if (newData.fromAccountId) balanceChanges[newData.fromAccountId] = (balanceChanges[newData.fromAccountId] || 0) - newData.amount;
               if (newData.toAccountId) balanceChanges[newData.toAccountId] = (balanceChanges[newData.toAccountId] || 0) + newData.amount;
-            } else {
+            } else { // Expense or Income
               if (newData.accountId) {
                 const change = newData.transactionType === 'expense' ? -newData.amount : newData.amount;
                 balanceChanges[newData.accountId] = (balanceChanges[newData.accountId] || 0) + change;
               }
             }
             
+            // --- 3. EXECUTE ALL WRITES ---
             for (const accountId in balanceChanges) {
                 const accountRef = doc(firestore, `users/${user.uid}/accounts`, accountId);
-                
-                const accountDocSnap = await dbTransaction.get(accountRef);
-                if (!accountDocSnap.exists()) throw new Error(`Account ${accountId} not found during update.`);
+                const accountDoc = accountIdToDocMap.get(accountId);
+                if (!accountDoc) throw new Error(`Account ${accountId} not found during update.`);
 
-                const newBalance = accountDocSnap.data().balance + balanceChanges[accountId];
+                const newBalance = accountDoc.balance + balanceChanges[accountId];
                 dbTransaction.update(accountRef, { balance: newBalance });
             }
 
-            let finalData: any = { ...newData, userId: user.uid };
+            let finalData: any;
             if (newData.transactionType === 'transfer') {
-                finalData = { ...finalData, accountId: null, categoryId: null, expenseType: null, incomeType: null };
+                finalData = {
+                  userId: user.uid,
+                  date: newData.date,
+                  amount: newData.amount,
+                  description: newData.description,
+                  transactionType: 'transfer',
+                  fromAccountId: newData.fromAccountId,
+                  toAccountId: newData.toAccountId,
+                  accountId: null, categoryId: null, expenseType: null, incomeType: null,
+                };
             } else {
-                finalData = { ...finalData, fromAccountId: null, toAccountId: null, ...(newData.transactionType === 'expense' ? { incomeType: null } : { expenseType: null }) };
+                finalData = {
+                  userId: user.uid,
+                  date: newData.date,
+                  amount: newData.amount,
+                  description: newData.description,
+                  transactionType: newData.transactionType,
+                  accountId: newData.accountId,
+                  categoryId: newData.categoryId,
+                  ...(newData.transactionType === 'expense' 
+                      ? { expenseType: newData.expenseType, incomeType: null } 
+                      : { incomeType: newData.incomeType, expenseType: null }),
+                  fromAccountId: null, toAccountId: null,
+                };
             }
             dbTransaction.update(transactionRef, finalData);
         });
@@ -259,13 +252,18 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
                     <FormLabel>Type</FormLabel>
                     <Select onValueChange={(value) => {
                       field.onChange(value);
-                      // Reset dependent fields when type changes
-                      form.setValue('categoryId', undefined);
-                      form.setValue('accountId', undefined);
-                      form.setValue('fromAccountId', undefined);
-                      form.setValue('toAccountId', undefined);
-                      form.setValue('incomeType', undefined);
-                      form.setValue('expenseType', undefined);
+                      const currentValues = form.getValues();
+                      form.reset({
+                        ...currentValues,
+                        transactionType: value as 'expense' | 'income' | 'transfer',
+                        // Reset dependent fields to avoid validation errors
+                        accountId: undefined,
+                        categoryId: undefined,
+                        fromAccountId: undefined,
+                        toAccountId: undefined,
+                        incomeType: currentValues.transactionType === 'income' ? currentValues.incomeType : undefined,
+                        expenseType: currentValues.transactionType === 'expense' ? currentValues.expenseType : 'optional',
+                      });
                     }} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>

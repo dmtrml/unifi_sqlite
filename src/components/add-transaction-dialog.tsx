@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { CalendarIcon, PlusCircle, ArrowRightLeft } from "lucide-react"
+import { CalendarIcon, PlusCircle } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { format } from "date-fns"
@@ -42,34 +42,8 @@ import { cn } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
 import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useUser } from "@/firebase"
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import type { Category, Account } from "@/lib/types"
-
-const transactionFormSchema = z.object({
-  description: z.string().optional(),
-  amount: z.coerce.number().positive("Amount must be positive."),
-  accountId: z.string().optional(),
-  categoryId: z.string().optional(),
-  fromAccountId: z.string().optional(),
-  toAccountId: z.string().optional(),
-  date: z.date(),
-  isRecurring: z.boolean().default(false),
-  frequency: z.enum(["weekly", "bi-weekly", "monthly"]).optional(),
-  transactionType: z.enum(["expense", "income", "transfer"]).default("expense"),
-  expenseType: z.enum(["mandatory", "optional"]).optional(),
-  incomeType: z.enum(["active", "passive"]).optional(),
-}).refine(data => {
-    if (data.transactionType === 'transfer') {
-        return !!data.fromAccountId && !!data.toAccountId && data.fromAccountId !== data.toAccountId;
-    }
-    return !!data.accountId && !!data.categoryId;
-}, {
-    message: "Invalid account or category selection for the transaction type.",
-    path: ["accountId"], // Point error to a relevant field
-});
-
-
-type TransactionFormValues = z.infer<typeof transactionFormSchema>
+import { transactionFormSchema, type TransactionFormValues } from "@/lib/schemas"
 
 interface AddTransactionDialogProps {
   categories: Category[];
@@ -91,7 +65,6 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
       isRecurring: false,
       transactionType: "expense",
       expenseType: "optional",
-      incomeType: "active"
     },
   })
 
@@ -99,6 +72,7 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
   const transactionType = form.watch("transactionType")
 
   React.useEffect(() => {
+    // Reset form when dialog opens/closes or type changes
     form.reset({
       description: "",
       amount: 0,
@@ -106,11 +80,6 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
       isRecurring: false,
       transactionType: "expense",
       expenseType: "optional",
-      incomeType: "active",
-      accountId: undefined,
-      categoryId: undefined,
-      fromAccountId: undefined,
-      toAccountId: undefined,
     });
   }, [open, form]);
 
@@ -140,14 +109,15 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
     try {
         await runTransaction(firestore, async (transaction) => {
              const { isRecurring, frequency, ...transactionData } = data;
+             
              const finalTransactionData = {
                 ...transactionData,
                 description: transactionData.description || ""
-             }
+             };
 
             if (finalTransactionData.transactionType === 'transfer') {
-                 const fromAccountRef = doc(firestore, `users/${user.uid}/accounts`, finalTransactionData.fromAccountId!);
-                 const toAccountRef = doc(firestore, `users/${user.uid}/accounts`, finalTransactionData.toAccountId!);
+                 const fromAccountRef = doc(firestore, `users/${user.uid}/accounts`, finalTransactionData.fromAccountId);
+                 const toAccountRef = doc(firestore, `users/${user.uid}/accounts`, finalTransactionData.toAccountId);
                  const fromAccountDoc = await transaction.get(fromAccountRef);
                  const toAccountDoc = await transaction.get(toAccountRef);
                  if (!fromAccountDoc.exists() || !toAccountDoc.exists()) throw new Error("Account not found for transfer.");
@@ -155,18 +125,27 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
                  transaction.update(fromAccountRef, { balance: fromAccountDoc.data().balance - finalTransactionData.amount });
                  transaction.update(toAccountRef, { balance: toAccountDoc.data().balance + finalTransactionData.amount });
 
-                 transaction.set(doc(transactionsRef), {
-                    ...finalTransactionData,
+                 // Create a new document in the transactions collection
+                transaction.set(doc(transactionsRef), {
+                    // Fields common to all types
                     userId: user.uid,
                     createdAt: serverTimestamp(),
-                    categoryId: null,
+                    date: finalTransactionData.date,
+                    amount: finalTransactionData.amount,
+                    description: finalTransactionData.description,
+                    transactionType: 'transfer',
+                    // Transfer-specific fields
+                    fromAccountId: finalTransactionData.fromAccountId,
+                    toAccountId: finalTransactionData.toAccountId,
+                    // Nullify fields not applicable to transfers
                     accountId: null,
+                    categoryId: null,
                     incomeType: null,
                     expenseType: null,
                 });
 
-            } else {
-                const accountRef = doc(firestore, `users/${user.uid}/accounts`, finalTransactionData.accountId!);
+            } else { // Expense or Income
+                const accountRef = doc(firestore, `users/${user.uid}/accounts`, finalTransactionData.accountId);
                 const accountDoc = await transaction.get(accountRef);
                 if (!accountDoc.exists()) {
                     throw "Account not found!";
@@ -178,13 +157,25 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
                     : currentBalance + finalTransactionData.amount;
 
                 transaction.update(accountRef, { balance: newBalance });
+
+                // Create a new document in the transactions collection
                 transaction.set(doc(transactionsRef), {
-                    ...finalTransactionData,
+                    // Fields common to all types
                     userId: user.uid,
                     createdAt: serverTimestamp(),
+                    date: finalTransactionData.date,
+                    amount: finalTransactionData.amount,
+                    description: finalTransactionData.description,
+                    transactionType: finalTransactionData.transactionType,
+                    // Expense/Income-specific fields
+                    accountId: finalTransactionData.accountId,
+                    categoryId: finalTransactionData.categoryId,
+                    ...(finalTransactionData.transactionType === 'expense' 
+                        ? { expenseType: finalTransactionData.expenseType, incomeType: null } 
+                        : { incomeType: finalTransactionData.incomeType, expenseType: null }),
+                    // Nullify fields not applicable to expense/income
                     fromAccountId: null,
                     toAccountId: null,
-                    ...(finalTransactionData.transactionType === 'expense' ? { incomeType: null } : { expenseType: null })
                 });
             }
         });
@@ -204,7 +195,6 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
     }
 
     setOpen(false)
-    form.reset()
   }
 
   return (
@@ -232,10 +222,13 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
                     <FormLabel>Transaction Type</FormLabel>
                      <Select onValueChange={(value) => {
                         field.onChange(value)
-                        form.setValue('categoryId', '')
-                        form.setValue('accountId', '')
-                        form.setValue('fromAccountId', '')
-                        form.setValue('toAccountId', '')
+                        // Reset dependent fields
+                        form.setValue('accountId', undefined);
+                        form.setValue('categoryId', undefined);
+                        form.setValue('fromAccountId', undefined);
+                        form.setValue('toAccountId', undefined);
+                        form.setValue('incomeType', undefined);
+                        form.setValue('expenseType', 'optional');
                      }} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
