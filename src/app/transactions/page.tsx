@@ -15,8 +15,6 @@ import {
   ArrowRightLeft
 } from "lucide-react"
 import { format } from 'date-fns';
-import { formatInTimeZone } from 'date-fns-tz';
-
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -49,6 +47,7 @@ import { DeleteTransactionDialog } from "@/components/delete-transaction-dialog"
 import * as Icons from "lucide-react"
 import type { DateRange } from "react-day-picker"
 import { TransactionFilters } from "@/components/transaction-filters"
+import { DuplicateTransactionDialog } from "@/components/duplicate-transaction-dialog"
 
 function getCategory(categories: Category[], categoryId?: string): Category | undefined {
   if (!categoryId) return undefined;
@@ -61,7 +60,6 @@ function getAccount(accounts: Account[], accountId?: string): Account | undefine
 }
 
 function formatDateHeader(dateStr: string) {
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
@@ -73,7 +71,6 @@ function formatDateHeader(dateStr: string) {
   if (dateStr === yesterdayStr) return "Yesterday";
   
   const date = new Date(dateStr);
-  // Add timezone offset to display date correctly in local time
   const zonedDate = new Date(date.valueOf() + date.getTimezoneOffset() * 60 * 1000);
   return format(zonedDate, "MMMM d, yyyy");
 }
@@ -111,7 +108,6 @@ function TransactionsPageContent() {
     return safeTransactions.filter(transaction => {
       const transactionDate = new Date(transaction.date.seconds * 1000);
       if (dateRange?.from && transactionDate < dateRange.from) return false;
-      // Set to end of day for inclusive range
       if (dateRange?.to) {
         const toDate = new Date(dateRange.to);
         toDate.setHours(23, 59, 59, 999);
@@ -243,6 +239,11 @@ function TransactionsPageContent() {
                                     categories={safeCategories}
                                     accounts={safeAccounts}
                                   />
+                                  <DuplicateTransactionDialog
+                                    transaction={transaction}
+                                    categories={safeCategories}
+                                    accounts={safeAccounts}
+                                  />
                                   <DeleteTransactionDialog transactionId={transaction.id} />
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -317,6 +318,11 @@ function TransactionsPageContent() {
                                           </DropdownMenuTrigger>
                                           <DropdownMenuContent>
                                               <EditTransactionDialog 
+                                                  transaction={transaction}
+                                                  categories={safeCategories}
+                                                  accounts={safeAccounts}
+                                              />
+                                              <DuplicateTransactionDialog
                                                   transaction={transaction}
                                                   categories={safeCategories}
                                                   accounts={safeAccounts}

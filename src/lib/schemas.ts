@@ -4,8 +4,6 @@ const baseSchema = z.object({
   description: z.string().optional(),
   amount: z.coerce.number().positive("Amount must be positive."),
   date: z.date(),
-  isRecurring: z.boolean().default(false),
-  frequency: z.enum(["weekly", "bi-weekly", "monthly"]).optional(),
 });
 
 const expenseSchema = baseSchema.extend({
@@ -29,9 +27,18 @@ const transferSchema = baseSchema.extend({
 });
 
 export const transactionFormSchema = z.discriminatedUnion("transactionType", [
-  expenseSchema,
-  incomeSchema,
-  transferSchema,
+  expenseSchema.extend({
+    isRecurring: z.boolean().default(false),
+    frequency: z.enum(["weekly", "bi-weekly", "monthly"]).optional(),
+  }),
+  incomeSchema.extend({
+    isRecurring: z.boolean().default(false),
+    frequency: z.enum(["weekly", "bi-weekly", "monthly"]).optional(),
+  }),
+  transferSchema.extend({
+    isRecurring: z.boolean().default(false),
+    frequency: z.enum(["weekly", "bi-weekly", "monthly"]).optional(),
+  }),
 ]).refine(data => {
     if (data.transactionType === 'transfer') {
         return data.fromAccountId !== data.toAccountId;
@@ -42,11 +49,10 @@ export const transactionFormSchema = z.discriminatedUnion("transactionType", [
     path: ["toAccountId"],
 });
 
-
 export const editTransactionFormSchema = z.discriminatedUnion("transactionType", [
-  expenseSchema.omit({ isRecurring: true, frequency: true }),
-  incomeSchema.omit({ isRecurring: true, frequency: true }),
-  transferSchema.omit({ isRecurring: true, frequency: true }),
+  expenseSchema,
+  incomeSchema,
+  transferSchema,
 ]).refine(data => {
     if (data.transactionType === 'transfer') {
         return data.fromAccountId !== data.toAccountId;
