@@ -123,7 +123,7 @@ export default function AppHeader() {
                         Categories
                     </Link>
                     <Link
-                        href="#"
+                        href="/budgets"
                         className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
                     >
                         <DollarSign className="h-5 w-5" />
