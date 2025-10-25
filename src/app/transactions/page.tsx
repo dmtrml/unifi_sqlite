@@ -114,11 +114,12 @@ function TransactionsPageContent() {
         toDate.setHours(23, 59, 59, 999);
         if (transactionDate > toDate) return false;
       }
-      if (accountId !== 'all' && transaction.accountId !== accountId && transaction.fromAccountId !== accountId) return false;
+      if (accountId !== 'all' && transaction.accountId !== accountId && transaction.fromAccountId !== accountId && transaction.toAccountId !== accountId) return false;
       if (categoryId !== 'all' && transaction.categoryId !== categoryId) return false;
+      if (searchQuery && !transaction.description.toLowerCase().includes(searchQuery.toLowerCase())) return false;
       return true;
     });
-  }, [safeTransactions, dateRange, accountId, categoryId]);
+  }, [safeTransactions, dateRange, accountId, categoryId, searchQuery]);
 
 
   const groupedTransactions = React.useMemo(() => {
@@ -434,3 +435,5 @@ export default function TransactionsPage() {
     </div>
   )
 }
+
+    
