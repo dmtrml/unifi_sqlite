@@ -33,6 +33,8 @@ export type Transaction = {
   date: Timestamp;
   description: string;
   transactionType: 'expense' | 'income' | 'transfer';
+  expenseType?: 'mandatory' | 'optional';
+  incomeType?: 'active' | 'passive';
   userId: string;
 };
 

@@ -56,6 +56,8 @@ const transactionFormSchema = z.object({
   isRecurring: z.boolean().default(false),
   frequency: z.enum(["weekly", "bi-weekly", "monthly"]).optional(),
   transactionType: z.enum(["expense", "income", "transfer"]).default("expense"),
+  expenseType: z.enum(["mandatory", "optional"]).optional(),
+  incomeType: z.enum(["active", "passive"]).optional(),
 }).refine(data => {
     if (data.transactionType === 'transfer') {
         return !!data.fromAccountId && !!data.toAccountId && data.fromAccountId !== data.toAccountId;
@@ -87,7 +89,9 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
       amount: 0,
       date: new Date(),
       isRecurring: false,
-      transactionType: "expense"
+      transactionType: "expense",
+      expenseType: "optional",
+      incomeType: "active"
     },
   })
 
@@ -101,6 +105,8 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
       date: new Date(),
       isRecurring: false,
       transactionType: "expense",
+      expenseType: "optional",
+      incomeType: "active",
       accountId: undefined,
       categoryId: undefined,
       fromAccountId: undefined,
@@ -155,6 +161,8 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
                     createdAt: serverTimestamp(),
                     categoryId: null,
                     accountId: null,
+                    incomeType: null,
+                    expenseType: null,
                 });
 
             } else {
@@ -176,6 +184,7 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
                     createdAt: serverTimestamp(),
                     fromAccountId: null,
                     toAccountId: null,
+                    ...(finalTransactionData.transactionType === 'expense' ? { incomeType: null } : { expenseType: null })
                 });
             }
         });
@@ -256,6 +265,54 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
                 </FormItem>
               )}
             />
+            
+            {transactionType === 'expense' && (
+              <FormField
+                control={form.control}
+                name="expenseType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Expense Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select expense type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="optional">Optional</SelectItem>
+                        <SelectItem value="mandatory">Mandatory</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {transactionType === 'income' && (
+              <FormField
+                control={form.control}
+                name="incomeType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Income Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select income type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="passive">Passive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             {transactionType === 'transfer' ? (
                  <div className="grid grid-cols-2 gap-4">

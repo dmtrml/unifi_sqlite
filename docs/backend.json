@@ -48,6 +48,16 @@
           "description": "The type of transaction (e.g., 'expense', 'income', 'transfer').",
           "enum": ["expense", "income", "transfer"]
         },
+        "expenseType": {
+            "type": "string",
+            "description": "The type of expense (e.g., 'mandatory', 'optional').",
+            "enum": ["mandatory", "optional"]
+        },
+        "incomeType": {
+            "type": "string",
+            "description": "The type of income (e.g., 'active', 'passive').",
+            "enum": ["active", "passive"]
+        },
         "recurringTransactionId": {
           "type": "string",
           "description": "Reference to the RecurringTransaction, if this transaction is part of a recurring series."

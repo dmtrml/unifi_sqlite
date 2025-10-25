@@ -14,7 +14,9 @@ import {
   Shapes,
   ArrowRightLeft
 } from "lucide-react"
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
+
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -59,18 +61,18 @@ function getAccount(accounts: Account[], accountId?: string): Account | undefine
 }
 
 function formatDateHeader(dateStr: string) {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
 
-  const todayStr = format(today, 'yyyy-MM-dd');
-  const yesterdayStr = format(yesterday, 'yyyy-MM-dd');
+  const todayStr = formatInTimeZone(today, timeZone, 'yyyy-MM-dd');
+  const yesterdayStr = formatInTimeZone(yesterday, timeZone, 'yyyy-MM-dd');
   
   if (dateStr === todayStr) return "Today";
   if (dateStr === yesterdayStr) return "Yesterday";
   
-  // Create date from 'yyyy-MM-dd' without timezone issues for formatting
-  const date = parseISO(dateStr);
+  const date = new Date(dateStr); // The date string is already in 'yyyy-MM-dd' from local timezone
   return format(date, "MMMM d, yyyy");
 }
 
@@ -121,9 +123,10 @@ function TransactionsPageContent() {
 
 
   const groupedTransactions = React.useMemo(() => {
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     return filteredTransactions.reduce((acc, transaction) => {
       const jsDate = new Date(transaction.date.seconds * 1000);
-      const dateStr = format(jsDate, 'yyyy-MM-dd');
+      const dateStr = formatInTimeZone(jsDate, timeZone, 'yyyy-MM-dd');
       
       if (!acc[dateStr]) {
         acc[dateStr] = [];
@@ -211,9 +214,13 @@ function TransactionsPageContent() {
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              <Badge variant="outline">
-                                {category?.name ?? "Uncategorized"}
-                              </Badge>
+                               <div className="flex items-center gap-2">
+                                  <Badge variant="outline">
+                                    {category?.name ?? "Uncategorized"}
+                                  </Badge>
+                                  {transaction.expenseType && <Badge variant="secondary" className="capitalize">{transaction.expenseType}</Badge>}
+                                  {transaction.incomeType && <Badge variant="secondary" className="capitalize">{transaction.incomeType}</Badge>}
+                               </div>
                             </TableCell>
                             <TableCell>
                               <Badge variant={transaction.transactionType === 'expense' ? 'destructive' : transaction.transactionType === 'income' ? 'default' : 'secondary'}>
@@ -285,7 +292,9 @@ function TransactionsPageContent() {
                                             ) : (
                                               <>
                                                 <Landmark className="h-3 w-3" />
-                                                <span>{account?.name ?? "No Account"}</span>
+                                                <span className="mr-2">{account?.name ?? "No Account"}</span>
+                                                {transaction.expenseType && <Badge variant="secondary" className="capitalize">{transaction.expenseType}</Badge>}
+                                                {transaction.incomeType && <Badge variant="secondary" className="capitalize">{transaction.incomeType}</Badge>}
                                               </>
                                             )}
                                           </div>

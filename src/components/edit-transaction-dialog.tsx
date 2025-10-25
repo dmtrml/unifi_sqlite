@@ -52,6 +52,8 @@ const editTransactionFormSchema = z.object({
   toAccountId: z.string().optional(),
   date: z.date(),
   transactionType: z.enum(["expense", "income", "transfer"]),
+  expenseType: z.enum(["mandatory", "optional"]).optional(),
+  incomeType: z.enum(["active", "passive"]).optional(),
 }).refine(data => {
     if (data.transactionType === 'transfer') {
         return !!data.fromAccountId && !!data.toAccountId && data.fromAccountId !== data.toAccountId;
@@ -83,6 +85,8 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
       ...originalTransaction,
       date: originalTransaction.date.toDate(),
       description: originalTransaction.description || "",
+      expenseType: originalTransaction.expenseType || "optional",
+      incomeType: originalTransaction.incomeType || "active",
     },
   })
   
@@ -151,7 +155,7 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
                  
                  dbTransaction.update(fromAccRef, { balance: fromAccDoc.data().balance - newData.amount });
                  dbTransaction.update(toAccRef, { balance: toAccDoc.data().balance + newData.amount });
-                 dbTransaction.update(transactionRef, {...newData, accountId: null, categoryId: null});
+                 dbTransaction.update(transactionRef, {...newData, accountId: null, categoryId: null, incomeType: null, expenseType: null});
             } else {
                 const accRef = doc(firestore, `users/${user.uid}/accounts/${newData.accountId}`);
                 const accDoc = await dbTransaction.get(accRef);
@@ -159,7 +163,12 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
 
                 const newBalance = newData.transactionType === 'expense' ? accDoc.data().balance - newData.amount : accDoc.data().balance + newData.amount;
                 dbTransaction.update(accRef, { balance: newBalance });
-                dbTransaction.update(transactionRef, {...newData, fromAccountId: null, toAccountId: null});
+                dbTransaction.update(transactionRef, {
+                    ...newData,
+                    fromAccountId: null,
+                    toAccountId: null,
+                    ...(newData.transactionType === 'expense' ? { incomeType: null } : { expenseType: null })
+                });
             }
         });
 
@@ -237,6 +246,54 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
                   </FormItem>
                 )}
               />
+              
+              {transactionType === 'expense' && (
+                <FormField
+                  control={form.control}
+                  name="expenseType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Expense Type</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select expense type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="optional">Optional</SelectItem>
+                          <SelectItem value="mandatory">Mandatory</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {transactionType === 'income' && (
+                <FormField
+                  control={form.control}
+                  name="incomeType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Income Type</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select income type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="passive">Passive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
             {transactionType === 'transfer' ? (
                 <div className="grid grid-cols-2 gap-4">
