@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { collection, query } from "firebase/firestore"
+import { collection, query, orderBy } from "firebase/firestore"
 import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase"
 import {
   Home,
@@ -56,11 +56,11 @@ function RecurringPageContent() {
   const firestore = useFirestore()
 
   const recurringTransactionsQuery = useMemoFirebase(() =>
-    user ? query(collection(firestore, "users", user.uid, "recurringTransactions")) : null,
+    user ? query(collection(firestore, "users", user.uid, "recurringTransactions"), orderBy("startDate", "desc")) : null,
     [user, firestore]
   );
   const categoriesQuery = useMemoFirebase(() =>
-    user ? query(collection(firestore, "users", user.uid, "categories")) : null,
+    user ? query(collection(firestore, "users", user.uid, "categories"), where => where("type", "==", "expense")) : null,
     [user, firestore]
   );
   const accountsQuery = useMemoFirebase(() =>
