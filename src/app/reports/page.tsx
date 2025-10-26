@@ -14,6 +14,7 @@ import {
 import type { Category, Transaction } from "@/lib/types"
 import { IncomeExpenseChart } from "@/components/reports/IncomeExpenseChart"
 import { CategoryBreakdownChart } from "@/components/reports/CategoryBreakdownChart"
+import { CategorySpendingChart } from "@/components/dashboard/category-spending-chart"
 import { Skeleton } from "@/components/ui/skeleton"
 
 function LoadingSkeleton() {
@@ -62,6 +63,18 @@ function ReportsPageContent() {
             </CardHeader>
             <CardContent>
               <IncomeExpenseChart transactions={transactions || []} />
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Spending by Category</CardTitle>
+              <CardDescription>
+                Spending breakdown for the current month.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CategorySpendingChart transactions={transactions || []} categories={categories || []} />
             </CardContent>
           </Card>
           

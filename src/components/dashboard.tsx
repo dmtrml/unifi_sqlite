@@ -14,7 +14,6 @@ import {
 import type { Budget, Category, Transaction, Account } from "@/lib/types"
 
 import { MonthlySpendingChart } from "./dashboard/monthly-spending-chart"
-import { CategorySpendingChart } from "./dashboard/category-spending-chart"
 import { SummaryCards } from "./dashboard/summary-cards"
 import { Progress } from "./ui/progress"
 import { Skeleton } from "./ui/skeleton"
@@ -97,23 +96,12 @@ export default function Dashboard() {
           totalIncome={totalIncome}
         />
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+        <Card className="col-span-full">
           <CardHeader>
             <CardTitle>Monthly Spending</CardTitle>
           </CardHeader>
           <CardContent className="pl-2">
             <MonthlySpendingChart transactions={safeTransactions} />
-          </CardContent>
-        </Card>
-        <Card className="col-span-4 lg:col-span-3">
-          <CardHeader>
-            <CardTitle>Spending by Category</CardTitle>
-            <CardDescription>
-              Spending breakdown for the current month.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CategorySpendingChart transactions={safeTransactions} categories={safeCategories} />
           </CardContent>
         </Card>
       </div>
