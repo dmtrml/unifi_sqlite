@@ -186,6 +186,11 @@
         "name": {
           "type": "string",
           "description": "The user's display name."
+        },
+        "theme": {
+            "type": "string",
+            "description": "The user's preferred theme.",
+            "enum": ["light", "dark"]
         }
       },
       "required": [
