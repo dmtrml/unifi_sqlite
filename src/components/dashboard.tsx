@@ -100,8 +100,10 @@ export default function Dashboard() {
         return acc + convertAmount(t.amount, fromCurrency, mainCurrency);
       }, 0);
 
-    // Note: Budgets are assumed to be set in the main currency.
-    const totalBudget = safeBudgets.reduce((acc, b) => acc + b.amount, 0);
+    const totalBudget = safeBudgets.reduce((acc, b) => {
+        const budgetCurrency = b.currency || mainCurrency;
+        return acc + convertAmount(b.amount, budgetCurrency, mainCurrency);
+    }, 0);
 
     return { totalIncome, totalExpenses, totalBudget };
 
@@ -144,7 +146,7 @@ export default function Dashboard() {
         <CardHeader>
           <CardTitle>Budget Status</CardTitle>
           <CardDescription>
-            Your spending progress for each category budget. Budgets are in {mainCurrency}.
+            Your spending progress for each category budget. Budgets are shown in your main currency ({mainCurrency}).
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6">
@@ -156,7 +158,8 @@ export default function Dashboard() {
                   const fromCurrency = safeAccounts.find(a => a.id === e.accountId)?.currency || 'USD';
                   return acc + convertAmount(e.amount, fromCurrency, mainCurrency)
                 }, 0)
-            const progress = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
+            const budgetAmountInMainCurrency = convertAmount(budget.amount, budget.currency || mainCurrency, mainCurrency);
+            const progress = budgetAmountInMainCurrency > 0 ? (spent / budgetAmountInMainCurrency) * 100 : 0;
             
             const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: mainCurrency });
 
@@ -165,7 +168,7 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between">
                    <span className="font-medium">{category}</span>
                    <span className="text-sm text-muted-foreground">
-                    {currencyFormatter.format(spent)} / {currencyFormatter.format(budget.amount)}
+                    {currencyFormatter.format(spent)} / {currencyFormatter.format(budgetAmountInMainCurrency)}
                    </span>
                 </div>
                 <Progress value={progress} aria-label={`${category} budget progress`} />
@@ -181,3 +184,5 @@ export default function Dashboard() {
     </div>
   )
 }
+
+    

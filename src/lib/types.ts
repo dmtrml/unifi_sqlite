@@ -43,6 +43,7 @@ export type Budget = {
   categoryId: string;
   amount: number;
   userId: string;
+  currency: Currency;
 };
 
 export type RecurringTransaction = {

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { collection, query, where, getDocs, doc } from "firebase/firestore"
-import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase"
+import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase"
 import * as Icons from "lucide-react"
 import AppLayout from "@/components/layout"
 
@@ -15,7 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import type { Category, Budget } from "@/lib/types"
+import type { Category, Budget, User } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { addDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
@@ -24,6 +24,12 @@ function BudgetsPageContent() {
   const firestore = useFirestore()
   const { toast } = useToast()
   const [budgetAmounts, setBudgetAmounts] = React.useState<Record<string, number | string>>({})
+  
+  const userDocRef = useMemoFirebase(
+    () => (user ? doc(firestore, "users", user.uid) : null),
+    [user, firestore]
+  )
+  const { data: userData } = useDoc<User>(userDocRef)
 
   const categoriesQuery = useMemoFirebase(() =>
     user ? query(collection(firestore, "users", user.uid, "categories")) : null,
@@ -57,7 +63,7 @@ function BudgetsPageContent() {
   }
   
   const handleSaveBudget = async (categoryId: string) => {
-    if (!user || !firestore) {
+    if (!user || !firestore || !userData) {
       toast({ title: "Error", description: "You must be logged in.", variant: "destructive" });
       return;
     }
@@ -78,13 +84,17 @@ function BudgetsPageContent() {
           userId: user.uid,
           categoryId: categoryId,
           amount: amount,
+          currency: userData.mainCurrency || 'USD',
         });
         toast({ title: "Budget Saved", description: "Your new budget has been saved." });
       } else {
         // Update existing budget
         const budgetDoc = querySnapshot.docs[0];
         const budgetRef = doc(firestore, `users/${user.uid}/budgets/${budgetDoc.id}`);
-        updateDocumentNonBlocking(budgetRef, { amount: amount });
+        updateDocumentNonBlocking(budgetRef, { 
+            amount: amount,
+            currency: userData.mainCurrency || 'USD',
+        });
         toast({ title: "Budget Updated", description: "Your budget has been successfully updated." });
       }
     } catch (error) {
@@ -103,7 +113,7 @@ function BudgetsPageContent() {
         <CardHeader>
           <CardTitle>Manage Budgets</CardTitle>
           <CardDescription>
-            Set and manage your monthly budgets for each category.
+            Set and manage your monthly budgets for each category. Budgets are set in your main currency ({userData?.mainCurrency || 'USD'}).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -119,7 +129,7 @@ function BudgetsPageContent() {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="relative">
-                       <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">$</span>
+                       <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">{userData?.mainCurrency || '$'}</span>
                        <Input 
                          type="number"
                          value={currentAmount}
@@ -148,3 +158,5 @@ export default function BudgetsPage() {
     </AppLayout>
   )
 }
+
+    

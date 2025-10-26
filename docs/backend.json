@@ -278,13 +278,19 @@
         "amount": {
             "type": "number",
             "description": "The budgeted amount for the category."
+        },
+        "currency": {
+          "type": "string",
+          "description": "The currency of the budget.",
+          "enum": ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS", "RUB"]
         }
       },
       "required": [
         "id",
         "userId",
         "categoryId",
-        "amount"
+        "amount",
+        "currency"
       ]
     }
   },
