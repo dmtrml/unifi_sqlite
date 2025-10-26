@@ -79,7 +79,7 @@ function BudgetsPageContent() {
     try {
       const querySnapshot = await getDocs(q);
       if (querySnapshot.empty) {
-        // Create new budget
+        // Create new budget with current main currency
         addDocumentNonBlocking(budgetsRef, {
           userId: user.uid,
           categoryId: categoryId,
@@ -88,12 +88,11 @@ function BudgetsPageContent() {
         });
         toast({ title: "Budget Saved", description: "Your new budget has been saved." });
       } else {
-        // Update existing budget
+        // Update existing budget's amount, but keep its original currency
         const budgetDoc = querySnapshot.docs[0];
         const budgetRef = doc(firestore, `users/${user.uid}/budgets/${budgetDoc.id}`);
         updateDocumentNonBlocking(budgetRef, { 
             amount: amount,
-            currency: userData.mainCurrency || 'USD',
         });
         toast({ title: "Budget Updated", description: "Your budget has been successfully updated." });
       }
@@ -113,7 +112,7 @@ function BudgetsPageContent() {
         <CardHeader>
           <CardTitle>Manage Budgets</CardTitle>
           <CardDescription>
-            Set and manage your monthly budgets for each category. Budgets are set in your main currency ({userData?.mainCurrency || 'USD'}).
+            Set and manage your monthly budgets for each category. New budgets are created in your main currency ({userData?.mainCurrency || 'USD'}).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -121,6 +120,9 @@ function BudgetsPageContent() {
             {expenseCategories.map((category) => {
                const IconComponent = (Icons as any)[category.icon] || Icons.MoreHorizontal;
                const currentAmount = budgetAmounts[category.id] ?? '';
+               const existingBudget = budgets?.find(b => b.categoryId === category.id);
+               const currencySymbol = existingBudget?.currency || userData?.mainCurrency || 'USD';
+
                return (
                 <div key={category.id} className="flex items-center justify-between gap-4 rounded-lg border p-3 md:p-4">
                   <div className="flex items-center gap-3">
@@ -129,13 +131,13 @@ function BudgetsPageContent() {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="relative">
-                       <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">{userData?.mainCurrency || '$'}</span>
+                       <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">{currencySymbol}</span>
                        <Input 
                          type="number"
                          value={currentAmount}
                          onChange={(e) => handleAmountChange(category.id, e.target.value)}
                          placeholder="0.00"
-                         className="w-32 pl-7" 
+                         className="w-32 pl-10" 
                          aria-label={`${category.name} budget amount`} 
                        />
                     </div>
@@ -158,5 +160,3 @@ export default function BudgetsPage() {
     </AppLayout>
   )
 }
-
-    
