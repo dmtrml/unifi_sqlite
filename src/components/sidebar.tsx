@@ -24,7 +24,7 @@ const navItems = [
     { href: "/categories", label: "Categories", icon: Shapes },
     { href: "/budgets", label: "Budgets", icon: DollarSign },
     { href: "/recurring", label: "Recurring", icon: Repeat },
-    { href: "#", label: "Reports", icon: LineChart },
+    { href: "/reports", label: "Reports", icon: LineChart },
 ]
 
 export default function Sidebar() {
