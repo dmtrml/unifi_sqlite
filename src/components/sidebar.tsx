@@ -15,8 +15,6 @@ import {
 
 import { cn } from "@/lib/utils"
 import { BudgetWiseLogo } from "./icons"
-import { Card, CardHeader, CardTitle, CardContent } from "./ui/card"
-import { Button } from "./ui/button"
 
 const navItems = [
     { href: "/", label: "Dashboard", icon: Home },
@@ -57,18 +55,6 @@ export default function Sidebar() {
                             </Link>
                         ))}
                     </nav>
-                </div>
-                <div className="mt-auto p-4">
-                    <Card>
-                        <CardHeader className="p-2 pt-0 md:p-4">
-                            <CardTitle>Upgrade to Pro</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
-                            <Button size="sm" className="w-full">
-                                Upgrade
-                            </Button>
-                        </CardContent>
-                    </Card>
                 </div>
             </div>
         </aside>
