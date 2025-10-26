@@ -39,8 +39,10 @@ export type Transaction = {
 };
 
 export type Budget = {
+  id: string;
   categoryId: string;
   amount: number;
+  userId: string;
 };
 
 export type RecurringTransaction = {

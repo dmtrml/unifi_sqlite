@@ -2,15 +2,23 @@
 
 import { DollarSign, PiggyBank, Wallet } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card"
+import type { Currency } from "@/lib/types";
 
 type SummaryCardsProps = {
     totalBudget: number;
     totalExpenses: number;
     totalIncome: number;
+    currency: Currency;
 }
 
-export function SummaryCards({ totalBudget, totalExpenses, totalIncome }: SummaryCardsProps) {
+export function SummaryCards({ totalBudget, totalExpenses, totalIncome, currency }: SummaryCardsProps) {
     const remainingBudget = totalBudget - totalExpenses;
+    
+    const currencyFormatter = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency,
+    });
+
     const cards = [
         {
             title: "Total Income",
@@ -40,7 +48,7 @@ export function SummaryCards({ totalBudget, totalExpenses, totalIncome }: Summar
                         <card.icon className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${card.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                        <div className="text-2xl font-bold">{currencyFormatter.format(card.amount)}</div>
                     </CardContent>
                 </Card>
             ))}

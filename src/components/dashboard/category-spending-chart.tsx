@@ -10,11 +10,14 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import type { Category, Transaction } from "@/lib/types"
+import type { Category, Transaction, Account, Currency } from "@/lib/types"
+import { convertAmount } from "@/lib/currency"
 
 type CategorySpendingChartProps = {
   transactions: Transaction[];
   categories: Category[];
+  accounts: Account[];
+  mainCurrency: Currency;
 }
 
 const RADIAN = Math.PI / 180;
@@ -40,16 +43,23 @@ const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, payload, perc
 };
 
 
-export function CategorySpendingChart({ transactions, categories }: CategorySpendingChartProps) {
+export function CategorySpendingChart({ transactions, categories, accounts, mainCurrency }: CategorySpendingChartProps) {
   const [activeCategory, setActiveCategory] =
     React.useState<string | null>(null)
   const id = "pie-interactive"
 
+  const getAccountCurrency = React.useCallback((accountId?: string) => {
+    return accounts.find(a => a.id === accountId)?.currency || 'USD';
+  }, [accounts]);
+
   const totalSpent = React.useMemo(() => {
     return transactions
       .filter(t => t.transactionType === 'expense')
-      .reduce((sum, t) => sum + t.amount, 0)
-  }, [transactions]);
+      .reduce((sum, t) => {
+          const fromCurrency = getAccountCurrency(t.accountId);
+          return sum + convertAmount(t.amount, fromCurrency, mainCurrency);
+      }, 0)
+  }, [transactions, getAccountCurrency, mainCurrency]);
 
   const categorySpending = React.useMemo(() => {
     return categories
@@ -57,7 +67,10 @@ export function CategorySpendingChart({ transactions, categories }: CategorySpen
     .map(category => {
       const total = transactions
         .filter(expense => expense.categoryId === category.id && expense.transactionType === 'expense')
-        .reduce((sum, expense) => sum + expense.amount, 0)
+        .reduce((sum, expense) => {
+            const fromCurrency = getAccountCurrency(expense.accountId);
+            return sum + convertAmount(expense.amount, fromCurrency, mainCurrency);
+        }, 0)
       return {
         category: category.name,
         total,
@@ -65,7 +78,7 @@ export function CategorySpendingChart({ transactions, categories }: CategorySpen
         icon: category.icon,
       }
     }).filter(item => item.total > 0);
-  }, [transactions, categories])
+  }, [transactions, categories, getAccountCurrency, mainCurrency])
 
   const chartConfig = React.useMemo(() => {
     return categorySpending.reduce((acc, item) => {
@@ -82,6 +95,8 @@ export function CategorySpendingChart({ transactions, categories }: CategorySpen
     () => categorySpending.findIndex((item) => item.category === activeCategory),
     [activeCategory, categorySpending]
   )
+
+  const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: mainCurrency });
   
   if (categorySpending.length === 0) {
     return <div className="flex items-center justify-center h-[250px] text-muted-foreground">No spending data available.</div>
@@ -104,7 +119,7 @@ export function CategorySpendingChart({ transactions, categories }: CategorySpen
                             <div className="font-medium text-foreground">{name}</div>
                             <div className="flex items-baseline gap-1.5">
                                 <span className="text-lg font-bold">
-                                    ${(value as number).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {currencyFormatter.format(value as number)}
                                 </span>
                                 <span className="text-sm text-muted-foreground">
                                     ({percentage.toFixed(2)}%)
@@ -131,7 +146,7 @@ export function CategorySpendingChart({ transactions, categories }: CategorySpen
             dominantBaseline="middle"
             className="fill-foreground text-2xl font-bold"
           >
-             ${totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+             {currencyFormatter.format(totalSpent)}
           </text>
           <Pie
             data={categorySpending}

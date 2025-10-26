@@ -1,7 +1,9 @@
 "use client"
 
 import { Bar, BarChart, CartesianGrid, Legend, XAxis, YAxis } from "recharts"
-import { format, getMonth, getYear } from "date-fns"
+import { format, getYear } from "date-fns"
+import { fromZonedTime } from "date-fns-tz"
+import React from "react"
 
 import {
   ChartConfig,
@@ -9,12 +11,13 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import type { Transaction } from "@/lib/types"
-import React from "react"
-import { fromZonedTime } from "date-fns-tz"
+import type { Transaction, Account, Currency } from "@/lib/types"
+import { convertAmount } from "@/lib/currency"
 
 type MonthlySpendingChartProps = {
   transactions: Transaction[];
+  accounts: Account[];
+  mainCurrency: Currency;
 }
 
 const chartConfig = {
@@ -28,7 +31,7 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-export function IncomeExpenseChart({ transactions }: MonthlySpendingChartProps) {
+export function IncomeExpenseChart({ transactions, accounts, mainCurrency }: MonthlySpendingChartProps) {
 
   const chartData = React.useMemo(() => {
     const currentYear = getYear(new Date());
@@ -39,16 +42,23 @@ export function IncomeExpenseChart({ transactions }: MonthlySpendingChartProps) 
         monthlyData[monthName] = { income: 0, expense: 0 };
     }
 
+    const getAccountCurrency = (accountId?: string) => {
+        return accounts.find(a => a.id === accountId)?.currency || 'USD';
+    }
+
     transactions.forEach(transaction => {
       const jsDate = new Date(transaction.date.seconds * 1000);
       const transactionDate = fromZonedTime(jsDate, 'UTC');
 
       if (getYear(transactionDate) === currentYear) {
         const monthName = format(transactionDate, 'MMMM');
+        const fromCurrency = getAccountCurrency(transaction.accountId);
+        const convertedAmount = convertAmount(transaction.amount, fromCurrency, mainCurrency);
+
         if (transaction.transactionType === 'income') {
-          monthlyData[monthName].income += transaction.amount;
+          monthlyData[monthName].income += convertedAmount;
         } else if (transaction.transactionType === 'expense') {
-          monthlyData[monthName].expense += transaction.amount;
+          monthlyData[monthName].expense += convertedAmount;
         }
       }
     });
@@ -59,8 +69,9 @@ export function IncomeExpenseChart({ transactions }: MonthlySpendingChartProps) 
       expense: monthlyData[month].expense,
     }));
 
-  }, [transactions]);
-
+  }, [transactions, accounts, mainCurrency]);
+  
+  const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: mainCurrency });
 
   return (
     <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
@@ -78,7 +89,7 @@ export function IncomeExpenseChart({ transactions }: MonthlySpendingChartProps) 
             tickLine={false}
             axisLine={false}
             tickMargin={8}
-            tickFormatter={(value) => `$${value}`}
+            tickFormatter={(value) => currencyFormatter.format(value).replace(/(\.00|,\d{2})$/, '')}
         />
         <XAxis
           dataKey="month"
@@ -89,7 +100,9 @@ export function IncomeExpenseChart({ transactions }: MonthlySpendingChartProps) 
         />
         <ChartTooltip
           cursor={false}
-          content={<ChartTooltipContent />}
+          content={<ChartTooltipContent 
+            formatter={(value) => currencyFormatter.format(value as number)}
+          />}
         />
         <Legend />
         <Bar dataKey="income" fill="var(--color-income)" radius={8} />

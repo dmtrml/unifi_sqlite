@@ -1,7 +1,9 @@
 "use client"
 
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
-import { format, getMonth, getYear } from "date-fns"
+import { format, getYear } from "date-fns"
+import { fromZonedTime } from "date-fns-tz"
+import React from "react"
 
 import {
   ChartConfig,
@@ -9,12 +11,13 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import type { Transaction } from "@/lib/types"
-import React from "react"
-import { fromZonedTime } from "date-fns-tz"
+import type { Transaction, Account, Currency } from "@/lib/types"
+import { convertAmount } from "@/lib/currency"
 
 type MonthlySpendingChartProps = {
   transactions: Transaction[];
+  accounts: Account[];
+  mainCurrency: Currency;
 }
 
 const chartConfig = {
@@ -24,7 +27,7 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-export function MonthlySpendingChart({ transactions }: MonthlySpendingChartProps) {
+export function MonthlySpendingChart({ transactions, accounts, mainCurrency }: MonthlySpendingChartProps) {
 
   const chartData = React.useMemo(() => {
     const currentYear = getYear(new Date());
@@ -34,16 +37,20 @@ export function MonthlySpendingChart({ transactions }: MonthlySpendingChartProps
         const monthName = format(new Date(currentYear, i), 'MMMM');
         monthlySpending[monthName] = 0;
     }
+    
+    const getAccountCurrency = (accountId?: string) => {
+        return accounts.find(a => a.id === accountId)?.currency || 'USD';
+    }
 
     transactions.forEach(transaction => {
-      // Convert Firestore timestamp to a JS Date object
       const jsDate = new Date(transaction.date.seconds * 1000);
-      // Treat the date as if it's in UTC to avoid timezone shifts
       const transactionDate = fromZonedTime(jsDate, 'UTC');
 
       if (getYear(transactionDate) === currentYear && transaction.transactionType === 'expense') {
         const monthName = format(transactionDate, 'MMMM');
-        monthlySpending[monthName] += transaction.amount;
+        const fromCurrency = getAccountCurrency(transaction.accountId);
+        const convertedAmount = convertAmount(transaction.amount, fromCurrency, mainCurrency);
+        monthlySpending[monthName] += convertedAmount;
       }
     });
 
@@ -52,8 +59,9 @@ export function MonthlySpendingChart({ transactions }: MonthlySpendingChartProps
       spending: monthlySpending[month],
     }));
 
-  }, [transactions]);
+  }, [transactions, accounts, mainCurrency]);
 
+  const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: mainCurrency });
 
   return (
     <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
@@ -70,7 +78,7 @@ export function MonthlySpendingChart({ transactions }: MonthlySpendingChartProps
             tickLine={false}
             axisLine={false}
             tickMargin={8}
-            tickFormatter={(value) => `$${value}`}
+            tickFormatter={(value) => currencyFormatter.format(value).replace(/(\.00|,\d{2})$/, '')}
         />
         <XAxis
           dataKey="month"
@@ -81,12 +89,13 @@ export function MonthlySpendingChart({ transactions }: MonthlySpendingChartProps
         />
         <ChartTooltip
           cursor={false}
-          content={<ChartTooltipContent hideLabel />}
+          content={<ChartTooltipContent 
+            hideLabel 
+            formatter={(value) => currencyFormatter.format(value as number)}
+           />}
         />
         <Bar dataKey="spending" fill="var(--color-spending)" radius={8} />
       </BarChart>
     </ChartContainer>
   )
 }
-
-    

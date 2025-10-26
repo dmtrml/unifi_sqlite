@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { collection, query } from "firebase/firestore"
-import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase"
+import { collection, query, doc } from "firebase/firestore"
+import { useCollection, useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase"
 import AppLayout from "@/components/layout"
 import {
   Card,
@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import type { Category, Transaction } from "@/lib/types"
+import type { Category, Transaction, User, Account } from "@/lib/types"
 import { IncomeExpenseChart } from "@/components/reports/IncomeExpenseChart"
 import { CategoryBreakdownChart } from "@/components/reports/CategoryBreakdownChart"
 import { CategorySpendingChart } from "@/components/dashboard/category-spending-chart"
@@ -33,6 +33,10 @@ function ReportsPageContent() {
   const { user, isUserLoading } = useUser()
   const firestore = useFirestore()
 
+  const userDocRef = useMemoFirebase(
+    () => (user ? doc(firestore, "users", user.uid) : null),
+    [user, firestore]
+  )
   const transactionsQuery = useMemoFirebase(() => 
     user ? query(collection(firestore, "users", user.uid, "transactions")) : null, 
     [user, firestore]
@@ -41,11 +45,18 @@ function ReportsPageContent() {
     user ? query(collection(firestore, "users", user.uid, "categories")) : null, 
     [user, firestore]
   );
+  const accountsQuery = useMemoFirebase(() =>
+    user ? query(collection(firestore, "users", user.uid, "accounts")) : null,
+    [user, firestore]
+  );
   
+  const { data: userData } = useDoc<User>(userDocRef);
   const { data: transactions, isLoading: transactionsLoading } = useCollection<Transaction>(transactionsQuery);
   const { data: categories, isLoading: categoriesLoading } = useCollection<Category>(categoriesQuery);
+  const { data: accounts, isLoading: accountsLoading } = useCollection<Account>(accountsQuery);
 
-  const isLoading = isUserLoading || transactionsLoading || categoriesLoading;
+  const isLoading = isUserLoading || transactionsLoading || categoriesLoading || accountsLoading;
+  const mainCurrency = userData?.mainCurrency || "USD";
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
@@ -61,11 +72,15 @@ function ReportsPageContent() {
             <CardHeader>
               <CardTitle>Income vs. Expense</CardTitle>
               <CardDescription>
-                A monthly comparison of your income and expenses for the current year.
+                A monthly comparison of your income and expenses for the current year, shown in {mainCurrency}.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <IncomeExpenseChart transactions={transactions || []} />
+              <IncomeExpenseChart 
+                transactions={transactions || []} 
+                accounts={accounts || []} 
+                mainCurrency={mainCurrency}
+              />
             </CardContent>
           </Card>
           
@@ -74,11 +89,16 @@ function ReportsPageContent() {
               <CardHeader>
                 <CardTitle>Spending by Category</CardTitle>
                 <CardDescription>
-                  Spending breakdown for the current month.
+                  Spending breakdown for the current month in {mainCurrency}.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <CategorySpendingChart transactions={transactions || []} categories={categories || []} />
+                <CategorySpendingChart 
+                  transactions={transactions || []} 
+                  categories={categories || []}
+                  accounts={accounts || []}
+                  mainCurrency={mainCurrency}
+                />
               </CardContent>
             </Card>
             
@@ -86,11 +106,16 @@ function ReportsPageContent() {
               <CardHeader>
                 <CardTitle>Expense Breakdown by Category</CardTitle>
                 <CardDescription>
-                  See where your money is going. This chart shows the distribution of your expenses across different categories.
+                  See where your money is going. This chart shows the distribution of your expenses across different categories in {mainCurrency}.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <CategoryBreakdownChart transactions={transactions || []} categories={categories || []} />
+                <CategoryBreakdownChart 
+                  transactions={transactions || []} 
+                  categories={categories || []} 
+                  accounts={accounts || []}
+                  mainCurrency={mainCurrency}
+                />
               </CardContent>
             </Card>
           </div>
