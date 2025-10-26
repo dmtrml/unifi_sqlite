@@ -18,6 +18,7 @@ import {
   Repeat,
   DollarSign,
   Shapes,
+  Settings,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -56,6 +57,7 @@ const navItems = [
     { href: "/budgets", label: "Budgets", icon: DollarSign },
     { href: "/recurring", label: "Recurring", icon: Repeat },
     { href: "/reports", label: "Reports", icon: LineChart },
+    { href: "/settings", label: "Settings", icon: Settings },
 ]
 
 export default function AppHeader() {
@@ -155,7 +157,9 @@ export default function AppHeader() {
               <DropdownMenuContent align="end">
                   <DropdownMenuLabel>{user.email || "My Account"}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>Settings</DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings">Settings</Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem>Support</DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
