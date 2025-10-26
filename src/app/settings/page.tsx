@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { doc, updateDoc } from "firebase/firestore"
+import { doc, setDoc } from "firebase/firestore"
 import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase"
 import AppLayout from "@/components/layout"
 import { Button } from "@/components/ui/button"
@@ -47,7 +47,8 @@ function SettingsPageContent() {
     
     try {
       const userRef = doc(firestore, "users", user.uid)
-      await updateDoc(userRef, { theme: newTheme })
+      // Use setDoc with merge to create the document if it doesn't exist, or update it if it does.
+      await setDoc(userRef, { theme: newTheme, id: user.uid, email: user.email }, { merge: true })
       toast({
         title: "Theme Updated",
         description: `Theme changed to ${newTheme}.`,
