@@ -1,15 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { Pie, PieChart, Sector } from "recharts"
+import { Pie, PieChart, Sector, Cell } from "recharts"
+import * as Icons from "lucide-react"
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import {
   ChartConfig,
   ChartContainer,
@@ -23,13 +17,38 @@ type CategorySpendingChartProps = {
   categories: Category[];
 }
 
+const RADIAN = Math.PI / 180;
+const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, payload, percent, index }: any) => {
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  
+  const IconComponent = (Icons as any)[payload.icon] || Icons.MoreHorizontal;
+
+  return (
+    <g>
+       <IconComponent
+        x={x - 12}
+        y={y - 12}
+        width={24}
+        height={24}
+        color="white"
+        strokeWidth={1.5}
+      />
+    </g>
+  );
+};
+
+
 export function CategorySpendingChart({ transactions, categories }: CategorySpendingChartProps) {
   const [activeCategory, setActiveCategory] =
     React.useState<string | null>(null)
   const id = "pie-interactive"
 
   const categorySpending = React.useMemo(() => {
-    return categories.map(category => {
+    return categories
+    .filter(c => c.type === 'expense' || !c.type)
+    .map(category => {
       const total = transactions
         .filter(expense => expense.categoryId === category.id && expense.transactionType === 'expense')
         .reduce((sum, expense) => sum + expense.amount, 0)
@@ -37,6 +56,7 @@ export function CategorySpendingChart({ transactions, categories }: CategorySpen
         category: category.name,
         total,
         fill: category.color,
+        icon: category.icon,
       }
     }).filter(item => item.total > 0);
   }, [transactions, categories])
@@ -74,7 +94,9 @@ export function CategorySpendingChart({ transactions, categories }: CategorySpen
         <PieChart>
           <ChartTooltip
             cursor={false}
-            content={<ChartTooltipContent hideLabel />}
+            content={<ChartTooltipContent 
+                formatter={(value, name) => [`$${(value as number).toFixed(2)}`, name]}
+            />}
           />
           <Pie
             data={categorySpending}
@@ -82,6 +104,8 @@ export function CategorySpendingChart({ transactions, categories }: CategorySpen
             nameKey="category"
             innerRadius={60}
             strokeWidth={5}
+            labelLine={false}
+            label={<CustomLabel />}
             activeIndex={activeIndex}
             activeShape={({
               outerRadius = 0,
@@ -89,11 +113,6 @@ export function CategorySpendingChart({ transactions, categories }: CategorySpen
             }) => (
               <g>
                 <Sector {...props} outerRadius={outerRadius + 10} />
-                <Sector
-                  {...props}
-                  outerRadius={outerRadius + 25}
-                  innerRadius={outerRadius + 15}
-                />
               </g>
             )}
             onMouseOver={(_, index) => {
@@ -102,7 +121,11 @@ export function CategorySpendingChart({ transactions, categories }: CategorySpen
             onMouseLeave={() => {
               setActiveCategory(null)
             }}
-          />
+          >
+            {categorySpending.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.fill} />
+            ))}
+          </Pie>
         </PieChart>
       </ChartContainer>
   )
