@@ -21,7 +21,10 @@ function LoadingSkeleton() {
   return (
     <div className="space-y-4">
       <Skeleton className="h-80 w-full" />
-      <Skeleton className="h-96 w-full" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Skeleton className="h-96 w-full" />
+        <Skeleton className="h-96 w-full" />
+      </div>
     </div>
   )
 }
@@ -66,29 +69,31 @@ function ReportsPageContent() {
             </CardContent>
           </Card>
           
-          <Card>
-            <CardHeader>
-              <CardTitle>Spending by Category</CardTitle>
-              <CardDescription>
-                Spending breakdown for the current month.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <CategorySpendingChart transactions={transactions || []} categories={categories || []} />
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Expense Breakdown by Category</CardTitle>
-              <CardDescription>
-                See where your money is going. This chart shows the distribution of your expenses across different categories.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <CategoryBreakdownChart transactions={transactions || []} categories={categories || []} />
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="lg:col-span-1">
+              <CardHeader>
+                <CardTitle>Spending by Category</CardTitle>
+                <CardDescription>
+                  Spending breakdown for the current month.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CategorySpendingChart transactions={transactions || []} categories={categories || []} />
+              </CardContent>
+            </Card>
+            
+            <Card className="lg:col-span-1">
+              <CardHeader>
+                <CardTitle>Expense Breakdown by Category</CardTitle>
+                <CardDescription>
+                  See where your money is going. This chart shows the distribution of your expenses across different categories.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CategoryBreakdownChart transactions={transactions || []} categories={categories || []} />
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
     </main>
