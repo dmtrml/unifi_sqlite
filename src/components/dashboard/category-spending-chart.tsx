@@ -91,14 +91,8 @@ export function CategorySpendingChart({ transactions, categories }: CategorySpen
     <ChartContainer
         config={chartConfig}
         id={id}
-        className="mx-auto aspect-square h-[250px] relative"
+        className="mx-auto aspect-square h-full w-full"
       >
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <p className="text-sm text-muted-foreground">Total Spent</p>
-            <p className="text-2xl font-bold">
-                ${totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </p>
-        </div>
         <PieChart>
           <ChartTooltip
             cursor={false}
@@ -121,12 +115,30 @@ export function CategorySpendingChart({ transactions, categories }: CategorySpen
                 }}
             />}
           />
+           <text
+            x="50%"
+            y="45%"
+            textAnchor="middle"
+            dominantBaseline="middle"
+            className="fill-muted-foreground text-sm"
+          >
+            Total Spent
+          </text>
+          <text
+            x="50%"
+            y="55%"
+            textAnchor="middle"
+            dominantBaseline="middle"
+            className="fill-foreground text-2xl font-bold"
+          >
+             ${totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </text>
           <Pie
             data={categorySpending}
             dataKey="total"
             nameKey="category"
-            innerRadius={80}
-            outerRadius={110}
+            innerRadius="65%"
+            outerRadius="85%"
             strokeWidth={5}
             labelLine={false}
             label={<CustomLabel />}
