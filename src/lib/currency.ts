@@ -13,6 +13,7 @@ const staticExchangeRates: Record<Currency, number> = {
   "CNY": 7.25,    // 1 USD = 7.25 CNY
   "INR": 83.5,    // 1 USD = 83.5 INR
   "ARS": 900.0,   // 1 USD = 900.0 ARS
+  "RUB": 90.0,    // 1 USD = 90.0 RUB
 };
 
 /**
@@ -40,3 +41,5 @@ export function convertAmount(
 
   return convertedAmount;
 }
+
+    

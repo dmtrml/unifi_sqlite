@@ -154,7 +154,7 @@
         "currency": {
           "type": "string",
           "description": "The currency of the account.",
-          "enum": ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS"]
+          "enum": ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS", "RUB"]
         }
       },
       "required": [
@@ -195,7 +195,7 @@
         "mainCurrency": {
           "type": "string",
           "description": "The user's main currency for reporting.",
-          "enum": ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS"]
+          "enum": ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS", "RUB"]
         }
       },
       "required": [
@@ -359,3 +359,5 @@
     ]
   }
 }
+
+    

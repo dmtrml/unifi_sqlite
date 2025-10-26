@@ -40,7 +40,7 @@ import type { Account, AccountType, Currency } from "@/lib/types"
 import { DropdownMenuItem } from "./ui/dropdown-menu"
 
 const accountTypes: AccountType[] = ["Cash", "Card", "Bank Account", "Deposit", "Loan"];
-const currencies: Currency[] = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS"];
+const currencies: Currency[] = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS", "RUB"];
 
 const accountIconMap: Record<AccountType, string> = {
     "Cash": "Wallet",
@@ -231,3 +231,5 @@ export function EditAccountDialog({ account }: EditAccountDialogProps) {
     </Dialog>
   )
 }
+
+    

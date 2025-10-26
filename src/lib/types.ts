@@ -10,7 +10,7 @@ export type Category = {
 };
 
 export type AccountType = "Cash" | "Card" | "Bank Account" | "Deposit" | "Loan";
-export type Currency = "USD" | "EUR" | "JPY" | "GBP" | "CHF" | "CAD" | "AUD" | "CNY" | "INR" | "ARS";
+export type Currency = "USD" | "EUR" | "JPY" | "GBP" | "CHF" | "CAD" | "AUD" | "CNY" | "INR" | "ARS" | "RUB";
 
 export type Account = {
   id: string;
@@ -63,3 +63,5 @@ export type User = {
   theme?: 'light' | 'dark';
   mainCurrency?: Currency;
 };
+
+    

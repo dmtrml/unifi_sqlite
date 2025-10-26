@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-const currencies: Currency[] = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS"];
+const currencies: Currency[] = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS", "RUB"];
 
 function SettingsPageContent() {
   const { user } = useUser()
@@ -141,3 +141,5 @@ export default function SettingsPage() {
     </AppLayout>
   )
 }
+
+    
