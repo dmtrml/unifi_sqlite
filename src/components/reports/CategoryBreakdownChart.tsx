@@ -67,7 +67,7 @@ export function CategoryBreakdownChart({ transactions, categories }: CategoryBre
             </TableCell>
             <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-2">
-                    <Progress value={item.percentage} className="h-2 w-24" indicatorColor={item.color} />
+                    <Progress value={item.percentage} className="h-2 w-24" style={{ '--indicator-color': item.color } as React.CSSProperties} />
                     <span>{item.percentage.toFixed(2)}%</span>
                 </div>
             </TableCell>
@@ -77,28 +77,3 @@ export function CategoryBreakdownChart({ transactions, categories }: CategoryBre
     </Table>
   );
 }
-
-// Small modification to Progress component to accept custom color
-declare module "react" {
-  interface CSSProperties {
-    '--indicator-color'?: string;
-  }
-}
-
-(Progress as any).defaultProps = {
-  ...Progress.defaultProps,
-  indicatorColor: 'hsl(var(--primary))'
-};
-
-const OriginalProgress = Progress;
-const CustomColorProgress = React.forwardRef<
-  React.ElementRef<typeof OriginalProgress>,
-  React.ComponentPropsWithoutRef<typeof OriginalProgress> & { indicatorColor?: string }
->(({ indicatorColor, ...props }, ref) => (
-  <OriginalProgress
-    ref={ref}
-    {...props}
-    indicatorStyle={{ backgroundColor: indicatorColor }}
-  />
-));
-CustomColorProgress.displayName = "Progress";
