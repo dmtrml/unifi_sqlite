@@ -191,6 +191,11 @@
             "type": "string",
             "description": "The user's preferred theme.",
             "enum": ["light", "dark"]
+        },
+        "mainCurrency": {
+          "type": "string",
+          "description": "The user's main currency for reporting.",
+          "enum": ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS"]
         }
       },
       "required": [
@@ -250,8 +255,7 @@
         "categoryId",
         "startDate",
         "amount",
-        "frequency"
-      ]
+        "frequency"      ]
     },
     "Budget": {
       "$schema": "http://json-schema.org/draft-07/schema#",

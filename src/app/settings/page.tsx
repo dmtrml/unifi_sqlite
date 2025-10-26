@@ -15,7 +15,16 @@ import {
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
-import type { User } from "@/lib/types"
+import type { User, Currency } from "@/lib/types"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
+const currencies: Currency[] = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS"];
 
 function SettingsPageContent() {
   const { user } = useUser()
@@ -29,39 +38,46 @@ function SettingsPageContent() {
   const { data: userData } = useDoc<User>(userDocRef)
 
   const [isDarkTheme, setIsDarkTheme] = React.useState(false)
+  const [mainCurrency, setMainCurrency] = React.useState<Currency>("USD")
 
   React.useEffect(() => {
-    if (userData?.theme) {
+    if (userData) {
       setIsDarkTheme(userData.theme === 'dark')
+      if (userData.mainCurrency) {
+        setMainCurrency(userData.mainCurrency)
+      }
     }
   }, [userData])
 
-  const handleThemeChange = async (checked: boolean) => {
+  const handleSaveSettings = async () => {
     if (!user || !firestore) {
       toast({ title: "Error", description: "You must be logged in.", variant: "destructive" });
       return
     }
 
-    const newTheme = checked ? 'dark' : 'light'
-    setIsDarkTheme(checked)
+    const newTheme = isDarkTheme ? 'dark' : 'light'
     
     try {
       const userRef = doc(firestore, "users", user.uid)
-      // Use setDoc with merge to create the document if it doesn't exist, or update it if it does.
-      await setDoc(userRef, { theme: newTheme, id: user.uid, email: user.email }, { merge: true })
+      const dataToSave: Partial<User> = {
+        theme: newTheme,
+        mainCurrency: mainCurrency,
+        id: user.uid,
+        email: user.email,
+      };
+
+      await setDoc(userRef, dataToSave, { merge: true })
       toast({
-        title: "Theme Updated",
-        description: `Theme changed to ${newTheme}.`,
+        title: "Settings Saved",
+        description: "Your settings have been successfully updated.",
       })
     } catch (error) {
-      console.error("Error updating theme: ", error)
+      console.error("Error updating settings: ", error)
       toast({
         title: "Error",
-        description: "Failed to update theme.",
+        description: "Failed to update settings.",
         variant: "destructive",
       })
-      // Revert UI change on error
-      setIsDarkTheme(!checked)
     }
   }
 
@@ -77,17 +93,43 @@ function SettingsPageContent() {
             Customize the look and feel of the application.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
           <div className="flex items-center space-x-2">
             <Switch 
               id="dark-theme" 
               checked={isDarkTheme}
-              onCheckedChange={handleThemeChange}
+              onCheckedChange={setIsDarkTheme}
             />
             <Label htmlFor="dark-theme">Dark Theme</Label>
           </div>
         </CardContent>
       </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Currency</CardTitle>
+          <CardDescription>
+            Set your main currency for reports and summaries.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+            <div className="space-y-2">
+                 <Label htmlFor="main-currency">Main Currency</Label>
+                 <Select value={mainCurrency} onValueChange={(value) => setMainCurrency(value as Currency)}>
+                    <SelectTrigger className="w-[180px]" id="main-currency">
+                        <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {currencies.map(currency => (
+                            <SelectItem key={currency} value={currency}>{currency}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+        </CardContent>
+      </Card>
+       <div className="flex justify-end">
+          <Button onClick={handleSaveSettings}>Save Settings</Button>
+        </div>
     </main>
   )
 }

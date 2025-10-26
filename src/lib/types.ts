@@ -53,3 +53,11 @@ export type RecurringTransaction = {
   startDate: Timestamp;
   userId: string;
 };
+
+export type User = {
+  id: string;
+  email?: string;
+  name?: string;
+  theme?: 'light' | 'dark';
+  mainCurrency?: Currency;
+};
