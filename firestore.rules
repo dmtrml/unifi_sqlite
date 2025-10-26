@@ -1,203 +1,156 @@
 /**
- * @fileoverview Firestore Security Rules for the application.
- *
- * Core Philosophy:
- * This ruleset enforces a strict user-ownership model. Each user can only
- * access data directly associated with their own user ID. This ensures
- * privacy and prevents unauthorized data access.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict user-ownership model, where each user can only access their own data.
  *
  * Data Structure:
- * The database is structured with user-specific collections nested under
- * the `/users/{userId}` path. This segregation ensures that data is
- * isolated and access can be controlled at the user level.
+ * - /users/{userId}: Stores user profiles. The `userId` MUST match the Firebase Authentication UID.
+ * - /users/{userId}/transactions/{transactionId}: Stores transactions owned by the user.
+ * - /users/{userId}/categories/{categoryId}: Stores categories created by the user.
+ * - /users/{userId}/accounts/{accountId}: Stores financial accounts owned by the user.
+ * - /users/{userId}/recurringTransactions/{recurringTransactionId}: Stores recurring transactions owned by the user.
  *
  * Key Security Decisions:
- * - Users can only create, read, update, and delete their own data.
- * - Listing of user documents is disallowed for privacy.
- * - The rules are designed to be data-shape agnostic to allow rapid
- *   iteration during the prototyping phase. Data validation is limited
- *   to ensuring data consistency for authorization purposes (e.g.,
- *   matching user IDs in paths and document fields).
+ * - Users can only read and write their own user document and the data nested under it.
+ * - No public listing of users is allowed.
+ * - Read-only access is not supported in this prototype.
  *
  * Denormalization for Authorization:
- * All documents under a user's path contain the `userId` field. This
- * denormalization allows for efficient security checks without needing
- * additional reads. For example, when securing `/users/{userId}/transactions/{transactionId}`,
- * the `Transaction` document itself should contain a `userId` field
- * that matches the `{userId}` in the path. This allows us to easily
- * validate ownership with `isOwner(userId)`.
+ * - All documents under `/users/{userId}` are expected to have a `userId` field that matches the `{userId}` path segment. This is enforced on creation.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Protects the `/users` collection. Only allows a user to read and write their own document.
+     * @description Secure user profiles. Only the authenticated user can read/write their own profile.
      * @path /users/{userId}
-     * @allow (create) - User with UID 'user_abc' can create /users/user_abc if they are authenticated.
-     * @allow (get, update, delete) - User with UID 'user_abc' can read, update, and delete /users/user_abc if they are authenticated.
-     * @deny (create, get, update, delete) - User with UID 'user_xyz' cannot access /users/user_abc.
-     * @deny (list) - Nobody can list the /users collection.
-     * @principle Enforces strict user ownership for user profiles.
+     * @allow (create) User with UID 'user_abc' can create their profile if request.auth.uid == 'user_abc' and request.resource.data.id == 'user_abc'.
+     * @allow (get) User with UID 'user_abc' can read their profile.
+     * @allow (update) User with UID 'user_abc' can update their profile.
+     * @allow (delete) User with UID 'user_abc' can delete their profile.
+     * @deny (create) User with UID 'user_abc' cannot create a profile with a mismatched ID (e.g., request.resource.data.id == 'user_def').
+     * @deny (get) User with UID 'user_abc' cannot read user profile 'user_def'.
+     * @principle Enforces user ownership: only the authenticated user can manage their own profile.
      */
     match /users/{userId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return request.auth != null && request.auth.uid == userId;
       }
-
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isOwner(userId) && resource.data.id == userId;
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Protects the `/users/{userId}/transactions` collection. Only the owner can create, read, update, and delete transactions.
+     * @description Secure user transactions. Only the authenticated user can manage their own transactions.
      * @path /users/{userId}/transactions/{transactionId}
-     * @allow (create) - User with UID 'user_abc' can create /users/user_abc/transactions/transaction_123 if authenticated. The transaction document must contain userId: 'user_abc'.
-     * @allow (get, update, delete) - User with UID 'user_abc' can read, update, and delete /users/user_abc/transactions/transaction_123 if authenticated.
-     * @deny (create, get, update, delete) - User with UID 'user_xyz' cannot access /users/user_abc/transactions/transaction_123.
-     * @principle Enforces document ownership and prevents cross-user data access.
+     * @allow (create) User with UID 'user_abc' can create a transaction under their profile.
+     * @allow (get) User with UID 'user_abc' can read a transaction under their profile.
+     * @allow (update) User with UID 'user_abc' can update a transaction under their profile.
+     * @allow (delete) User with UID 'user_abc' can delete a transaction under their profile.
+     * @deny (create) User with UID 'user_abc' cannot create a transaction under another user's profile.
+     * @deny (get) User with UID 'user_abc' cannot read a transaction under another user's profile.
+     * @principle Enforces user ownership: only the authenticated user can manage their own transactions.
      */
     match /users/{userId}/transactions/{transactionId} {
-        function isSignedIn() {
-          return request.auth != null;
-        }
-
-        function isOwner(userId) {
-          return request.auth.uid == userId;
-        }
-
-        function isExistingOwner(userId) {
-          return isOwner(userId) && resource != null;
-        }
-
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
-        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-        allow delete: if isExistingOwner(userId);
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isOwner(userId) && resource != null && resource.data.userId == userId;
+      allow delete: if isOwner(userId) && resource != null && resource.data.userId == userId;
     }
 
     /**
-     * @description Protects the `/users/{userId}/categories` collection. Only the owner can create, read, update, and delete categories.
+     * @description Secure user categories. Only the authenticated user can manage their own categories.
      * @path /users/{userId}/categories/{categoryId}
-     * @allow (create) - User with UID 'user_abc' can create /users/user_abc/categories/category_123 if authenticated. The category document must contain userId: 'user_abc'.
-     * @allow (get, update, delete) - User with UID 'user_abc' can read, update, and delete /users/user_abc/categories/category_123 if authenticated.
-     * @deny (create, get, update, delete) - User with UID 'user_xyz' cannot access /users/user_abc/categories/category_123.
-     * @principle Enforces document ownership and prevents cross-user data access.
+     * @allow (create) User with UID 'user_abc' can create a category under their profile.
+     * @allow (get) User with UID 'user_abc' can read a category under their profile.
+     * @allow (update) User with UID 'user_abc' can update a category under their profile.
+     * @allow (delete) User with UID 'user_abc' can delete a category under their profile.
+     * @deny (create) User with UID 'user_abc' cannot create a category under another user's profile.
+     * @deny (get) User with UID 'user_abc' cannot read a category under another user's profile.
+     * @principle Enforces user ownership: only the authenticated user can manage their own categories.
      */
     match /users/{userId}/categories/{categoryId} {
-        function isSignedIn() {
-          return request.auth != null;
-        }
-
-        function isOwner(userId) {
-          return request.auth.uid == userId;
-        }
-
-        function isExistingOwner(userId) {
-          return isOwner(userId) && resource != null;
-        }
-
-        allow get: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
-        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-        allow delete: if isExistingOwner(userId);
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isOwner(userId) && resource != null && resource.data.userId == userId;
+      allow delete: if isOwner(userId) && resource != null && resource.data.userId == userId;
     }
 
     /**
-     * @description Protects the `/users/{userId}/budgets` collection. Only the owner can create, read, update, and delete budgets.
+     * @description Secure user budgets. Only the authenticated user can manage their own budgets.
      * @path /users/{userId}/budgets/{budgetId}
-     * @allow (create) - User with UID 'user_abc' can create /users/user_abc/budgets/budget_123 if authenticated. The budget document must contain userId: 'user_abc'.
-     * @allow (get, update, delete) - User with UID 'user_abc' can read, update, and delete /users/user_abc/budgets/budget_123 if authenticated.
-     * @deny (create, get, update, delete) - User with UID 'user_xyz' cannot access /users/user_abc/budgets/budget_123.
-     * @principle Enforces document ownership and prevents cross-user data access.
+     * @allow (create) User with UID 'user_abc' can create a budget under their profile.
+     * @allow (get) User with UID 'user_abc' can read a budget under their profile.
+     * @allow (update) User with UID 'user_abc' can update a budget under their profile.
+     * @allow (delete) User with UID 'user_abc' can delete a budget under their profile.
+     * @deny (create) User with UID 'user_abc' cannot create a budget under another user's profile.
+     * @deny (get) User with UID 'user_abc' cannot read a budget under another user's profile.
+     * @principle Enforces user ownership: only the authenticated user can manage their own budgets.
      */
     match /users/{userId}/budgets/{budgetId} {
-        function isSignedIn() {
-          return request.auth != null;
-        }
-
         function isOwner(userId) {
-          return request.auth.uid == userId;
+            return request.auth != null && request.auth.uid == userId;
         }
-
-        function isExistingOwner(userId) {
-          return isOwner(userId) && resource != null;
-        }
-
         allow get: if isOwner(userId);
         allow list: if isOwner(userId);
-        allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
-        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-        allow delete: if isExistingOwner(userId);
+        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        allow update: if isOwner(userId) && resource != null && resource.data.userId == userId;
+        allow delete: if isOwner(userId) && resource != null && resource.data.userId == userId;
     }
 
     /**
-     * @description Protects the `/users/{userId}/recurringTransactions` collection. Only the owner can create, read, update, and delete recurring transactions.
+     * @description Secure user recurring transactions. Only the authenticated user can manage their own recurring transactions.
      * @path /users/{userId}/recurringTransactions/{recurringTransactionId}
-     * @allow (create) - User with UID 'user_abc' can create /users/user_abc/recurringTransactions/recurringTransaction_123 if authenticated. The recurringTransaction document must contain userId: 'user_abc'.
-     * @allow (get, update, delete) - User with UID 'user_abc' can read, update, and delete /users/user_abc/recurringTransactions/recurringTransaction_123 if authenticated.
-     * @deny (create, get, update, delete) - User with UID 'user_xyz' cannot access /users/user_abc/recurringTransactions/recurringTransaction_123.
-     * @principle Enforces document ownership and prevents cross-user data access.
+     * @allow (create) User with UID 'user_abc' can create a recurring transaction under their profile.
+     * @allow (get) User with UID 'user_abc' can read a recurring transaction under their profile.
+     * @allow (update) User with UID 'user_abc' can update a recurring transaction under their profile.
+     * @allow (delete) User with UID 'user_abc' can delete a recurring transaction under their profile.
+     * @deny (create) User with UID 'user_abc' cannot create a recurring transaction under another user's profile.
+     * @deny (get) User with UID 'user_abc' cannot read a recurring transaction under another user's profile.
+     * @principle Enforces user ownership: only the authenticated user can manage their own recurring transactions.
      */
     match /users/{userId}/recurringTransactions/{recurringTransactionId} {
-        function isSignedIn() {
-          return request.auth != null;
-        }
-
         function isOwner(userId) {
-          return request.auth.uid == userId;
+            return request.auth != null && request.auth.uid == userId;
         }
-
-        function isExistingOwner(userId) {
-          return isOwner(userId) && resource != null;
-        }
-
         allow get: if isOwner(userId);
         allow list: if isOwner(userId);
-        allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
-        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-        allow delete: if isExistingOwner(userId);
+        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        allow update: if isOwner(userId) && resource != null && resource.data.userId == userId;
+        allow delete: if isOwner(userId) && resource != null && resource.data.userId == userId;
     }
 
     /**
-     * @description Protects the `/users/{userId}/accounts` collection. Only the owner can create, read, update, and delete accounts.
+     * @description Secure user accounts. Only the authenticated user can manage their own accounts.
      * @path /users/{userId}/accounts/{accountId}
-     * @allow (create) - User with UID 'user_abc' can create /users/user_abc/accounts/account_123 if authenticated. The account document must contain userId: 'user_abc'.
-     * @allow (get, update, delete) - User with UID 'user_abc' can read, update, and delete /users/user_abc/accounts/account_123 if authenticated.
-     * @deny (create, get, update, delete) - User with UID 'user_xyz' cannot access /users/user_abc/accounts/account_123.
-     * @principle Enforces document ownership and prevents cross-user data access.
+     * @allow (create) User with UID 'user_abc' can create an account under their profile.
+     * @allow (get) User with UID 'user_abc' can read an account under their profile.
+     * @allow (update) User with UID 'user_abc' can update an account under their profile.
+     * @allow (delete) User with UID 'user_abc' can delete an account under their profile.
+     * @deny (create) User with UID 'user_abc' cannot create an account under another user's profile.
+     * @deny (get) User with UID 'user_abc' cannot read an account under another user's profile.
+     * @principle Enforces user ownership: only the authenticated user can manage their own accounts.
      */
     match /users/{userId}/accounts/{accountId} {
-        function isSignedIn() {
-          return request.auth != null;
-        }
-
         function isOwner(userId) {
-          return request.auth.uid == userId;
+            return request.auth != null && request.auth.uid == userId;
         }
-
-        function isExistingOwner(userId) {
-          return isOwner(userId) && resource != null;
-        }
-
         allow get: if isOwner(userId);
         allow list: if isOwner(userId);
-        allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == userId;
-        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-        allow delete: if isExistingOwner(userId);
+        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        allow update: if isOwner(userId) && resource != null && resource.data.userId == userId;
+        allow delete: if isOwner(userId) && resource != null && resource.data.userId == userId;
     }
   }
 }
