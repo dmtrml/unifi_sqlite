@@ -45,6 +45,12 @@ export function CategorySpendingChart({ transactions, categories }: CategorySpen
     React.useState<string | null>(null)
   const id = "pie-interactive"
 
+  const totalSpent = React.useMemo(() => {
+    return transactions
+      .filter(t => t.transactionType === 'expense')
+      .reduce((sum, t) => sum + t.amount, 0)
+  }, [transactions]);
+
   const categorySpending = React.useMemo(() => {
     return categories
     .filter(c => c.type === 'expense' || !c.type)
@@ -77,10 +83,6 @@ export function CategorySpendingChart({ transactions, categories }: CategorySpen
     [activeCategory, categorySpending]
   )
   
-  const totalSpent = React.useMemo(() => {
-    return categorySpending.reduce((acc, curr) => acc + curr.total, 0)
-  }, [categorySpending])
-
   if (categorySpending.length === 0) {
     return <div className="flex items-center justify-center h-[250px] text-muted-foreground">No spending data available.</div>
   }
@@ -101,7 +103,22 @@ export function CategorySpendingChart({ transactions, categories }: CategorySpen
           <ChartTooltip
             cursor={false}
             content={<ChartTooltipContent 
-                formatter={(value, name) => [`$${(value as number).toFixed(2)}`, name]}
+                formatter={(value, name, props) => {
+                    const percentage = totalSpent > 0 ? ((value as number) / totalSpent) * 100 : 0;
+                    return (
+                        <div>
+                            <div className="font-medium text-foreground">{name}</div>
+                            <div className="flex items-baseline gap-1.5">
+                                <span className="text-lg font-bold">
+                                    ${(value as number).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                                <span className="text-sm text-muted-foreground">
+                                    ({percentage.toFixed(2)}%)
+                                </span>
+                            </div>
+                        </div>
+                    )
+                }}
             />}
           />
           <Pie
