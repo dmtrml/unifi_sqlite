@@ -1,11 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { doc } from "firebase/firestore"
+import { doc, collection, query, orderBy } from "firebase/firestore"
 import * as Icons from "lucide-react"
-import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase"
+import { useDoc, useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase"
 import AppLayout from "@/components/layout"
-import type { Account } from "@/lib/types"
+import type { Account, Transaction, Category } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge"
 import { EditAccountDialog } from "@/components/edit-account-dialog"
 import { DeleteAccountDialog } from "@/components/delete-account-dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { AccountTransactionList } from "@/components/account-transaction-list"
 
 interface AccountPageParams {
     params: {
@@ -36,7 +37,34 @@ function AccountPageContent({ accountId }: { accountId: string}) {
     () => (user ? doc(firestore, "users", user.uid, "accounts", accountId) : null),
     [user, firestore, accountId]
   )
-  const { data: account, isLoading } = useDoc<Account>(accountDocRef)
+  const { data: account, isLoading: isAccountLoading } = useDoc<Account>(accountDocRef)
+
+  const transactionsQuery = useMemoFirebase(
+    () => user ? query(collection(firestore, "users", user.uid, "transactions"), orderBy("date", "desc")) : null,
+    [user, firestore]
+  );
+  const { data: allTransactions, isLoading: isTransactionsLoading } = useCollection<Transaction>(transactionsQuery);
+
+  const categoriesQuery = useMemoFirebase(
+    () => user ? query(collection(firestore, "users", user.uid, "categories")) : null,
+    [user, firestore]
+  );
+  const { data: categories, isLoading: isCategoriesLoading } = useCollection<Category>(categoriesQuery);
+
+  const { data: allAccounts, isLoading: isAccountsLoading } = useCollection<Account>(
+    useMemoFirebase(() => user ? query(collection(firestore, "users", user.uid, "accounts")) : null, [user, firestore])
+  );
+  
+  const relatedTransactions = React.useMemo(() => {
+    if (!allTransactions) return [];
+    return allTransactions.filter(t => 
+      t.accountId === accountId || 
+      t.fromAccountId === accountId || 
+      t.toAccountId === accountId
+    );
+  }, [allTransactions, accountId]);
+
+  const isLoading = isAccountLoading || isTransactionsLoading || isCategoriesLoading || isAccountsLoading;
   
   const IconComponent = account ? (Icons as any)[account.icon] || Icons.HelpCircle : Icons.HelpCircle;
 
@@ -49,6 +77,7 @@ function AccountPageContent({ accountId }: { accountId: string}) {
             </div>
             <Skeleton className="h-48 w-full" />
             <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-64 w-full" />
         </div>
     )
   }
@@ -119,7 +148,12 @@ function AccountPageContent({ accountId }: { accountId: string}) {
               <CardDescription>A list of recent transactions for this account.</CardDescription>
             </CardHeader>
             <CardContent>
-              <p>Transaction list will be implemented in the next step.</p>
+                <AccountTransactionList 
+                    transactions={relatedTransactions}
+                    categories={categories || []}
+                    accounts={allAccounts || []}
+                    currentAccountId={accountId}
+                />
             </CardContent>
           </Card>
         </TabsContent>
