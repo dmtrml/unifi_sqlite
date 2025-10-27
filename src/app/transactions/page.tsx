@@ -333,24 +333,35 @@ function TransactionsPageContent() {
                           const fromAccount = getAccount(safeAccounts, transaction.fromAccountId);
                           const toAccount = getAccount(safeAccounts, transaction.toAccountId);
                           const isTransfer = transaction.transactionType === 'transfer';
-                          const MainIcon = isTransfer ? ArrowRightLeft : (category && (Icons as any)[category.icon]) || MoreHorizontal;
-                          const mainIconColor = isTransfer ? 'hsl(var(--foreground))' : category?.color || 'hsl(var(--foreground))';
+                          
+                          const IconComponent = isTransfer 
+                            ? ArrowRightLeft 
+                            : (category && (Icons as any)[category.icon]) || MoreHorizontal;
+                          
+                          const iconColor = isTransfer 
+                            ? 'hsl(var(--foreground))' 
+                            : category?.color || 'hsl(var(--foreground))';
+                          
                           const amount = getTransactionAmount(transaction);
                           const currency = getTransactionCurrency(transaction);
-
+                          
+                          const isMultiCurrency = isTransfer && fromAccount?.currency !== toAccount?.currency;
+                          
                           return (
-                              <div key={transaction.id} className="p-2 flex items-start justify-between">
+                              <div key={transaction.id} className="p-2 flex items-start justify-between gap-2">
                                   <div className="flex items-center gap-3 flex-grow overflow-hidden">
-                                      <MainIcon className="h-6 w-6 shrink-0" style={{color: mainIconColor}}/>
+                                      <IconComponent className="h-6 w-6 shrink-0" style={{color: iconColor}}/>
                                       <div className="flex flex-col space-y-1 overflow-hidden">
                                           <span className="font-medium truncate">
-                                              {isTransfer ? 'Transfer' : category?.name ?? "Uncategorized"}
+                                            {isTransfer 
+                                              ? toAccount?.name ?? "N/A"
+                                              : category?.name ?? "Uncategorized"}
                                           </span>
                                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                               <Landmark className="h-3 w-3" />
                                               <span className="truncate">
                                                 {isTransfer 
-                                                    ? `${fromAccount?.name ?? ''} -> ${toAccount?.name ?? ''}` 
+                                                    ? fromAccount?.name ?? "N/A"
                                                     : account?.name ?? "No Account"}
                                               </span>
                                           </div>
@@ -358,11 +369,29 @@ function TransactionsPageContent() {
                                       </div>
                                   </div>
 
-                                  <div className="flex flex-col items-end shrink-0">
-                                      <span className={`font-bold ${transaction.transactionType === 'expense' ? 'text-destructive' : isTransfer ? '' : 'text-primary'}`}>
-                                          {transaction.transactionType === 'expense' ? '-' : transaction.transactionType === 'income' ? '+' : ''}
+                                  <div className="flex flex-col items-end shrink-0 text-right">
+                                    {isTransfer ? (
+                                      isMultiCurrency ? (
+                                        <>
+                                          <span className="font-bold">
+                                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: toAccount?.currency || mainCurrency }).format(transaction.amountReceived || 0)}
+                                          </span>
+                                           <span className="font-bold text-muted-foreground">
+                                            -{new Intl.NumberFormat('en-US', { style: 'currency', currency: fromAccount?.currency || mainCurrency }).format(transaction.amountSent || 0)}
+                                          </span>
+                                        </>
+                                      ) : (
+                                         <span className="font-bold">
+                                          {new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)}
+                                        </span>
+                                      )
+                                    ) : (
+                                      <span className={`font-bold ${transaction.transactionType === 'expense' ? 'text-destructive' : 'text-primary'}`}>
+                                          {transaction.transactionType === 'expense' ? '-' : '+'}
                                           {new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)}
                                       </span>
+                                    )}
+                                      
                                       <DropdownMenu>
                                           <DropdownMenuTrigger asChild>
                                               <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 mt-1">
