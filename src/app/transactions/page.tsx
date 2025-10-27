@@ -151,11 +151,12 @@ function TransactionsPageContent() {
   }
 
   const getTransactionCurrency = (t: Transaction) => {
-     if (t.transactionType === 'transfer' && t.fromAccountId) {
-        const fromAccount = getAccount(safeAccounts, t.fromAccountId);
-        return fromAccount?.currency || mainCurrency;
-     }
-     if (t.accountId) {
+     if (t.transactionType === 'transfer') {
+        if (t.fromAccountId) {
+            const fromAccount = getAccount(safeAccounts, t.fromAccountId);
+            return fromAccount?.currency || mainCurrency;
+        }
+     } else if (t.accountId) {
        const account = getAccount(safeAccounts, t.accountId);
        return account?.currency || mainCurrency;
      }
@@ -330,53 +331,84 @@ function TransactionsPageContent() {
                      <div className="divide-y">
                       {transactionsInGroup.map((transaction) => {
                           const isTransfer = transaction.transactionType === 'transfer';
-                          const category = !isTransfer ? getCategory(safeCategories, transaction.categoryId) : undefined;
-                          const account = !isTransfer ? getAccount(safeAccounts, transaction.accountId) : undefined;
-                          const fromAccount = isTransfer ? getAccount(safeAccounts, transaction.fromAccountId) : undefined;
-                          const toAccount = isTransfer ? getAccount(safeAccounts, transaction.toAccountId) : undefined;
-                          
-                          const IconComponent = isTransfer 
-                            ? ArrowRightLeft 
-                            : (category && (Icons as any)[category.icon]) || MoreHorizontal;
-                          
-                          const iconColor = isTransfer 
-                            ? 'hsl(var(--foreground))'
-                            : category?.color;
+
+                          if (isTransfer) {
+                            const fromAccount = getAccount(safeAccounts, transaction.fromAccountId);
+                            const toAccount = getAccount(safeAccounts, transaction.toAccountId);
+                            const isMultiCurrency = fromAccount?.currency !== toAccount?.currency;
+                            const amountSent = transaction.amountSent ?? transaction.amount ?? 0;
+                            const amountReceived = transaction.amountReceived ?? transaction.amount ?? 0;
+
+                            return (
+                                <div key={transaction.id} className="p-2">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <ArrowRightLeft className="h-6 w-6 shrink-0" />
+                                            <div className="flex flex-col overflow-hidden">
+                                                <span className="font-medium truncate">{toAccount?.name ?? 'N/A'}</span>
+                                                <span className="text-xs text-muted-foreground truncate">from {fromAccount?.name ?? 'N/A'}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col items-end shrink-0">
+                                            <span className="font-bold">
+                                                + {new Intl.NumberFormat('en-US', { style: 'currency', currency: toAccount!.currency }).format(amountReceived)}
+                                            </span>
+                                            <span className="font-bold">
+                                                - {new Intl.NumberFormat('en-US', { style: 'currency', currency: fromAccount!.currency }).format(amountSent)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    {transaction.description && <p className="text-sm text-muted-foreground mt-1 pl-9">{transaction.description}</p>}
+                                    <div className="pl-9 mt-1">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="-ml-2 h-8 w-8">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent>
+                                                <EditTransactionDialog 
+                                                    transaction={transaction}
+                                                    categories={safeCategories}
+                                                    accounts={safeAccounts}
+                                                />
+                                                <DuplicateTransactionDialog
+                                                    transaction={transaction}
+                                                    categories={safeCategories}
+                                                    accounts={safeAccounts}
+                                                />
+                                                <DeleteTransactionDialog transactionId={transaction.id} />
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+                                </div>
+                            )
+                          }
+
+                          // Logic for Income/Expense
+                          const category = getCategory(safeCategories, transaction.categoryId);
+                          const account = getAccount(safeAccounts, transaction.accountId);
+                          const MainIcon = (category && (Icons as any)[category.icon]) || MoreHorizontal;
+                          const mainIconColor = category?.color;
 
                           return (
-                              <div key={transaction.id} className="flex items-center justify-between p-2">
+                              <div key={transaction.id} className="p-2">
+                                <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-3">
-                                      <IconComponent className="h-6 w-6" style={{color: iconColor}}/>
-                                      <div className="flex flex-col">
-                                          <span className="font-medium">{isTransfer ? toAccount?.name : (category?.name ?? "Uncategorized")}</span>
-                                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                            {isTransfer ? (
-                                              <span className="truncate max-w-[150px]">{fromAccount?.name ?? ''}</span>
-                                            ) : (
-                                              <>
-                                                <Landmark className="h-3 w-3" />
-                                                <span className="mr-2">{account?.name ?? "No Account"}</span>
-                                              </>
-                                            )}
+                                      <MainIcon className="h-6 w-6 shrink-0" style={{color: mainIconColor}}/>
+                                      <div className="flex flex-col overflow-hidden">
+                                          <span className="font-medium truncate">{category?.name ?? "Uncategorized"}</span>
+                                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                             <Landmark className="h-3 w-3" />
+                                             <span className="truncate">{account?.name ?? "No Account"}</span>
                                           </div>
                                       </div>
                                   </div>
-                                  <div className="flex flex-col items-end">
-                                    {isTransfer ? (
-                                      <>
-                                        <span className="font-bold">
-                                          + {new Intl.NumberFormat('en-US', { style: 'currency', currency: toAccount!.currency }).format(transaction.amountReceived || transaction.amount!)}
-                                        </span>
-                                        <span className="font-bold">
-                                          - {new Intl.NumberFormat('en-US', { style: 'currency', currency: fromAccount!.currency }).format(transaction.amountSent || transaction.amount!)}
-                                        </span>
-                                      </>
-                                    ) : (
-                                      <span className={`font-bold ${transaction.transactionType === 'expense' ? 'text-destructive' : transaction.transactionType === 'income' ? 'text-primary' : ''}`}>
-                                          {transaction.transactionType === 'expense' ? '-' : transaction.transactionType === 'income' ? '+' : ''}
-                                          {new Intl.NumberFormat('en-US', { style: 'currency', currency: getTransactionCurrency(transaction) }).format(transaction.amount || 0)}
-                                      </span>
-                                    )}
+                                  <div className="flex items-center gap-2">
+                                    <span className={`font-bold shrink-0 ${transaction.transactionType === 'expense' ? 'text-destructive' : 'text-primary'}`}>
+                                        {transaction.transactionType === 'expense' ? '-' : '+'}
+                                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: getTransactionCurrency(transaction) }).format(transaction.amount || 0)}
+                                    </span>
                                       <DropdownMenu>
                                           <DropdownMenuTrigger asChild>
                                               <Button variant="ghost" size="icon" className="-mr-2 h-8 w-8">
@@ -398,6 +430,8 @@ function TransactionsPageContent() {
                                           </DropdownMenuContent>
                                       </DropdownMenu>
                                   </div>
+                                </div>
+                                {transaction.description && <p className="text-sm text-muted-foreground mt-1 pl-9">{transaction.description}</p>}
                               </div>
                           )
                       })}
