@@ -254,7 +254,7 @@ function TransactionsPageContent() {
             </div>
             
             {/* Mobile List */}
-            <div className="md:hidden space-y-4">
+            <div className="md:hidden space-y-2">
               {Object.keys(groupedTransactions).length === 0 ? (
                  <div className="text-center h-24 flex items-center justify-center text-muted-foreground">
                     No transactions found for the selected filters.
@@ -263,7 +263,7 @@ function TransactionsPageContent() {
                 Object.entries(groupedTransactions).map(([date, transactionsInGroup]) => (
                   <div key={date} className="space-y-2">
                      <h3 className="font-semibold text-muted-foreground px-1 pt-4">{formatDateHeader(date)}</h3>
-                     <div className="space-y-4">
+                     <div className="space-y-2">
                       {transactionsInGroup.map((transaction) => {
                           const category = getCategory(safeCategories, transaction.categoryId);
                           const account = getAccount(safeAccounts, transaction.accountId);
@@ -275,7 +275,7 @@ function TransactionsPageContent() {
                           const mainIconColor = isTransfer ? 'hsl(var(--foreground))' : category?.color;
 
                           return (
-                              <div key={transaction.id} className="flex items-center justify-between rounded-lg border p-3">
+                              <div key={transaction.id} className="flex items-center justify-between rounded-lg p-2">
                                   <div className="flex items-center gap-3">
                                       <MainIcon className="h-6 w-6" style={{color: mainIconColor}}/>
                                       <div className="flex flex-col">
