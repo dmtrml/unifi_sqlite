@@ -207,13 +207,9 @@ function TransactionsPageContent() {
                               </Badge>
                             </TableCell>
                             <TableCell>
-                               <div className="flex items-center gap-2">
-                                  <Badge variant="outline">
-                                    {category?.name ?? "Uncategorized"}
-                                  </Badge>
-                                  {transaction.expenseType && <Badge variant="secondary" className="capitalize">{transaction.expenseType}</Badge>}
-                                  {transaction.incomeType && <Badge variant="secondary" className="capitalize">{transaction.incomeType}</Badge>}
-                               </div>
+                                <Badge variant="outline">
+                                  {category?.name ?? "Uncategorized"}
+                                </Badge>
                             </TableCell>
                             <TableCell>
                               <Badge variant={transaction.transactionType === 'expense' ? 'destructive' : transaction.transactionType === 'income' ? 'default' : 'secondary'}>
@@ -291,8 +287,6 @@ function TransactionsPageContent() {
                                               <>
                                                 <Landmark className="h-3 w-3" />
                                                 <span className="mr-2">{account?.name ?? "No Account"}</span>
-                                                {transaction.expenseType && <Badge variant="secondary" className="capitalize">{transaction.expenseType}</Badge>}
-                                                {transaction.incomeType && <Badge variant="secondary" className="capitalize">{transaction.incomeType}</Badge>}
                                               </>
                                             )}
                                           </div>
