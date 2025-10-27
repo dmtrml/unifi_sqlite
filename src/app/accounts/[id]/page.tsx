@@ -80,7 +80,11 @@ function AccountPageContent({ accountId }: { accountId: string}) {
     return (
         <div className="p-4 lg:p-6 space-y-6">
             <div className="flex items-center gap-4">
-              <Skeleton className="h-10 w-10" />
+              <Link href="/accounts" passHref>
+                  <Button variant="outline" size="icon" aria-label="Back to accounts">
+                      <ArrowLeft className="h-4 w-4" />
+                  </Button>
+              </Link>
               <Skeleton className="h-8 w-48" />
             </div>
             <Skeleton className="h-48 w-full" />
@@ -109,7 +113,7 @@ function AccountPageContent({ accountId }: { accountId: string}) {
     <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
       <div className="flex items-center gap-4">
         <Link href="/accounts" passHref>
-            <Button variant="outline" size="icon">
+            <Button variant="outline" size="icon" aria-label="Back to accounts">
                 <ArrowLeft className="h-4 w-4" />
             </Button>
         </Link>
@@ -205,9 +209,10 @@ function AccountPageContent({ accountId }: { accountId: string}) {
 
 
 export default function AccountPage({ params }: AccountPageParams) {
+  const resolvedParams = React.use(params);
   return (
     <AppLayout>
-      <AccountPageContent accountId={params.id} />
+      <AccountPageContent accountId={resolvedParams.id} />
     </AppLayout>
   )
 }
