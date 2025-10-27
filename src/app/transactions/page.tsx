@@ -151,12 +151,15 @@ function TransactionsPageContent() {
   }
 
   const getTransactionCurrency = (t: Transaction) => {
-     if (t.transactionType === 'transfer') {
+     if (t.transactionType === 'transfer' && t.fromAccountId) {
         const fromAccount = getAccount(safeAccounts, t.fromAccountId);
         return fromAccount?.currency || mainCurrency;
      }
-     const account = getAccount(safeAccounts, t.accountId);
-     return account?.currency || mainCurrency;
+     if (t.accountId) {
+       const account = getAccount(safeAccounts, t.accountId);
+       return account?.currency || mainCurrency;
+     }
+     return mainCurrency;
   }
 
   return (
@@ -250,9 +253,13 @@ function TransactionsPageContent() {
                               </Badge>
                             </TableCell>
                             <TableCell>
+                              {category ? (
                                 <Badge variant="outline">
-                                  {category?.name ?? "Uncategorized"}
+                                  {category.name}
                                 </Badge>
+                              ) : transaction.transactionType !== 'transfer' ? (
+                                <Badge variant="outline">Uncategorized</Badge>
+                              ) : null}
                             </TableCell>
                             <TableCell>
                               <Badge variant={transaction.transactionType === 'expense' ? 'destructive' : transaction.transactionType === 'income' ? 'default' : 'secondary'}>
@@ -322,21 +329,26 @@ function TransactionsPageContent() {
                       </div>
                      <div className="divide-y">
                       {transactionsInGroup.map((transaction) => {
-                          const category = getCategory(safeCategories, transaction.categoryId);
-                          const account = getAccount(safeAccounts, transaction.accountId);
-                          const fromAccount = getAccount(safeAccounts, transaction.fromAccountId);
-                          const toAccount = getAccount(safeAccounts, transaction.toAccountId);
-                          const amount = getTransactionAmount(transaction);
-                          const currency = getTransactionCurrency(transaction);
-                          
                           const isTransfer = transaction.transactionType === 'transfer';
-                          const MainIcon = isTransfer ? ArrowRightLeft : (category && (Icons as any)[category.icon]) || Icons.MoreHorizontal;
-                          const mainIconColor = isTransfer ? 'hsl(var(--foreground))' : category?.color;
+                          const category = !isTransfer ? getCategory(safeCategories, transaction.categoryId) : undefined;
+                          const account = !isTransfer ? getAccount(safeAccounts, transaction.accountId) : undefined;
+                          const fromAccount = isTransfer ? getAccount(safeAccounts, transaction.fromAccountId) : undefined;
+                          const toAccount = isTransfer ? getAccount(safeAccounts, transaction.toAccountId) : undefined;
+
+                          const isMultiCurrency = isTransfer && fromAccount?.currency !== toAccount?.currency;
+                          
+                          const IconComponent = isTransfer 
+                            ? ArrowRightLeft 
+                            : (category && (Icons as any)[category.icon]) || MoreHorizontal;
+                          
+                          const iconColor = isTransfer 
+                            ? 'hsl(var(--foreground))'
+                            : category?.color;
 
                           return (
                               <div key={transaction.id} className="flex items-center justify-between p-2">
                                   <div className="flex items-center gap-3">
-                                      <MainIcon className="h-6 w-6" style={{color: mainIconColor}}/>
+                                      <IconComponent className="h-6 w-6" style={{color: iconColor}}/>
                                       <div className="flex flex-col">
                                           <span className="font-medium">{isTransfer ? "Transfer" : (category?.name ?? "Uncategorized")}</span>
                                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -357,9 +369,21 @@ function TransactionsPageContent() {
                                       </div>
                                   </div>
                                   <div className="flex flex-col items-end">
-                                      <span className={`font-bold ${transaction.transactionType === 'expense' ? 'text-destructive' : isTransfer ? '' : 'text-primary'}`}>
-                                          {transaction.transactionType === 'expense' ? '-' : transaction.transactionType === 'income' ? '+' : ''}{new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)}
+                                    {isMultiCurrency ? (
+                                      <>
+                                        <span className="font-bold text-destructive">
+                                          - {new Intl.NumberFormat('en-US', { style: 'currency', currency: fromAccount!.currency }).format(transaction.amountSent!)}
+                                        </span>
+                                        <span className="font-bold text-primary">
+                                          + {new Intl.NumberFormat('en-US', { style: 'currency', currency: toAccount!.currency }).format(transaction.amountReceived!)}
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <span className={`font-bold ${transaction.transactionType === 'expense' ? 'text-destructive' : transaction.transactionType === 'income' ? 'text-primary' : ''}`}>
+                                          {transaction.transactionType === 'expense' ? '-' : transaction.transactionType === 'income' ? '+' : ''}
+                                          {new Intl.NumberFormat('en-US', { style: 'currency', currency: getTransactionCurrency(transaction) }).format(transaction.amount || 0)}
                                       </span>
+                                    )}
                                       <DropdownMenu>
                                           <DropdownMenuTrigger asChild>
                                               <Button variant="ghost" size="icon" className="-mr-2 h-8 w-8">
