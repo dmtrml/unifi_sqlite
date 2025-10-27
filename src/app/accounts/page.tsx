@@ -4,6 +4,7 @@ import * as React from "react"
 import { collection, query } from "firebase/firestore"
 import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase"
 import AppLayout from "@/components/layout"
+import { useRouter } from "next/navigation"
 
 import {
   Card,
@@ -38,6 +39,7 @@ import { Button } from "@/components/ui/button"
 function AccountsPageContent() {
   const { user } = useUser()
   const firestore = useFirestore()
+  const router = useRouter();
 
   const accountsQuery = useMemoFirebase(() =>
     user ? query(collection(firestore, "users", user.uid, "accounts")) : null,
@@ -45,6 +47,10 @@ function AccountsPageContent() {
   );
   const { data: accounts } = useCollection<Account>(accountsQuery);
   const safeAccounts = accounts || [];
+
+  const handleRowClick = (accountId: string) => {
+    router.push(`/accounts/${accountId}`);
+  };
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
@@ -56,7 +62,7 @@ function AccountsPageContent() {
           <div className="grid gap-2">
             <CardTitle>Accounts</CardTitle>
             <CardDescription>
-              Manage your financial accounts.
+              Manage your financial accounts. Click on an account to see details.
             </CardDescription>
           </div>
           <AddAccountDialog />
@@ -75,7 +81,7 @@ function AccountsPageContent() {
               {safeAccounts.map((account) => {
                  const IconComponent = (Icons as any)[account.icon] || Icons.MoreHorizontal;
                 return (
-                  <TableRow key={account.id}>
+                  <TableRow key={account.id} onClick={() => handleRowClick(account.id)} className="cursor-pointer">
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-3">
                          <IconComponent className="h-5 w-5" style={{ color: account.color }} />
@@ -91,7 +97,7 @@ function AccountsPageContent() {
                         currency: account.currency || 'USD',
                       }).format(account.balance)}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon">
