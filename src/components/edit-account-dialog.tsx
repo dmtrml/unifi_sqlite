@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Edit } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { doc } from "firebase/firestore"
@@ -37,7 +36,6 @@ import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useUser } from "@/firebase"
 import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import type { Account, AccountType, Currency } from "@/lib/types"
-import { DropdownMenuItem } from "./ui/dropdown-menu"
 
 const accountTypes: AccountType[] = ["Cash", "Card", "Bank Account", "Deposit", "Loan"];
 const currencies: Currency[] = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS", "RUB"];
@@ -62,9 +60,10 @@ type EditAccountFormValues = z.infer<typeof editAccountFormSchema>
 
 interface EditAccountDialogProps {
   account: Account;
+  children: React.ReactNode;
 }
 
-export function EditAccountDialog({ account }: EditAccountDialogProps) {
+export function EditAccountDialog({ account, children }: EditAccountDialogProps) {
   const [open, setOpen] = React.useState(false)
   const { toast } = useToast()
   const firestore = useFirestore()
@@ -78,6 +77,16 @@ export function EditAccountDialog({ account }: EditAccountDialogProps) {
       currency: account.currency || "USD",
     },
   })
+
+  React.useEffect(() => {
+    if (open) {
+      form.reset({
+        ...account,
+        type: account.type || "Card",
+        currency: account.currency || "USD",
+      });
+    }
+  }, [open, account, form]);
 
   async function onSubmit(data: EditAccountFormValues) {
     if (!user || !firestore) {
@@ -108,10 +117,7 @@ export function EditAccountDialog({ account }: EditAccountDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-          <Edit className="mr-2 h-4 w-4" />
-          Edit
-        </DropdownMenuItem>
+        {children}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
@@ -231,5 +237,3 @@ export function EditAccountDialog({ account }: EditAccountDialogProps) {
     </Dialog>
   )
 }
-
-    

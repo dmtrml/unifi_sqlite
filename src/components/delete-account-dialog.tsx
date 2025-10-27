@@ -18,13 +18,13 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useUser } from "@/firebase"
 import { deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import { DropdownMenuItem } from "./ui/dropdown-menu"
 
 interface DeleteAccountDialogProps {
   accountId: string;
+  children: React.ReactNode;
 }
 
-export function DeleteAccountDialog({ accountId }: DeleteAccountDialogProps) {
+export function DeleteAccountDialog({ accountId, children }: DeleteAccountDialogProps) {
   const { toast } = useToast()
   const firestore = useFirestore()
   const { user } = useUser()
@@ -51,10 +51,7 @@ export function DeleteAccountDialog({ accountId }: DeleteAccountDialogProps) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-         <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
-          <Trash2 className="mr-2 h-4 w-4" />
-          Delete
-        </DropdownMenuItem>
+        {children}
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -72,5 +69,3 @@ export function DeleteAccountDialog({ accountId }: DeleteAccountDialogProps) {
     </AlertDialog>
   )
 }
-
-    

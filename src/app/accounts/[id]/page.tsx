@@ -8,7 +8,7 @@ import AppLayout from "@/components/layout"
 import type { Account, Transaction, Category, User } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Edit, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -24,6 +24,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AccountTransactionList } from "@/components/account-transaction-list"
 import { IncomeExpenseChart } from "@/components/reports/IncomeExpenseChart"
 import { CategorySpendingChart } from "@/components/dashboard/category-spending-chart"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { MoreVertical } from "lucide-react"
 
 interface AccountPageParams {
     params: {
@@ -133,8 +135,27 @@ function AccountPageContent({ accountId }: { accountId: string}) {
               </div>
           </div>
           <div className="flex gap-2">
-            <EditAccountDialog account={account} />
-            <DeleteAccountDialog accountId={account.id} />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <EditAccountDialog account={account}>
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit
+                  </DropdownMenuItem>
+                </EditAccountDialog>
+                <DeleteAccountDialog accountId={account.id}>
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </DeleteAccountDialog>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </CardHeader>
         <CardContent>
