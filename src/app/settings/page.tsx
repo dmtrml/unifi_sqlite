@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { DeleteDataDialog } from "@/components/delete-data-dialog"
 
 const currencies: Currency[] = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS", "RUB"];
 
@@ -130,6 +131,18 @@ function SettingsPageContent() {
        <div className="flex justify-end">
           <Button onClick={handleSaveSettings}>Save Settings</Button>
         </div>
+
+      <Card className="border-destructive">
+        <CardHeader>
+          <CardTitle className="text-destructive">Danger Zone</CardTitle>
+          <CardDescription>
+            These actions are irreversible. Please proceed with caution.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DeleteDataDialog />
+        </CardContent>
+      </Card>
     </main>
   )
 }
@@ -141,5 +154,3 @@ export default function SettingsPage() {
     </AppLayout>
   )
 }
-
-    
