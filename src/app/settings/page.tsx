@@ -132,11 +132,11 @@ function SettingsPageContent() {
           <Button onClick={handleSaveSettings}>Save Settings</Button>
         </div>
 
-      <Card className="border-destructive">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-destructive">Danger Zone</CardTitle>
+          <CardTitle>Start Over</CardTitle>
           <CardDescription>
-            These actions are irreversible. Please proceed with caution.
+            Reset your application data. These actions are irreversible.
           </CardDescription>
         </CardHeader>
         <CardContent>
