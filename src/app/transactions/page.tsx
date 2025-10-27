@@ -389,49 +389,49 @@ function TransactionsPageContent() {
                           const category = getCategory(safeCategories, transaction.categoryId);
                           const account = getAccount(safeAccounts, transaction.accountId);
                           const MainIcon = (category && (Icons as any)[category.icon]) || MoreHorizontal;
-                          const mainIconColor = category?.color;
+                          const mainIconColor = category?.color || 'hsl(var(--foreground))';
 
                           return (
                               <div key={transaction.id} className="p-2">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                      <MainIcon className="h-6 w-6 shrink-0" style={{color: mainIconColor}}/>
-                                      <div className="flex flex-col overflow-hidden">
-                                          <span className="font-medium truncate">{category?.name ?? "Uncategorized"}</span>
-                                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                             <Landmark className="h-3 w-3" />
-                                             <span className="truncate">{account?.name ?? "No Account"}</span>
-                                          </div>
-                                      </div>
-                                  </div>
-                                  <div className="flex items-center gap-2">
+                                <div className="flex items-start justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <MainIcon className="h-6 w-6 shrink-0" style={{color: mainIconColor}}/>
+                                        <div className="flex flex-col overflow-hidden">
+                                            <span className="font-medium truncate">{category?.name ?? "Uncategorized"}</span>
+                                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                <Landmark className="h-3 w-3" />
+                                                <span className="truncate">{account?.name ?? "No Account"}</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <span className={`font-bold shrink-0 ${transaction.transactionType === 'expense' ? 'text-destructive' : 'text-primary'}`}>
                                         {transaction.transactionType === 'expense' ? '-' : '+'}
                                         {new Intl.NumberFormat('en-US', { style: 'currency', currency: getTransactionCurrency(transaction) }).format(transaction.amount || 0)}
                                     </span>
-                                      <DropdownMenu>
-                                          <DropdownMenuTrigger asChild>
-                                              <Button variant="ghost" size="icon" className="-mr-2 h-8 w-8">
-                                                  <MoreHorizontal className="h-4 w-4" />
-                                              </Button>
-                                          </DropdownMenuTrigger>
-                                          <DropdownMenuContent>
-                                              <EditTransactionDialog 
-                                                  transaction={transaction}
-                                                  categories={safeCategories}
-                                                  accounts={safeAccounts}
-                                              />
-                                              <DuplicateTransactionDialog
-                                                  transaction={transaction}
-                                                  categories={safeCategories}
-                                                  accounts={safeAccounts}
-                                              />
-                                              <DeleteTransactionDialog transactionId={transaction.id} />
-                                          </DropdownMenuContent>
-                                      </DropdownMenu>
-                                  </div>
                                 </div>
                                 {transaction.description && <p className="text-sm text-muted-foreground mt-1 pl-9">{transaction.description}</p>}
+                                <div className="pl-9 mt-1">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="-ml-2 h-8 w-8">
+                                                <MoreHorizontal className="h-4 w-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent>
+                                            <EditTransactionDialog 
+                                                transaction={transaction}
+                                                categories={safeCategories}
+                                                accounts={safeAccounts}
+                                            />
+                                            <DuplicateTransactionDialog
+                                                transaction={transaction}
+                                                categories={safeCategories}
+                                                accounts={safeAccounts}
+                                            />
+                                            <DeleteTransactionDialog transactionId={transaction.id} />
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
                               </div>
                           )
                       })}
