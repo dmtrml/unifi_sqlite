@@ -360,9 +360,6 @@ function TransactionsPageContent() {
                                       <span className={`font-bold ${transaction.transactionType === 'expense' ? 'text-destructive' : isTransfer ? '' : 'text-primary'}`}>
                                           {transaction.transactionType === 'expense' ? '-' : transaction.transactionType === 'income' ? '+' : ''}{new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)}
                                       </span>
-                                      <span className="text-xs text-muted-foreground">
-                                          {new Date(transaction.date.seconds * 1000).toLocaleDateString()}
-                                      </span>
                                       <DropdownMenu>
                                           <DropdownMenuTrigger asChild>
                                               <Button variant="ghost" size="icon" className="-mr-2 h-8 w-8">
