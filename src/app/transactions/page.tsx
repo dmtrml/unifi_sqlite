@@ -143,6 +143,21 @@ function TransactionsPageContent() {
   
   const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: mainCurrency, minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
+  const getTransactionAmount = (t: Transaction) => {
+    if (t.transactionType === 'transfer') {
+        return t.amountSent || t.amount || 0;
+    }
+    return t.amount || 0;
+  }
+
+  const getTransactionCurrency = (t: Transaction) => {
+     if (t.transactionType === 'transfer') {
+        const fromAccount = getAccount(safeAccounts, t.fromAccountId);
+        return fromAccount?.currency || mainCurrency;
+     }
+     const account = getAccount(safeAccounts, t.accountId);
+     return account?.currency || mainCurrency;
+  }
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
@@ -196,9 +211,9 @@ function TransactionsPageContent() {
                   Object.entries(groupedTransactions).map(([date, transactionsInGroup]) => {
                     const dailyTotal = transactionsInGroup.reduce((sum, t) => {
                       if (t.transactionType === 'expense') {
-                         const account = getAccount(safeAccounts, t.accountId);
-                         const accountCurrency = account?.currency || mainCurrency;
-                         return sum + convertAmount(t.amount, accountCurrency, mainCurrency);
+                         const amount = t.amount || 0;
+                         const fromCurrency = getTransactionCurrency(t);
+                         return sum + convertAmount(amount, fromCurrency, mainCurrency);
                       }
                       return sum;
                     }, 0);
@@ -221,6 +236,8 @@ function TransactionsPageContent() {
                         const account = getAccount(safeAccounts, transaction.accountId);
                         const fromAccount = getAccount(safeAccounts, transaction.fromAccountId);
                         const toAccount = getAccount(safeAccounts, transaction.toAccountId);
+                        const amount = getTransactionAmount(transaction);
+                        const currency = getTransactionCurrency(transaction);
 
                         return (
                           <TableRow key={transaction.id}>
@@ -243,7 +260,9 @@ function TransactionsPageContent() {
                               </Badge>
                             </TableCell>
                             <TableCell>{new Date(transaction.date.seconds * 1000).toLocaleDateString()}</TableCell>
-                            <TableCell className="text-right">${transaction.amount.toFixed(2)}</TableCell>
+                            <TableCell className="text-right">
+                              {new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)}
+                            </TableCell>
                             <TableCell className="text-right">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -285,9 +304,9 @@ function TransactionsPageContent() {
                 Object.entries(groupedTransactions).map(([date, transactionsInGroup]) => {
                   const dailyTotal = transactionsInGroup.reduce((sum, t) => {
                       if (t.transactionType === 'expense') {
-                         const account = getAccount(safeAccounts, t.accountId);
-                         const accountCurrency = account?.currency || mainCurrency;
-                         return sum + convertAmount(t.amount, accountCurrency, mainCurrency);
+                         const amount = t.amount || 0;
+                         const fromCurrency = getTransactionCurrency(t);
+                         return sum + convertAmount(amount, fromCurrency, mainCurrency);
                       }
                       return sum;
                     }, 0);
@@ -307,6 +326,8 @@ function TransactionsPageContent() {
                           const account = getAccount(safeAccounts, transaction.accountId);
                           const fromAccount = getAccount(safeAccounts, transaction.fromAccountId);
                           const toAccount = getAccount(safeAccounts, transaction.toAccountId);
+                          const amount = getTransactionAmount(transaction);
+                          const currency = getTransactionCurrency(transaction);
                           
                           const isTransfer = transaction.transactionType === 'transfer';
                           const MainIcon = isTransfer ? ArrowRightLeft : (category && (Icons as any)[category.icon]) || Icons.MoreHorizontal;
@@ -337,7 +358,7 @@ function TransactionsPageContent() {
                                   </div>
                                   <div className="flex flex-col items-end">
                                       <span className={`font-bold ${transaction.transactionType === 'expense' ? 'text-destructive' : isTransfer ? '' : 'text-primary'}`}>
-                                          {transaction.transactionType === 'expense' ? '-' : transaction.transactionType === 'income' ? '+' : ''}${transaction.amount.toFixed(2)}
+                                          {transaction.transactionType === 'expense' ? '-' : transaction.transactionType === 'income' ? '+' : ''}{new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)}
                                       </span>
                                       <span className="text-xs text-muted-foreground">
                                           {new Date(transaction.date.seconds * 1000).toLocaleDateString()}

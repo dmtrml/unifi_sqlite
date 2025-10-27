@@ -37,7 +37,15 @@
         },
         "amount": {
           "type": "number",
-          "description": "The amount of the transaction. Positive for income, negative for expense."
+          "description": "The amount of the transaction. Positive for income, negative for expense. For transfers with same currency."
+        },
+        "amountSent": {
+          "type": "number",
+          "description": "The amount sent in a multi-currency transfer, in the source account's currency."
+        },
+        "amountReceived": {
+          "type": "number",
+          "description": "The amount received in a multi-currency transfer, in the destination account's currency."
         },
         "description": {
           "type": "string",
@@ -67,7 +75,6 @@
         "id",
         "userId",
         "date",
-        "amount",
         "transactionType"
       ]
     },
@@ -365,5 +372,3 @@
     ]
   }
 }
-
-    

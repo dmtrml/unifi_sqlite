@@ -29,7 +29,9 @@ export type Transaction = {
   fromAccountId?: string; // For transfers
   toAccountId?: string; // For transfers
   categoryId?: string; // Optional for transfers
-  amount: number;
+  amount?: number; // For single currency expense/income/transfer
+  amountSent?: number; // For multi-currency transfers
+  amountReceived?: number; // For multi-currency transfers
   date: Timestamp;
   description: string;
   transactionType: 'expense' | 'income' | 'transfer';
@@ -64,5 +66,3 @@ export type User = {
   theme?: 'light' | 'dark';
   mainCurrency?: Currency;
 };
-
-    
