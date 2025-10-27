@@ -205,10 +205,9 @@ function AccountPageContent({ accountId }: { accountId: string}) {
 
 
 export default function AccountPage({ params }: AccountPageParams) {
-  const { id } = params;
   return (
     <AppLayout>
-      <AccountPageContent accountId={id} />
+      <AccountPageContent accountId={params.id} />
     </AppLayout>
   )
 }
