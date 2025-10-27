@@ -196,7 +196,8 @@ function TransactionsPageContent() {
                   Object.entries(groupedTransactions).map(([date, transactionsInGroup]) => {
                     const dailyTotal = transactionsInGroup.reduce((sum, t) => {
                       if (t.transactionType === 'expense') {
-                         const accountCurrency = getAccount(safeAccounts, t.accountId)?.currency || 'USD';
+                         const account = getAccount(safeAccounts, t.accountId);
+                         const accountCurrency = account?.currency || mainCurrency;
                          return sum + convertAmount(t.amount, accountCurrency, mainCurrency);
                       }
                       return sum;
@@ -284,13 +285,14 @@ function TransactionsPageContent() {
                 Object.entries(groupedTransactions).map(([date, transactionsInGroup]) => {
                   const dailyTotal = transactionsInGroup.reduce((sum, t) => {
                       if (t.transactionType === 'expense') {
-                         const accountCurrency = getAccount(safeAccounts, t.accountId)?.currency || 'USD';
+                         const account = getAccount(safeAccounts, t.accountId);
+                         const accountCurrency = account?.currency || mainCurrency;
                          return sum + convertAmount(t.amount, accountCurrency, mainCurrency);
                       }
                       return sum;
                     }, 0);
                   return (
-                  <div key={date} className="space-y-2">
+                  <div key={date}>
                      <div className="flex justify-between items-baseline bg-muted/50 rounded-md px-2 py-1 my-2">
                         <h3 className="font-semibold text-muted-foreground">{formatDateHeader(date)}</h3>
                         {dailyTotal > 0 && (
