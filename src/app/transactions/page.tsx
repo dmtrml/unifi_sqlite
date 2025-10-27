@@ -275,7 +275,7 @@ function TransactionsPageContent() {
             </div>
             
             {/* Mobile List */}
-            <div className="md:hidden space-y-2">
+            <div className="md:hidden">
               {Object.keys(groupedTransactions).length === 0 ? (
                  <div className="text-center h-24 flex items-center justify-center text-muted-foreground">
                     No transactions found for the selected filters.
@@ -299,7 +299,7 @@ function TransactionsPageContent() {
                           </span>
                         )}
                       </div>
-                     <div className="space-y-2">
+                     <div className="divide-y">
                       {transactionsInGroup.map((transaction) => {
                           const category = getCategory(safeCategories, transaction.categoryId);
                           const account = getAccount(safeAccounts, transaction.accountId);
