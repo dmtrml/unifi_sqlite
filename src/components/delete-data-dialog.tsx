@@ -1,9 +1,9 @@
 "use client"
 
 import * as React from "react"
+import { collection, getDocs, writeBatch } from "firebase/firestore"
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useToast } from "@/hooks/use-toast"
+import { useFirestore, useUser } from "@/firebase"
 
 type DeletionOption = "transactions" | "all"
 
@@ -24,25 +25,59 @@ export function DeleteDataDialog() {
   const [open, setOpen] = React.useState(false)
   const [deletionOption, setDeletionOption] = React.useState<DeletionOption | null>(null)
   const [confirmationText, setConfirmationText] = React.useState("")
+  const [isDeleting, setIsDeleting] = React.useState(false);
   const { toast } = useToast()
+  const { user } = useUser()
+  const firestore = useFirestore()
 
   const CONFIRMATION_KEYWORD = "DELETE"
-  const isDeleteButtonDisabled = deletionOption === null || confirmationText !== CONFIRMATION_KEYWORD
+  const isDeleteButtonDisabled = deletionOption === null || confirmationText !== CONFIRMATION_KEYWORD || isDeleting
 
   const handleDelete = async () => {
-    // Logic for step 3 will go here
-    console.log("Deleting:", deletionOption)
-    
-    // For now, just show a toast and close
-    toast({
-      title: "Action In Progress",
-      description: "Data deletion logic will be implemented in the next step.",
-    })
-    
-    // Reset state and close dialog
-    setOpen(false)
-    setDeletionOption(null)
-    setConfirmationText("")
+    if (!user || !firestore || !deletionOption) {
+        toast({ title: "Error", description: "An unexpected error occurred.", variant: "destructive" });
+        return;
+    }
+
+    setIsDeleting(true);
+
+    const collectionsToDelete: string[] = [];
+    if (deletionOption === "transactions") {
+        collectionsToDelete.push("transactions");
+    } else if (deletionOption === "all") {
+        collectionsToDelete.push("transactions", "accounts", "categories", "budgets", "recurringTransactions");
+    }
+
+    try {
+        const batch = writeBatch(firestore);
+        
+        for (const collectionName of collectionsToDelete) {
+            const collectionRef = collection(firestore, `users/${user.uid}/${collectionName}`);
+            const querySnapshot = await getDocs(collectionRef);
+            querySnapshot.forEach((doc) => {
+                batch.delete(doc.ref);
+            });
+        }
+        
+        await batch.commit();
+
+        toast({
+            title: "Data Deleted",
+            description: "Your selected data has been permanently deleted.",
+        });
+
+    } catch (error) {
+        console.error("Error deleting data:", error);
+        toast({
+            title: "Error Deleting Data",
+            description: "An error occurred while deleting your data. Please try again.",
+            variant: "destructive",
+        });
+    } finally {
+        // Reset state and close dialog
+        setIsDeleting(false);
+        setOpen(false);
+    }
   }
   
   // Reset state when dialog is closed
@@ -50,13 +85,14 @@ export function DeleteDataDialog() {
     if (!open) {
       setDeletionOption(null)
       setConfirmationText("")
+      setIsDeleting(false);
     }
   }, [open])
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger asChild>
-        <Button variant="destructive">Delete All Data</Button>
+        <Button variant="destructive">Delete Data</Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -111,7 +147,7 @@ export function DeleteDataDialog() {
             onClick={handleDelete}
             disabled={isDeleteButtonDisabled}
           >
-            Delete Data
+            {isDeleting ? "Deleting..." : "Delete Data"}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
