@@ -43,6 +43,7 @@ import { useFirestore, useUser } from "@/firebase"
 import type { Category, Account, Transaction, Currency } from "@/lib/types"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { editTransactionFormSchema, type EditTransactionFormValues } from "@/lib/schemas"
+import { convertAmount } from "@/lib/currency"
 
 
 interface EditTransactionDialogProps {
@@ -64,6 +65,7 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
   const transactionType = form.watch("transactionType");
   const fromAccountId = form.watch("fromAccountId");
   const toAccountId = form.watch("toAccountId");
+  const amountSent = form.watch("amountSent");
 
   const [isMultiCurrency, setIsMultiCurrency] = React.useState(false);
   const [fromCurrency, setFromCurrency] = React.useState<Currency | undefined>();
@@ -114,6 +116,13 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
       setIsMultiCurrency(false);
     }
   }, [fromAccountId, toAccountId, transactionType, accounts, form]);
+
+  React.useEffect(() => {
+    if (isMultiCurrency && amountSent && amountSent > 0 && fromCurrency && toCurrency) {
+      const converted = convertAmount(amountSent, fromCurrency, toCurrency);
+      form.setValue("amountReceived", parseFloat(converted.toFixed(2)));
+    }
+  }, [amountSent, isMultiCurrency, fromCurrency, toCurrency, form]);
 
 
   const filteredCategories = React.useMemo(() => {

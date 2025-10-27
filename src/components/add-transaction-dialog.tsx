@@ -43,6 +43,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useUser } from "@/firebase"
 import type { Category, Account, Currency } from "@/lib/types"
 import { transactionFormSchema, type TransactionFormValues } from "@/lib/schemas"
+import { convertAmount } from "@/lib/currency"
 
 interface AddTransactionDialogProps {
   categories: Category[];
@@ -71,6 +72,7 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
   const transactionType = form.watch("transactionType")
   const fromAccountId = form.watch("fromAccountId");
   const toAccountId = form.watch("toAccountId");
+  const amountSent = form.watch("amountSent");
 
   const [isMultiCurrency, setIsMultiCurrency] = React.useState(false);
   const [fromCurrency, setFromCurrency] = React.useState<Currency | undefined>();
@@ -94,7 +96,8 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
       const fromAccount = accounts.find(a => a.id === fromAccountId);
       const toAccount = accounts.find(a => a.id === toAccountId);
       if (fromAccount && toAccount) {
-        setIsMultiCurrency(fromAccount.currency !== toAccount.currency);
+        const isMulti = fromAccount.currency !== toAccount.currency;
+        setIsMultiCurrency(isMulti);
         setFromCurrency(fromAccount.currency);
         setToCurrency(toAccount.currency);
       }
@@ -102,6 +105,14 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
       setIsMultiCurrency(false);
     }
   }, [fromAccountId, toAccountId, transactionType, accounts]);
+
+  React.useEffect(() => {
+    if (isMultiCurrency && amountSent && amountSent > 0 && fromCurrency && toCurrency) {
+      const converted = convertAmount(amountSent, fromCurrency, toCurrency);
+      // Use toFixed to avoid floating point inaccuracies in the UI
+      form.setValue("amountReceived", parseFloat(converted.toFixed(2)));
+    }
+  }, [amountSent, isMultiCurrency, fromCurrency, toCurrency, form]);
 
   const filteredCategories = React.useMemo(() => {
     if (transactionType === 'expense') {
