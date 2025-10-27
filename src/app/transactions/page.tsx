@@ -336,12 +336,16 @@ function TransactionsPageContent() {
                             const fromAccount = getAccount(safeAccounts, transaction.fromAccountId);
                             const toAccount = getAccount(safeAccounts, transaction.toAccountId);
                             const isMultiCurrency = fromAccount?.currency !== toAccount?.currency;
+                            
                             const amountSent = transaction.amountSent ?? transaction.amount ?? 0;
+                            const currencySent = fromAccount?.currency ?? mainCurrency;
+
                             const amountReceived = transaction.amountReceived ?? transaction.amount ?? 0;
+                            const currencyReceived = toAccount?.currency ?? mainCurrency;
 
                             return (
-                                <div key={transaction.id} className="p-2">
-                                    <div className="flex items-center justify-between">
+                                <div key={transaction.id} className="p-2 space-y-1">
+                                    <div className="flex items-start justify-between">
                                         <div className="flex items-center gap-3">
                                             <ArrowRightLeft className="h-6 w-6 shrink-0" />
                                             <div className="flex flex-col overflow-hidden">
@@ -351,18 +355,18 @@ function TransactionsPageContent() {
                                         </div>
                                         <div className="flex flex-col items-end shrink-0">
                                             <span className="font-bold">
-                                                + {new Intl.NumberFormat('en-US', { style: 'currency', currency: toAccount!.currency }).format(amountReceived)}
+                                                + {new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyReceived }).format(amountReceived)}
                                             </span>
                                             <span className="font-bold">
-                                                - {new Intl.NumberFormat('en-US', { style: 'currency', currency: fromAccount!.currency }).format(amountSent)}
+                                                - {new Intl.NumberFormat('en-US', { style: 'currency', currency: currencySent }).format(amountSent)}
                                             </span>
                                         </div>
                                     </div>
-                                    {transaction.description && <p className="text-sm text-muted-foreground mt-1 pl-9">{transaction.description}</p>}
-                                    <div className="pl-9 mt-1">
+                                    <div className="flex items-center justify-between pl-9">
+                                        {transaction.description && <p className="text-sm text-muted-foreground truncate flex-grow">{transaction.description}</p>}
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="-ml-2 h-8 w-8">
+                                                <Button variant="ghost" size="icon" className="-mr-2 h-8 w-8 shrink-0">
                                                     <MoreHorizontal className="h-4 w-4" />
                                                 </Button>
                                             </DropdownMenuTrigger>
@@ -392,7 +396,7 @@ function TransactionsPageContent() {
                           const mainIconColor = category?.color || 'hsl(var(--foreground))';
 
                           return (
-                              <div key={transaction.id} className="p-2">
+                              <div key={transaction.id} className="p-2 space-y-1">
                                 <div className="flex items-start justify-between">
                                     <div className="flex items-center gap-3">
                                         <MainIcon className="h-6 w-6 shrink-0" style={{color: mainIconColor}}/>
@@ -409,11 +413,11 @@ function TransactionsPageContent() {
                                         {new Intl.NumberFormat('en-US', { style: 'currency', currency: getTransactionCurrency(transaction) }).format(transaction.amount || 0)}
                                     </span>
                                 </div>
-                                {transaction.description && <p className="text-sm text-muted-foreground mt-1 pl-9">{transaction.description}</p>}
-                                <div className="pl-9 mt-1">
+                                <div className="flex items-center justify-between pl-9">
+                                    {transaction.description && <p className="text-sm text-muted-foreground truncate flex-grow">{transaction.description}</p>}
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="-ml-2 h-8 w-8">
+                                            <Button variant="ghost" size="icon" className="-mr-2 h-8 w-8 shrink-0">
                                                 <MoreHorizontal className="h-4 w-4" />
                                             </Button>
                                         </DropdownMenuTrigger>
