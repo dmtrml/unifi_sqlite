@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { collection, query, orderBy } from "firebase/firestore"
-import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase"
+import { collection, query, orderBy, doc } from "firebase/firestore"
+import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase"
 import AppLayout from "@/components/layout"
 import {
   ArrowRightLeft
@@ -31,7 +31,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type { Account, Category, Transaction } from "@/lib/types"
+import type { Account, Category, Transaction, User } from "@/lib/types"
 import { MoreHorizontal, Landmark } from "lucide-react"
 import { EditTransactionDialog } from "@/components/edit-transaction-dialog"
 import { DeleteTransactionDialog } from "@/components/delete-transaction-dialog"
@@ -39,6 +39,7 @@ import * as Icons from "lucide-react"
 import type { DateRange } from "react-day-picker"
 import { TransactionFilters } from "@/components/transaction-filters"
 import { DuplicateTransactionDialog } from "@/components/duplicate-transaction-dialog"
+import { convertAmount } from "@/lib/currency"
 
 function getCategory(categories: Category[], categoryId?: string): Category | undefined {
   if (!categoryId) return undefined;
@@ -74,6 +75,13 @@ function TransactionsPageContent() {
   const [accountId, setAccountId] = React.useState<string>("all");
   const [categoryId, setCategoryId] = React.useState<string>("all");
   const [searchQuery, setSearchQuery] = React.useState<string>("");
+
+  const userDocRef = useMemoFirebase(
+    () => (user ? doc(firestore, "users", user.uid) : null),
+    [user, firestore]
+  )
+  const { data: userData } = useDoc<User>(userDocRef);
+  const mainCurrency = userData?.mainCurrency || "USD";
 
   const transactionsQuery = useMemoFirebase(() => 
     user ? query(collection(firestore, "users", user.uid, "transactions"), orderBy("date", "desc")) : null, 
@@ -132,6 +140,8 @@ function TransactionsPageContent() {
     setCategoryId("all");
     setSearchQuery("");
   }
+  
+  const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: mainCurrency, minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
 
   return (
@@ -183,11 +193,26 @@ function TransactionsPageContent() {
                     </TableRow>
                   </TableBody>
                 ) : (
-                  Object.entries(groupedTransactions).map(([date, transactionsInGroup]) => (
+                  Object.entries(groupedTransactions).map(([date, transactionsInGroup]) => {
+                    const dailyTotal = transactionsInGroup.reduce((sum, t) => {
+                      if (t.transactionType === 'expense') {
+                         const accountCurrency = getAccount(safeAccounts, t.accountId)?.currency || 'USD';
+                         return sum + convertAmount(t.amount, accountCurrency, mainCurrency);
+                      }
+                      return sum;
+                    }, 0);
+                    return (
                     <TableBody key={date}>
                       <TableRow>
                         <TableCell colSpan={7} className="font-semibold text-muted-foreground pt-6">
-                          {formatDateHeader(date)}
+                          <div className="flex justify-between items-center">
+                              <span>{formatDateHeader(date)}</span>
+                              {dailyTotal > 0 && (
+                                <span className="text-destructive font-bold">
+                                  -{currencyFormatter.format(dailyTotal)}
+                                </span>
+                              )}
+                          </div>
                         </TableCell>
                       </TableRow>
                       {transactionsInGroup.map((transaction) => {
@@ -244,7 +269,7 @@ function TransactionsPageContent() {
                         )
                       })}
                     </TableBody>
-                  ))
+                  )})
                 )}
               </Table>
             </div>
@@ -256,9 +281,24 @@ function TransactionsPageContent() {
                     No transactions found for the selected filters.
                   </div>
               ) : (
-                Object.entries(groupedTransactions).map(([date, transactionsInGroup]) => (
+                Object.entries(groupedTransactions).map(([date, transactionsInGroup]) => {
+                  const dailyTotal = transactionsInGroup.reduce((sum, t) => {
+                      if (t.transactionType === 'expense') {
+                         const accountCurrency = getAccount(safeAccounts, t.accountId)?.currency || 'USD';
+                         return sum + convertAmount(t.amount, accountCurrency, mainCurrency);
+                      }
+                      return sum;
+                    }, 0);
+                  return (
                   <div key={date} className="space-y-2">
-                     <h3 className="font-semibold text-muted-foreground px-1 pt-4">{formatDateHeader(date)}</h3>
+                     <div className="flex justify-between items-baseline bg-muted/50 rounded-md px-2 py-1 my-2">
+                        <h3 className="font-semibold text-muted-foreground">{formatDateHeader(date)}</h3>
+                        {dailyTotal > 0 && (
+                          <span className="text-sm font-bold text-destructive">
+                            -{currencyFormatter.format(dailyTotal)}
+                          </span>
+                        )}
+                      </div>
                      <div className="space-y-2">
                       {transactionsInGroup.map((transaction) => {
                           const category = getCategory(safeCategories, transaction.categoryId);
@@ -271,7 +311,7 @@ function TransactionsPageContent() {
                           const mainIconColor = isTransfer ? 'hsl(var(--foreground))' : category?.color;
 
                           return (
-                              <div key={transaction.id} className="flex items-center justify-between rounded-lg p-2">
+                              <div key={transaction.id} className="flex items-center justify-between p-2">
                                   <div className="flex items-center gap-3">
                                       <MainIcon className="h-6 w-6" style={{color: mainIconColor}}/>
                                       <div className="flex flex-col">
@@ -326,7 +366,7 @@ function TransactionsPageContent() {
                       })}
                      </div>
                   </div>
-                ))
+                )})
               )}
             </div>
           </CardContent>
