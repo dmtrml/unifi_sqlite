@@ -62,6 +62,9 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
       date: new Date(),
       transactionType: "expense",
       expenseType: "optional",
+      amount: undefined,
+      amountSent: undefined,
+      amountReceived: undefined,
     },
   })
 
@@ -80,6 +83,9 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
       date: new Date(),
       transactionType: "expense",
       expenseType: "optional",
+      amount: undefined,
+      amountSent: undefined,
+      amountReceived: undefined,
     });
   }, [open, form]);
 
@@ -249,6 +255,9 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
                           description: "",
                           date: new Date(),
                           transactionType: value as any,
+                          amount: undefined,
+                          amountSent: undefined,
+                          amountReceived: undefined,
                         });
                      }} defaultValue={field.value}>
                       <FormControl>
@@ -275,7 +284,7 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
                     <FormItem>
                         <FormLabel>Amount</FormLabel>
                         <FormControl>
-                        <Input type="number" placeholder="$0.00" {...field} />
+                        <Input type="number" placeholder="$0.00" {...field} value={field.value ?? ""} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -380,7 +389,7 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
                                     <FormItem>
                                         <FormLabel>Amount Sent ({fromCurrency})</FormLabel>
                                         <FormControl>
-                                            <Input type="number" placeholder="0.00" {...field} />
+                                            <Input type="number" placeholder="0.00" {...field} value={field.value ?? ""} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -393,7 +402,7 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
                                     <FormItem>
                                         <FormLabel>Amount Received ({toCurrency})</FormLabel>
                                         <FormControl>
-                                            <Input type="number" placeholder="0.00" {...field} />
+                                            <Input type="number" placeholder="0.00" {...field} value={field.value ?? ""} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -408,7 +417,7 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
                             <FormItem>
                                 <FormLabel>Amount</FormLabel>
                                 <FormControl>
-                                <Input type="number" placeholder="0.00" {...field} />
+                                <Input type="number" placeholder="0.00" {...field} value={field.value ?? ""} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
