@@ -151,11 +151,9 @@ function TransactionsPageContent() {
   }
 
   const getTransactionCurrency = (t: Transaction) => {
-     if (t.transactionType === 'transfer') {
-        if (t.fromAccountId) {
-            const fromAccount = getAccount(safeAccounts, t.fromAccountId);
-            return fromAccount?.currency || mainCurrency;
-        }
+     if (t.transactionType === 'transfer' && t.fromAccountId) {
+        const fromAccount = getAccount(safeAccounts, t.fromAccountId);
+        return fromAccount?.currency || mainCurrency;
      } else if (t.accountId) {
        const account = getAccount(safeAccounts, t.accountId);
        return account?.currency || mainCurrency;
@@ -343,29 +341,29 @@ function TransactionsPageContent() {
                             const currencyReceived = toAccount?.currency ?? mainCurrency;
 
                             return (
-                                <div key={transaction.id} className="p-2 space-y-1 relative">
-                                  <div className="flex items-start justify-between pr-8">
+                                <div key={transaction.id} className="p-2 flex items-start justify-between">
+                                  <div className="flex-grow space-y-1">
                                     <div className="flex items-center gap-3">
-                                        <ArrowRightLeft className="h-6 w-6 shrink-0" />
-                                        <div className="flex flex-col overflow-hidden">
-                                            <span className="font-medium truncate">{toAccount?.name ?? 'N/A'}</span>
-                                            <span className="text-xs text-muted-foreground truncate">from {fromAccount?.name ?? 'N/A'}</span>
-                                        </div>
+                                      <ArrowRightLeft className="h-6 w-6 shrink-0" />
+                                      <div className="flex flex-col overflow-hidden">
+                                        <span className="font-medium truncate">{toAccount?.name ?? 'N/A'}</span>
+                                        <span className="text-xs text-muted-foreground truncate">from {fromAccount?.name ?? 'N/A'}</span>
+                                      </div>
                                     </div>
-                                    <div className="flex flex-col items-end shrink-0 font-bold">
-                                        <span>
-                                            + {new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyReceived }).format(amountReceived)}
-                                        </span>
-                                        <span>
-                                            - {new Intl.NumberFormat('en-US', { style: 'currency', currency: currencySent }).format(amountSent)}
-                                        </span>
-                                    </div>
+                                    {transaction.description && <p className="text-sm text-muted-foreground truncate pr-2">{transaction.description}</p>}
                                   </div>
-                                  {transaction.description && <p className="text-sm text-muted-foreground truncate pl-9 pr-8">{transaction.description}</p>}
-                                  <div className="absolute bottom-2 right-0">
+                                  <div className="flex flex-col items-end shrink-0">
+                                      <div className="flex flex-col items-end font-bold">
+                                          <span className="text-primary">
+                                              + {new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyReceived }).format(amountReceived)}
+                                          </span>
+                                          <span>
+                                              - {new Intl.NumberFormat('en-US', { style: 'currency', currency: currencySent }).format(amountSent)}
+                                          </span>
+                                      </div>
                                       <DropdownMenu>
                                           <DropdownMenuTrigger asChild>
-                                              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                                              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 mt-1">
                                                   <MoreHorizontal className="h-4 w-4" />
                                               </Button>
                                           </DropdownMenuTrigger>
@@ -395,8 +393,8 @@ function TransactionsPageContent() {
                           const mainIconColor = category?.color || 'hsl(var(--foreground))';
 
                           return (
-                              <div key={transaction.id} className="p-2 space-y-1 relative">
-                                <div className="flex items-start justify-between pr-8">
+                              <div key={transaction.id} className="p-2 flex items-start justify-between">
+                                  <div className="flex-grow space-y-1">
                                     <div className="flex items-center gap-3">
                                         <MainIcon className="h-6 w-6 shrink-0" style={{color: mainIconColor}}/>
                                         <div className="flex flex-col overflow-hidden">
@@ -407,34 +405,35 @@ function TransactionsPageContent() {
                                             </div>
                                         </div>
                                     </div>
-                                    <span className={`font-bold shrink-0 ${transaction.transactionType === 'expense' ? 'text-destructive' : 'text-primary'}`}>
-                                        {transaction.transactionType === 'expense' ? '-' : '+'}
-                                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: getTransactionCurrency(transaction) }).format(transaction.amount || 0)}
-                                    </span>
-                                </div>
-                                {transaction.description && <p className="text-sm text-muted-foreground truncate pl-9 pr-8">{transaction.description}</p>}
-                                <div className="absolute bottom-2 right-0">
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                                                <MoreHorizontal className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent>
-                                            <EditTransactionDialog 
-                                                transaction={transaction}
-                                                categories={safeCategories}
-                                                accounts={safeAccounts}
-                                            />
-                                            <DuplicateTransactionDialog
-                                                transaction={transaction}
-                                                categories={safeCategories}
-                                                accounts={safeAccounts}
-                                            />
-                                            <DeleteTransactionDialog transactionId={transaction.id} />
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
+                                    {transaction.description && <p className="text-sm text-muted-foreground truncate pr-2">{transaction.description}</p>}
+                                  </div>
+
+                                  <div className="flex flex-col items-end shrink-0">
+                                      <span className={`font-bold ${transaction.transactionType === 'expense' ? 'text-destructive' : 'text-primary'}`}>
+                                          {transaction.transactionType === 'expense' ? '-' : '+'}
+                                          {new Intl.NumberFormat('en-US', { style: 'currency', currency: getTransactionCurrency(transaction) }).format(transaction.amount || 0)}
+                                      </span>
+                                      <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 mt-1">
+                                                  <MoreHorizontal className="h-4 w-4" />
+                                              </Button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent>
+                                              <EditTransactionDialog 
+                                                  transaction={transaction}
+                                                  categories={safeCategories}
+                                                  accounts={safeAccounts}
+                                              />
+                                              <DuplicateTransactionDialog
+                                                  transaction={transaction}
+                                                  categories={safeCategories}
+                                                  accounts={safeAccounts}
+                                              />
+                                              <DeleteTransactionDialog transactionId={transaction.id} />
+                                          </DropdownMenuContent>
+                                      </DropdownMenu>
+                                  </div>
                               </div>
                           )
                       })}
