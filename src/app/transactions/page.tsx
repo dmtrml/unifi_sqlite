@@ -334,8 +334,6 @@ function TransactionsPageContent() {
                           const account = !isTransfer ? getAccount(safeAccounts, transaction.accountId) : undefined;
                           const fromAccount = isTransfer ? getAccount(safeAccounts, transaction.fromAccountId) : undefined;
                           const toAccount = isTransfer ? getAccount(safeAccounts, transaction.toAccountId) : undefined;
-
-                          const isMultiCurrency = isTransfer && fromAccount?.currency !== toAccount?.currency;
                           
                           const IconComponent = isTransfer 
                             ? ArrowRightLeft 
@@ -350,14 +348,10 @@ function TransactionsPageContent() {
                                   <div className="flex items-center gap-3">
                                       <IconComponent className="h-6 w-6" style={{color: iconColor}}/>
                                       <div className="flex flex-col">
-                                          <span className="font-medium">{isTransfer ? "Transfer" : (category?.name ?? "Uncategorized")}</span>
+                                          <span className="font-medium">{isTransfer ? toAccount?.name : (category?.name ?? "Uncategorized")}</span>
                                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                             {isTransfer ? (
-                                              <>
-                                                  <span className="truncate max-w-[100px]">{fromAccount?.name ?? ''}</span>
-                                                  <ArrowRightLeft className="h-3 w-3 mx-1" />
-                                                  <span className="truncate max-w-[100px]">{toAccount?.name ?? ''}</span>
-                                              </>
+                                              <span className="truncate max-w-[150px]">{fromAccount?.name ?? ''}</span>
                                             ) : (
                                               <>
                                                 <Landmark className="h-3 w-3" />
@@ -365,17 +359,16 @@ function TransactionsPageContent() {
                                               </>
                                             )}
                                           </div>
-                                          <span className="text-xs text-muted-foreground truncate max-w-[150px]">{transaction.description}</span>
                                       </div>
                                   </div>
                                   <div className="flex flex-col items-end">
-                                    {isMultiCurrency ? (
+                                    {isTransfer ? (
                                       <>
-                                        <span className="font-bold text-destructive">
-                                          - {new Intl.NumberFormat('en-US', { style: 'currency', currency: fromAccount!.currency }).format(transaction.amountSent!)}
+                                        <span className="font-bold">
+                                          + {new Intl.NumberFormat('en-US', { style: 'currency', currency: toAccount!.currency }).format(transaction.amountReceived || transaction.amount!)}
                                         </span>
-                                        <span className="font-bold text-primary">
-                                          + {new Intl.NumberFormat('en-US', { style: 'currency', currency: toAccount!.currency }).format(transaction.amountReceived!)}
+                                        <span className="font-bold">
+                                          - {new Intl.NumberFormat('en-US', { style: 'currency', currency: fromAccount!.currency }).format(transaction.amountSent || transaction.amount!)}
                                         </span>
                                       </>
                                     ) : (
