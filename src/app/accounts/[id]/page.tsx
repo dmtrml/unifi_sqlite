@@ -5,7 +5,7 @@ import { doc, collection, query, orderBy } from "firebase/firestore"
 import * as Icons from "lucide-react"
 import { useDoc, useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase"
 import AppLayout from "@/components/layout"
-import type { Account, Transaction, Category } from "@/lib/types"
+import type { Account, Transaction, Category, User } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
@@ -22,6 +22,8 @@ import { EditAccountDialog } from "@/components/edit-account-dialog"
 import { DeleteAccountDialog } from "@/components/delete-account-dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AccountTransactionList } from "@/components/account-transaction-list"
+import { IncomeExpenseChart } from "@/components/reports/IncomeExpenseChart"
+import { CategorySpendingChart } from "@/components/dashboard/category-spending-chart"
 
 interface AccountPageParams {
     params: {
@@ -32,6 +34,12 @@ interface AccountPageParams {
 function AccountPageContent({ accountId }: { accountId: string}) {
   const { user } = useUser()
   const firestore = useFirestore()
+
+  const userDocRef = useMemoFirebase(
+    () => (user ? doc(firestore, "users", user.uid) : null),
+    [user, firestore]
+  )
+  const { data: userData } = useDoc<User>(userDocRef)
 
   const accountDocRef = useMemoFirebase(
     () => (user ? doc(firestore, "users", user.uid, "accounts", accountId) : null),
@@ -64,7 +72,7 @@ function AccountPageContent({ accountId }: { accountId: string}) {
     );
   }, [allTransactions, accountId]);
 
-  const isLoading = isAccountLoading || isTransactionsLoading || isCategoriesLoading || isAccountsLoading;
+  const isLoading = isAccountLoading || isTransactionsLoading || isCategoriesLoading || isAccountsLoading || !userData;
   
   const IconComponent = account ? (Icons as any)[account.icon] || Icons.HelpCircle : Icons.HelpCircle;
 
@@ -157,14 +165,36 @@ function AccountPageContent({ accountId }: { accountId: string}) {
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="analytics">
+        <TabsContent value="analytics" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Analytics</CardTitle>
-              <CardDescription>Visual insights into this account's activity.</CardDescription>
+              <CardTitle>Income vs. Expense</CardTitle>
+              <CardDescription>
+                Your income and expenses for this account in {userData.mainCurrency || "USD"}.
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <p>Analytics charts will be implemented in a future step.</p>
+              <IncomeExpenseChart
+                transactions={relatedTransactions}
+                accounts={allAccounts || []}
+                mainCurrency={userData.mainCurrency || "USD"}
+              />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Spending by Category</CardTitle>
+              <CardDescription>
+                Spending breakdown for the current month in {userData.mainCurrency || "USD"}.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CategorySpendingChart
+                transactions={relatedTransactions}
+                categories={categories || []}
+                accounts={allAccounts || []}
+                mainCurrency={userData.mainCurrency || "USD"}
+              />
             </CardContent>
           </Card>
         </TabsContent>
