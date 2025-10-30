@@ -121,7 +121,7 @@ function TransactionsPageContent() {
 
     let q: Query<DocumentData> = query(collection(firestore, `users/${user.uid}/transactions`));
 
-    // Apply server-side filters for date
+    // Apply server-side filters
     if (dateRange?.from) {
       q = query(q, where("date", ">=", Timestamp.fromDate(dateRange.from)));
     }
@@ -129,6 +129,12 @@ function TransactionsPageContent() {
       const toDate = new Date(dateRange.to);
       toDate.setHours(23, 59, 59, 999);
       q = query(q, where("date", "<=", Timestamp.fromDate(toDate)));
+    }
+    if (accountId !== 'all') {
+      q = query(q, where("accountId", "==", accountId));
+    }
+    if (categoryId !== 'all') {
+      q = query(q, where("categoryId", "==", categoryId));
     }
     
     q = query(q, orderBy("date", "desc"));
@@ -142,13 +148,7 @@ function TransactionsPageContent() {
       const documentSnapshots = await getDocs(q);
       let newTransactions = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Transaction[];
       
-      // Apply client-side filtering for account, category, and search
-      if (accountId !== 'all') {
-        newTransactions = newTransactions.filter(t => t.accountId === accountId || t.fromAccountId === accountId || t.toAccountId === accountId);
-      }
-      if (categoryId !== 'all') {
-        newTransactions = newTransactions.filter(t => t.categoryId === categoryId);
-      }
+      // Apply client-side filtering for search (as Firestore doesn't support partial text search natively)
       if (searchQuery) {
         newTransactions = newTransactions.filter(t => t.description.toLowerCase().includes(searchQuery.toLowerCase()));
       }
@@ -163,6 +163,7 @@ function TransactionsPageContent() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, firestore, dateRange, accountId, categoryId, searchQuery]);
 
 
