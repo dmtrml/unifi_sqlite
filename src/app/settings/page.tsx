@@ -228,14 +228,18 @@ function SettingsPageContent() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Управление данными</CardTitle>
+          <CardTitle>Data Management</CardTitle>
           <CardDescription>
-            Экспортируйте или импортируйте свои данные.
+            Export your data or import new transactions.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex gap-2">
-          <Button variant="outline" onClick={handleExportTransactions}>Экспортировать транзакции</Button>
-          <ImportTransactionsDialog />
+          <Button variant="outline" onClick={handleExportTransactions}>Export Transactions</Button>
+          <ImportTransactionsDialog 
+            accounts={accounts || []} 
+            categories={categories || []} 
+            mainCurrency={userData?.mainCurrency || 'USD'}
+          />
         </CardContent>
       </Card>
 

@@ -8,27 +8,32 @@ import type { Account, Category, Transaction } from "@/lib/types";
 
 // Helper to get the initialized Firebase Admin app
 function getFirebaseAdminApp() {
-    // Check if the app is already initialized
+    // Check if the app is already initialized to avoid re-initializing
     if (admin.apps.length > 0) {
         return admin.app();
     }
 
-    // If not initialized, try to initialize it.
-    // This relies on GOOGLE_APPLICATION_CREDENTIALS being set in the environment.
-    // Firebase App Hosting automatically provides these credentials.
+    // Try to initialize using the service account key from environment variables
+    // This is the most reliable method in various environments including Firebase Studio
     try {
         const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-        if (!serviceAccountKey) {
-            // In a Google Cloud environment, service account might be auto-discovered
-            return admin.initializeApp();
+        if (serviceAccountKey) {
+            const credentials = JSON.parse(serviceAccountKey);
+            return admin.initializeApp({
+                credential: admin.credential.cert(credentials),
+            });
         }
-
-        const credentials = JSON.parse(serviceAccountKey);
-        return admin.initializeApp({
-            credential: admin.credential.cert(credentials),
-        });
+    } catch (error) {
+        console.error("Failed to initialize Firebase Admin with service account key:", error);
+        // Fall through to the default initialization
+    }
+    
+    // If the key is not available, fall back to default credentials
+    // This works in Google Cloud environments (like App Hosting) automatically
+    try {
+        return admin.initializeApp();
     } catch (error: any) {
-        console.error("Firebase Admin initialization failed:", error.message);
+        console.error("Firebase Admin default initialization failed:", error.message);
         throw new Error("Could not initialize Firebase Admin SDK. Ensure credentials are set correctly.");
     }
 }
