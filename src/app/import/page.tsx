@@ -388,26 +388,24 @@ function ImportPageContent() {
 
                 <div>
                    <h3 className="text-base font-medium mb-2">Data Preview (first 5 rows)</h3>
-                   <ScrollArea className="rounded-md border">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                {headers.map(header => (
-                                    <TableHead key={header}>{header}</TableHead>
-                                ))}
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                            {headers.map(header => (
+                                <TableHead key={header}>{header}</TableHead>
+                            ))}
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {previewData.slice(0, 5).map((row, rowIndex) => (
+                                <TableRow key={rowIndex}>
+                                    {headers.map(header => (
+                                        <TableCell key={`${rowIndex}-${header}`}>{row[header]}</TableCell>
+                                    ))}
                                 </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {previewData.slice(0, 5).map((row, rowIndex) => (
-                                    <TableRow key={rowIndex}>
-                                        {headers.map(header => (
-                                            <TableCell key={`${rowIndex}-${header}`} className="whitespace-nowrap">{row[header]}</TableCell>
-                                        ))}
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                   </ScrollArea>
+                            ))}
+                        </TableBody>
+                    </Table>
                 </div>
             </CardContent>
             <CardFooter className="justify-end gap-2">
