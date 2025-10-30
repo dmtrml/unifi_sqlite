@@ -407,7 +407,6 @@ function ImportPageContent() {
                                 ))}
                             </TableBody>
                         </Table>
-                        <div className="h-4"></div>
                    </ScrollArea>
                 </div>
             </CardContent>
