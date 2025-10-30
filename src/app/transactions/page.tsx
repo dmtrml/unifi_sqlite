@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { collection, query, orderBy, doc, limit, startAfter, getDocs, where, Timestamp, type Query, type DocumentData } from "firebase/firestore"
-import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase"
+import { useDoc, useFirestore, useUser, useMemoFirebase, useCollection } from "@/firebase"
 import AppLayout from "@/components/layout"
 import {
   ArrowRightLeft,
@@ -421,7 +421,7 @@ function TransactionsPageContent() {
                                               <Landmark className="h-3 w-3" />
                                               <span className="truncate">
                                                 {isTransfer 
-                                                    ? fromAccount?.name ?? "N/A"
+                                                    ? fromAccount?.name ?? "N.A"
                                                     : account?.name ?? "No Account"}
                                               </span>
                                           </div>
