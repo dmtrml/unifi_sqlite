@@ -124,25 +124,20 @@ function TransactionsPageContent() {
 
     let q: Query<DocumentData> = query(collection(firestore, `users/${user.uid}/transactions`));
 
-    // Apply filters
+    // Apply server-side filters that don't require composite indexes with date ordering
     if (accountId !== 'all') {
       q = query(q, where("accountId", "==", accountId));
     }
     if (categoryId !== 'all') {
       q = query(q, where("categoryId", "==", categoryId));
     }
-     if (dateRange?.from) {
-        q = query(q, where("date", ">=", Timestamp.fromDate(dateRange.from)));
-    }
-    if (dateRange?.to) {
-        const toDate = new Date(dateRange.to);
-        toDate.setHours(23, 59, 59, 999);
-        q = query(q, where("date", "<=", Timestamp.fromDate(toDate)));
-    }
-    
+
     // Always order by date
     q = query(q, orderBy("date", "desc"));
     
+    // Date range filter is tricky with other filters. We'll apply it on client for simplicity
+    // without manual indexes. For production apps, creating indexes is the way to go.
+
     if (loadMore && lastVisible) {
         q = query(q, startAfter(lastVisible));
     }
@@ -153,16 +148,28 @@ function TransactionsPageContent() {
         const documentSnapshots = await getDocs(q);
         let newTransactions = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Transaction[];
         
-        // Client-side search filtering
-        if (searchQuery) {
-            newTransactions = newTransactions.filter(t => 
-                t.description?.toLowerCase().includes(searchQuery.toLowerCase())
-            );
-        }
+        // Client-side filtering
+        const clientFilteredTransactions = newTransactions.filter(t => {
+          let matchesDate = true;
+          if (dateRange?.from) {
+            matchesDate = t.date.toDate() >= dateRange.from;
+          }
+          if (dateRange?.to) {
+            const toDate = new Date(dateRange.to);
+            toDate.setHours(23, 59, 59, 999);
+            matchesDate = matchesDate && t.date.toDate() <= toDate;
+          }
+
+          const matchesSearch = searchQuery 
+            ? t.description?.toLowerCase().includes(searchQuery.toLowerCase())
+            : true;
+            
+          return matchesDate && matchesSearch;
+        });
 
         const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1] || null;
         setLastVisible(newLastVisible);
-        setTransactions(prev => loadMore ? [...prev, ...newTransactions] : newTransactions);
+        setTransactions(prev => loadMore ? [...prev, ...clientFilteredTransactions] : clientFilteredTransactions);
         setHasMore(documentSnapshots.docs.length === PAGE_SIZE);
     } catch (error) {
         console.error("Error fetching transactions: ", error);
@@ -175,13 +182,11 @@ function TransactionsPageContent() {
 
 
   React.useEffect(() => {
-    // This effect now correctly depends on all filter states
-    // and will re-fetch data whenever any of them change.
-    // The `fetchTransactions` function is stable due to useCallback.
     if (user && firestore && accounts && categories) {
-      fetchTransactions(false); // `false` indicates it's a new fetch, not loading more
+      fetchTransactions(false);
     }
-  }, [user, firestore, accounts, categories, dateRange, accountId, categoryId, searchQuery, fetchTransactions]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, firestore, accounts, categories, dateRange, accountId, categoryId, searchQuery]);
 
 
   const groupedTransactions = React.useMemo(() => {
