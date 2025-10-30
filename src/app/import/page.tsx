@@ -35,7 +35,6 @@ import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import type { Account, Category, Currency, User, Transaction } from "@/lib/types"
 import { useFirestore, useUser, useCollection, useMemoFirebase, useDoc } from "@/firebase"
-import { ScrollArea } from "@/components/ui/scroll-area"
 
 const transactionFields = [
     { value: "date", label: "Date" },
@@ -48,7 +47,6 @@ const transactionFields = [
     { value: "income", label: "Income Amount" },
     { value: "incomeCurrency", label: "Income Currency" },
 ];
-
 
 interface ImportResult {
     successCount: number;
@@ -267,19 +265,16 @@ function ImportPageContent() {
                        continue;
                     }
                     
-                    const incomeAmount = mappedRow.income ? Number(mappedRow.income) : NaN;
-                    const outcomeAmount = mappedRow.outcome ? Number(mappedRow.outcome) : NaN;
-
-                    const hasIncome = !isNaN(incomeAmount) && incomeAmount > 0;
-                    const hasOutcome = !isNaN(outcomeAmount) && outcomeAmount > 0;
+                    const incomeAmount = Number(mappedRow.income) || 0;
+                    const outcomeAmount = Number(mappedRow.outcome) || 0;
 
                     let transactionType: 'income' | 'expense' | 'transfer' | null = null;
 
-                    if (hasIncome && hasOutcome) {
+                    if (incomeAmount > 0 && outcomeAmount > 0) {
                         transactionType = 'transfer';
-                    } else if (hasIncome) {
+                    } else if (incomeAmount > 0) {
                         transactionType = 'income';
-                    } else if (hasOutcome) {
+                    } else if (outcomeAmount > 0) {
                         transactionType = 'expense';
                     } else {
                         result.errorCount++; continue;
@@ -297,24 +292,27 @@ function ImportPageContent() {
                         const toAccountInfo = getOrCreateAccount(mappedRow.incomeAccountName, mappedRow.incomeCurrency, localAccounts, batch, result);
                         
                         const isMultiCurrency = fromAccountInfo.currency !== toAccountInfo.currency;
+                        
+                        const amountSent = isMultiCurrency ? incomeAmount : outcomeAmount;
+                        const amountReceived = isMultiCurrency ? incomeAmount : outcomeAmount;
 
                         transactionData = {
                             userId: user.uid, date, description: mappedRow.description || "Imported Transfer",
                             transactionType: 'transfer', fromAccountId: fromAccountInfo.id, toAccountId: toAccountInfo.id,
                             amount: isMultiCurrency ? null : outcomeAmount,
-                            amountSent: isMultiCurrency ? outcomeAmount : null,
-                            amountReceived: isMultiCurrency ? incomeAmount : null,
+                            amountSent: isMultiCurrency ? amountSent : null,
+                            amountReceived: isMultiCurrency ? amountReceived : null,
                         };
                         
-                        accountBalanceChanges[fromAccountInfo.id] = (accountBalanceChanges[fromAccountInfo.id] || 0) - outcomeAmount;
-                        accountBalanceChanges[toAccountInfo.id] = (accountBalanceChanges[toAccountInfo.id] || 0) + incomeAmount;
+                        accountBalanceChanges[fromAccountInfo.id] = (accountBalanceChanges[fromAccountInfo.id] || 0) - amountSent;
+                        accountBalanceChanges[toAccountInfo.id] = (accountBalanceChanges[toAccountInfo.id] || 0) + amountReceived;
 
                     } else { // Income or Expense
                         const amount = transactionType === 'income' ? incomeAmount : outcomeAmount;
                         const accountName = mappedRow.incomeAccountName || mappedRow.outcomeAccountName;
                         const currency = mappedRow.incomeCurrency || mappedRow.outcomeCurrency;
                         
-                        if (isNaN(amount) || !accountName) {
+                        if (!accountName) {
                            result.errorCount++; continue;
                         }
                         
@@ -333,6 +331,8 @@ function ImportPageContent() {
                             accountId: accountInfo.id, categoryId,
                             expenseType: transactionType === 'expense' ? 'optional' : undefined,
                             incomeType: transactionType === 'income' ? 'active' : undefined,
+                            fromAccountId: null,
+                            toAccountId: null,
                             amountSent: null,
                             amountReceived: null,
                         };
@@ -456,7 +456,7 @@ function ImportPageContent() {
             <CardContent className="space-y-6">
                <div>
                   <h3 className="text-base font-medium mb-2">Column Mapping</h3>
-                  <ScrollArea className="h-64 rounded-md border">
+                  <div className="rounded-md border">
                     <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {headers.map((header) => (
                         <div key={header} className="grid grid-cols-2 items-center gap-2">
@@ -481,31 +481,33 @@ function ImportPageContent() {
                         </div>
                       ))}
                     </div>
-                  </ScrollArea>
+                  </div>
                 </div>
 
                 <div>
                    <h3 className="text-base font-medium mb-2">Data Preview (first 5 rows)</h3>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                            {headers.map(header => (
-                                <TableHead key={header}>{header}</TableHead>
-                            ))}
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {previewData.slice(0, 5).map((row, rowIndex) => (
-                                <TableRow key={rowIndex}>
-                                    {headers.map(header => (
-                                        <TableCell key={`${rowIndex}-${header}`}>
-                                            {row[header]}
-                                        </TableCell>
-                                    ))}
+                    <div className="relative w-full overflow-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                {headers.map(header => (
+                                    <TableHead key={header}>{header}</TableHead>
+                                ))}
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {previewData.slice(0, 5).map((row, rowIndex) => (
+                                    <TableRow key={rowIndex}>
+                                        {headers.map(header => (
+                                            <TableCell key={`${rowIndex}-${header}`} className="whitespace-nowrap">
+                                                {row[header]}
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </div>
             </CardContent>
             <CardFooter className="justify-end gap-2">
@@ -585,5 +587,3 @@ export default function ImportPage() {
         </AppLayout>
     )
 }
-
-    
