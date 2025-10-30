@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { collection, query, orderBy, doc, limit, startAfter, getDocs, where, Timestamp, type Query, type DocumentData } from "firebase/firestore"
-import { useDoc, useFirestore, useUser, useMemoFirebase, useCollection } from "@/firebase"
+import { useFirestore, useUser, useMemoFirebase, useCollection } from "@/firebase"
 import AppLayout from "@/components/layout"
 import {
   ArrowRightLeft,
@@ -41,6 +41,7 @@ import type { DateRange } from "react-day-picker"
 import { TransactionFilters } from "@/components/transaction-filters"
 import { DuplicateTransactionDialog } from "@/components/duplicate-transaction-dialog"
 import { convertAmount } from "@/lib/currency"
+import { useToast } from "@/hooks/use-toast"
 
 const PAGE_SIZE = 25;
 
@@ -73,6 +74,7 @@ function formatDateHeader(dateStr: string) {
 function TransactionsPageContent() {
   const { user } = useUser()
   const firestore = useFirestore()
+  const { toast } = useToast()
 
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [lastVisible, setLastVisible] = React.useState<DocumentData | null>(null);
@@ -122,8 +124,14 @@ function TransactionsPageContent() {
 
     let q: Query<DocumentData> = query(collection(firestore, `users/${user.uid}/transactions`));
 
-    // Apply server-side filters that don't require complex indexes with date sort
-    if (dateRange?.from) {
+    // Apply filters
+    if (accountId !== 'all') {
+      q = query(q, where("accountId", "==", accountId));
+    }
+    if (categoryId !== 'all') {
+      q = query(q, where("categoryId", "==", categoryId));
+    }
+     if (dateRange?.from) {
         q = query(q, where("date", ">=", Timestamp.fromDate(dateRange.from)));
     }
     if (dateRange?.to) {
@@ -132,14 +140,6 @@ function TransactionsPageContent() {
         q = query(q, where("date", "<=", Timestamp.fromDate(toDate)));
     }
     
-    // Apply specific filters if they are not "all"
-    if (accountId !== 'all') {
-      q = query(q, where("accountId", "==", accountId));
-    }
-    if (categoryId !== 'all') {
-      q = query(q, where("categoryId", "==", categoryId));
-    }
-
     // Always order by date
     q = query(q, orderBy("date", "desc"));
     
@@ -171,20 +171,15 @@ function TransactionsPageContent() {
         setIsLoading(false);
         setIsLoadingMore(false);
     }
-  }, [user, firestore, dateRange, accountId, categoryId, searchQuery, hasMore, lastVisible]);
+  }, [user, firestore, dateRange, accountId, categoryId, searchQuery, lastVisible, hasMore, toast]);
 
 
   React.useEffect(() => {
-    // This effect triggers the initial fetch and re-fetches when filters change.
     if (user && firestore && accounts && categories) {
       fetchTransactions(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, firestore, accounts, categories, dateRange, accountId, categoryId, searchQuery]);
+  }, [user, firestore, accounts, categories, dateRange, accountId, categoryId, searchQuery, fetchTransactions]);
 
-  const fetchMoreTransactions = () => {
-    fetchTransactions(true);
-  }
 
   const groupedTransactions = React.useMemo(() => {
     return transactions.reduce((acc, transaction) => {
@@ -497,14 +492,14 @@ function TransactionsPageContent() {
                   </div>
                 )})
               )}
-               {hasMore && !isLoading && (
-                  <div className="mt-6 flex justify-center">
-                    <Button onClick={fetchMoreTransactions} disabled={isLoadingMore}>
-                      {isLoadingMore ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Load More"}
-                    </Button>
-                  </div>
-                )}
             </div>
+            {hasMore && !isLoading && (
+              <div className="mt-6 flex justify-center">
+                <Button onClick={() => fetchTransactions(true)} disabled={isLoadingMore}>
+                  {isLoadingMore ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Load More"}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
     </main>
