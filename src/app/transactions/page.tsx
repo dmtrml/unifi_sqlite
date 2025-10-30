@@ -131,8 +131,6 @@ function TransactionsPageContent() {
       toDate.setHours(23, 59, 59, 999);
       q = query(q, where("date", "<=", Timestamp.fromDate(toDate)));
     }
-    // `accountId` is now filtered on the client-side
-    if (categoryId !== 'all') q = query(q, where("categoryId", "==", categoryId));
 
     q = query(q, limit(PAGE_SIZE));
 
@@ -151,6 +149,9 @@ function TransactionsPageContent() {
       if (accountId !== 'all') {
         newTransactions = newTransactions.filter(t => t.accountId === accountId || t.fromAccountId === accountId || t.toAccountId === accountId);
       }
+      if (categoryId !== 'all') {
+        newTransactions = newTransactions.filter(t => t.categoryId === categoryId);
+      }
 
       setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1] || null);
       setTransactions(prev => loadMore ? [...prev, ...newTransactions] : newTransactions);
@@ -161,12 +162,13 @@ function TransactionsPageContent() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [user, firestore, dateRange, categoryId, searchQuery, hasMore, lastVisible, accountId]); // accountId added for client filtering
+  }, [user, firestore, dateRange, categoryId, searchQuery, lastVisible, accountId]); // accountId added for client filtering
 
   // Effect to fetch initial data and re-fetch on filter changes
   React.useEffect(() => {
     fetchTransactions(false);
-  }, [dateRange, accountId, categoryId, searchQuery]); // fetchTransactions is not a dependency
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange, accountId, categoryId, searchQuery]);
 
   const fetchMoreTransactions = () => {
     fetchTransactions(true);
