@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Upload, FileUp, X, Check, Loader2 } from "lucide-react"
 import Papa from "papaparse"
-import { collection, doc, writeBatch, serverTimestamp, query } from "firebase/firestore"
+import { collection, doc, writeBatch, serverTimestamp, query, DocumentReference } from "firebase/firestore"
 
 import AppLayout from "@/components/layout"
 import { Button } from "@/components/ui/button"
@@ -478,26 +478,24 @@ function ImportPageContent() {
 
                 <div>
                    <h3 className="text-base font-medium mb-2">Data Preview (first 5 rows)</h3>
-                    <ScrollArea className="w-full whitespace-nowrap rounded-md border">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                {headers.map(header => (
-                                    <TableHead key={header} className="whitespace-nowrap">{header}</TableHead>
-                                ))}
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                            {headers.map(header => (
+                                <TableHead key={header}>{header}</TableHead>
+                            ))}
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {previewData.slice(0, 5).map((row, rowIndex) => (
+                                <TableRow key={rowIndex}>
+                                    {headers.map(header => (
+                                        <TableCell key={`${rowIndex}-${header}`}>{row[header]}</TableCell>
+                                    ))}
                                 </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {previewData.slice(0, 5).map((row, rowIndex) => (
-                                    <TableRow key={rowIndex}>
-                                        {headers.map(header => (
-                                            <TableCell key={`${rowIndex}-${header}`} className="whitespace-nowrap">{row[header]}</TableCell>
-                                        ))}
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </ScrollArea>
+                            ))}
+                        </TableBody>
+                    </Table>
                 </div>
             </CardContent>
             <CardFooter className="justify-end gap-2">
