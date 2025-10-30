@@ -1,21 +1,20 @@
-
 "use client"
 
 import * as React from "react"
-import { Upload, FileUp, X, Check, ChevronsUpDown, Loader2 } from "lucide-react"
+import { Upload, FileUp, X, Check, Loader2 } from "lucide-react"
 import Papa from "papaparse"
-import { collection, doc, writeBatch, serverTimestamp } from "firebase/firestore"
+import { collection, doc, writeBatch, serverTimestamp, query } from "firebase/firestore"
 
+import AppLayout from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -33,13 +32,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { cn } from "@/lib/utils"
-import { Alert, AlertDescription, AlertTitle } from "./ui/alert"
-import type { Account, Category, Currency } from "@/lib/types"
-import { useFirestore, useUser } from "@/firebase"
-import { ScrollArea } from "./ui/scroll-area"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import type { Account, Category, Currency, User } from "@/lib/types"
+import { useFirestore, useUser, useCollection, useMemoFirebase, useDoc } from "@/firebase"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
-// The fields we can map to in our transaction object
 const transactionFields = [
     { value: "date", label: "Date" },
     { value: "description", label: "Description" },
@@ -49,12 +46,6 @@ const transactionFields = [
     { value: "transactionType", label: "Type (income/expense)" },
 ];
 
-interface ImportTransactionsDialogProps {
-    accounts: Account[];
-    categories: Category[];
-    mainCurrency: Currency;
-}
-
 interface ImportResult {
     successCount: number;
     errorCount: number;
@@ -62,8 +53,7 @@ interface ImportResult {
     newAccounts: number;
 }
 
-export function ImportTransactionsDialog({ accounts, categories, mainCurrency }: ImportTransactionsDialogProps) {
-  const [open, setOpen] = React.useState(false)
+function ImportPageContent() {
   const [step, setStep] = React.useState(1);
   const [file, setFile] = React.useState<File | null>(null);
   const [headers, setHeaders] = React.useState<string[]>([]);
@@ -77,6 +67,26 @@ export function ImportTransactionsDialog({ accounts, categories, mainCurrency }:
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  
+  const userDocRef = useMemoFirebase(
+    () => (user ? doc(firestore, "users", user.uid) : null),
+    [user, firestore]
+  )
+  const { data: userData } = useDoc<User>(userDocRef);
+
+  const categoriesQuery = useMemoFirebase(() => 
+    user ? query(collection(firestore, "users", user.uid, "categories")) : null, 
+    [user, firestore]
+  );
+  const accountsQuery = useMemoFirebase(() =>
+    user ? query(collection(firestore, "users", user.uid, "accounts")) : null,
+    [user, firestore]
+  );
+
+  const { data: categories } = useCollection<Category>(categoriesQuery);
+  const { data: accounts } = useCollection<Account>(accountsQuery);
+  
+  const mainCurrency = userData?.mainCurrency || "USD";
 
   const resetState = () => {
     setFile(null);
@@ -91,12 +101,6 @@ export function ImportTransactionsDialog({ accounts, categories, mainCurrency }:
         fileInputRef.current.value = "";
     }
   }
-
-  React.useEffect(() => {
-    if (!open) {
-      resetState();
-    }
-  }, [open]);
 
   const handleColumnMappingChange = (csvHeader: string, transactionField: string) => {
     setColumnMapping(prev => ({ ...prev, [csvHeader]: transactionField }));
@@ -155,12 +159,11 @@ export function ImportTransactionsDialog({ accounts, categories, mainCurrency }:
   }
 
   const handleImport = async () => {
-    if (!file || !user || !firestore) return;
+    if (!file || !user || !firestore || !accounts || !categories) return;
 
     setIsImporting(true);
     setStep(3);
 
-    // Create local mutable copies for this import session
     let localAccounts = [...accounts];
     let localCategories = [...categories];
 
@@ -189,7 +192,6 @@ export function ImportTransactionsDialog({ accounts, categories, mainCurrency }:
                        continue;
                     }
 
-                    // Handle Category
                     let categoryId = localCategories.find(c => c.name.toLowerCase() === mappedRow.categoryName?.toLowerCase())?.id;
                     if (!categoryId && mappedRow.categoryName) {
                         const newCategory = {
@@ -206,12 +208,11 @@ export function ImportTransactionsDialog({ accounts, categories, mainCurrency }:
                         result.newCategories++;
                     }
 
-                    // Handle Account
                     let accountId = localAccounts.find(a => a.name.toLowerCase() === mappedRow.accountName?.toLowerCase())?.id;
                     if (!accountId && mappedRow.accountName) {
                         const newAccount = {
                             name: mappedRow.accountName,
-                            balance: 0, // Will be adjusted
+                            balance: 0, 
                             userId: user.uid,
                             icon: "Landmark",
                             color: "hsl(var(--muted-foreground))",
@@ -225,7 +226,7 @@ export function ImportTransactionsDialog({ accounts, categories, mainCurrency }:
                         result.newAccounts++;
                     }
 
-                    if (!accountId) { // Skip if no account can be found or created
+                    if (!accountId) { 
                         result.errorCount++;
                         continue;
                     }
@@ -250,10 +251,8 @@ export function ImportTransactionsDialog({ accounts, categories, mainCurrency }:
                     const accountRef = doc(firestore, `users/${user.uid}/accounts`, accountId);
                     const accountData = localAccounts.find(a => a.id === accountId);
                     if(accountData) {
-                        // We use a FieldValue here but for batch it's handled on commit
                         const newBalance = (accountData.balance || 0) + finalAmount;
                         batch.update(accountRef, { balance: newBalance });
-                        // Update local copy for subsequent rows in this batch
                         accountData.balance = newBalance;
                     }
 
@@ -280,7 +279,6 @@ export function ImportTransactionsDialog({ accounts, categories, mainCurrency }:
     });
   }
 
-
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile) {
@@ -299,71 +297,67 @@ export function ImportTransactionsDialog({ accounts, categories, mainCurrency }:
         handleFile(droppedFile);
     }
   };
-
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline">
-            <Upload className="mr-2 h-4 w-4" />
-            Import Transactions
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Import Transactions</DialogTitle>
-          <DialogDescription>
-            {step === 1 && "Step 1: Upload a CSV file to import."}
-            {step === 2 && "Step 2: Map file columns to transaction fields and review data."}
-            {step === 3 && "Step 3: View your import results."}
-          </DialogDescription>
-        </DialogHeader>
-        
-        {step === 1 && (
-            <div className="py-4 space-y-4">
-                 <div 
-                    className="relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted"
-                    onClick={() => fileInputRef.current?.click()}
-                    onDragOver={handleDragOver}
-                    onDrop={handleDrop}
-                >
-                    <FileUp className="w-10 h-10 text-muted-foreground" />
-                    <p className="mt-2 text-sm text-muted-foreground">
-                        <span className="font-semibold">Click to upload</span> or drag and drop
-                    </p>
-                    <p className="text-xs text-muted-foreground">CSV (up to 5MB)</p>
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".csv"
-                        className="hidden"
-                        onChange={handleFileChange}
-                    />
+  
+  const renderStepContent = () => {
+    switch (step) {
+      case 1:
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle>Step 1: Upload File</CardTitle>
+              <CardDescription>Select a CSV file to import your transactions.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div 
+                  className="relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted"
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+              >
+                  <FileUp className="w-10 h-10 text-muted-foreground" />
+                  <p className="mt-2 text-sm text-muted-foreground">
+                      <span className="font-semibold">Click to upload</span> or drag and drop
+                  </p>
+                  <p className="text-xs text-muted-foreground">CSV (up to 5MB)</p>
+                  <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv"
+                      className="hidden"
+                      onChange={handleFileChange}
+                  />
+              </div>
+              {error && (
+                  <Alert variant="destructive" className="mt-4">
+                      <AlertTitle>Error</AlertTitle>
+                      <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+              )}
+            </CardContent>
+          </Card>
+        );
+      case 2:
+        return (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Step 2: Map Columns & Preview</CardTitle>
+                  <CardDescription>Match your file columns to transaction fields.</CardDescription>
                 </div>
-                {error && (
-                    <Alert variant="destructive">
-                        <AlertTitle>Error</AlertTitle>
-                        <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                )}
-            </div>
-        )}
-        {step === 2 && (
-             <div className="py-4 space-y-6">
                 {file && (
-                     <div className="flex items-center justify-between p-2 text-sm border rounded-md bg-muted/50">
+                     <div className="flex items-center gap-2 p-2 text-sm border rounded-md bg-muted/50">
                         <span className="font-medium">{file.name}</span>
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={resetState}>
                             <X className="h-4 w-4" />
                         </Button>
                     </div>
                 )}
-                
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Column Mapping</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Match each column from your file to a transaction field.
-                  </p>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+               <div>
+                  <h3 className="text-base font-medium mb-2">Column Mapping</h3>
                   <ScrollArea className="h-48 rounded-md border">
                     <div className="p-4 space-y-4">
                       {headers.map((header) => (
@@ -393,7 +387,7 @@ export function ImportTransactionsDialog({ accounts, categories, mainCurrency }:
                 </div>
 
                 <div>
-                   <h3 className="text-lg font-medium mb-2">Data Preview (first 5 rows)</h3>
+                   <h3 className="text-base font-medium mb-2">Data Preview (first 5 rows)</h3>
                    <ScrollArea className="w-full whitespace-nowrap rounded-md border">
                         <Table>
                             <TableHeader>
@@ -416,64 +410,81 @@ export function ImportTransactionsDialog({ accounts, categories, mainCurrency }:
                         <div className="h-4"></div>
                    </ScrollArea>
                 </div>
-             </div>
-        )}
-
-        {step === 3 && (
-            <div className="py-4 text-center">
-                {isImporting ? (
-                    <div className="flex flex-col items-center gap-4">
-                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                        <h3 className="text-lg font-semibold">Importing...</h3>
-                        <p className="text-muted-foreground">Please wait while we process your file.</p>
-                    </div>
-                ) : importResult ? (
-                    <div className="space-y-4">
-                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-                           <Check className="h-6 w-6 text-green-600" />
-                        </div>
-                        <h3 className="text-lg font-semibold">Import Complete</h3>
-                        <div className="text-left border rounded-md p-4 max-w-md mx-auto space-y-2">
-                           <div className="flex justify-between"><span>Successfully imported:</span> <span className="font-medium">{importResult.successCount} rows</span></div>
-                           <div className="flex justify-between"><span>Skipped due to errors:</span> <span className="font-medium">{importResult.errorCount} rows</span></div>
-                           <div className="flex justify-between"><span>New categories created:</span> <span className="font-medium">{importResult.newCategories}</span></div>
-                           <div className="flex justify-between"><span>New accounts created:</span> <span className="font-medium">{importResult.newAccounts}</span></div>
-                        </div>
-                        <p className="text-muted-foreground text-sm">You can now close this window.</p>
-                    </div>
-                ) : error ? (
-                    <Alert variant="destructive">
-                        <AlertTitle>Import Failed</AlertTitle>
-                        <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                ) : null}
-            </div>
-        )}
-
-        <DialogFooter>
-          {step === 1 && (
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-                Cancel
-            </Button>
-          )}
-          {step === 2 && (
-            <>
-              <Button type="button" variant="secondary" onClick={resetState}>
+            </CardContent>
+            <CardFooter className="justify-end gap-2">
+              <Button type="button" variant="outline" onClick={resetState}>
                 Back
               </Button>
               <Button type="button" onClick={handleImport} disabled={isImporting}>
                  {isImporting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Import
               </Button>
-            </>
-          )}
-           {step === 3 && (
-             <Button type="button" onClick={() => setOpen(false)}>
-                Close
-             </Button>
-           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            </CardFooter>
+          </Card>
+        );
+      case 3:
+        return (
+          <Card>
+             <CardHeader>
+                <CardTitle>Step 3: Import Results</CardTitle>
+             </CardHeader>
+             <CardContent>
+               <div className="py-4 text-center">
+                  {isImporting ? (
+                      <div className="flex flex-col items-center gap-4">
+                          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                          <h3 className="text-lg font-semibold">Importing...</h3>
+                          <p className="text-muted-foreground">Please wait while we process your file.</p>
+                      </div>
+                  ) : importResult ? (
+                      <div className="space-y-4">
+                          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/50">
+                             <Check className="h-6 w-6 text-green-600 dark:text-green-400" />
+                          </div>
+                          <h3 className="text-lg font-semibold">Import Complete</h3>
+                          <div className="text-left border rounded-md p-4 max-w-md mx-auto space-y-2">
+                             <div className="flex justify-between"><span>Successfully imported:</span> <span className="font-medium">{importResult.successCount} rows</span></div>
+                             <div className="flex justify-between"><span>Skipped due to errors:</span> <span className="font-medium">{importResult.errorCount} rows</span></div>
+                             <div className="flex justify-between"><span>New categories created:</span> <span className="font-medium">{importResult.newCategories}</span></div>
+                             <div className="flex justify-between"><span>New accounts created:</span> <span className="font-medium">{importResult.newAccounts}</span></div>
+                          </div>
+                          <p className="text-muted-foreground text-sm pt-4">You can now close this window or start a new import.</p>
+                      </div>
+                  ) : error ? (
+                      <Alert variant="destructive">
+                          <AlertTitle>Import Failed</AlertTitle>
+                          <AlertDescription>{error}</AlertDescription>
+                      </Alert>
+                  ) : null}
+              </div>
+             </CardContent>
+              <CardFooter className="justify-end">
+                <Button type="button" onClick={resetState}>
+                  Start New Import
+                </Button>
+              </CardFooter>
+          </Card>
+        );
+      default:
+        return null;
+    }
+  }
+
+  return (
+    <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
+      <div className="flex items-center">
+        <h1 className="text-lg font-semibold md:text-2xl">Import Transactions</h1>
+      </div>
+      {renderStepContent()}
+    </main>
   )
+}
+
+
+export default function ImportPage() {
+    return (
+        <AppLayout>
+            <ImportPageContent />
+        </AppLayout>
+    )
 }

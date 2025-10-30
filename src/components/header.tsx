@@ -19,6 +19,7 @@ import {
   DollarSign,
   Shapes,
   Settings,
+  Upload,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -57,6 +58,7 @@ const navItems = [
     { href: "/budgets", label: "Budgets", icon: DollarSign },
     { href: "/recurring", label: "Recurring", icon: Repeat },
     { href: "/reports", label: "Reports", icon: LineChart },
+    { href: "/import", label: "Import", icon: Upload },
     { href: "/settings", label: "Settings", icon: Settings },
 ]
 

@@ -2,6 +2,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { doc, setDoc, collection, query } from "firebase/firestore"
 import { useDoc, useFirestore, useUser, useMemoFirebase, useCollection } from "@/firebase"
 import AppLayout from "@/components/layout"
@@ -26,8 +27,7 @@ import {
 } from "@/components/ui/select"
 import { DeleteDataDialog } from "@/components/delete-data-dialog"
 import { format } from "date-fns"
-import { ImportTransactionsDialog } from "@/components/import-transactions-dialog"
-
+import { Upload } from "lucide-react"
 
 const currencies: Currency[] = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS", "RUB"];
 
@@ -235,11 +235,12 @@ function SettingsPageContent() {
         </CardHeader>
         <CardContent className="flex gap-2">
           <Button variant="outline" onClick={handleExportTransactions}>Export Transactions</Button>
-          <ImportTransactionsDialog 
-            accounts={accounts || []} 
-            categories={categories || []} 
-            mainCurrency={userData?.mainCurrency || 'USD'}
-          />
+          <Button variant="outline" asChild>
+            <Link href="/import">
+              <Upload className="mr-2 h-4 w-4" />
+              Import Transactions
+            </Link>
+          </Button>
         </CardContent>
       </Card>
 
