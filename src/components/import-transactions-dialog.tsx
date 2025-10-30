@@ -309,7 +309,7 @@ export function ImportTransactionsDialog({ accounts, categories, mainCurrency }:
             Import Transactions
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-4xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Import Transactions</DialogTitle>
           <DialogDescription>
@@ -394,7 +394,7 @@ export function ImportTransactionsDialog({ accounts, categories, mainCurrency }:
 
                 <div>
                    <h3 className="text-lg font-medium mb-2">Data Preview (first 5 rows)</h3>
-                   <div className="rounded-md border">
+                   <ScrollArea className="w-full whitespace-nowrap rounded-md border">
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -413,7 +413,8 @@ export function ImportTransactionsDialog({ accounts, categories, mainCurrency }:
                                 ))}
                             </TableBody>
                         </Table>
-                   </div>
+                        <div className="h-4"></div>
+                   </ScrollArea>
                 </div>
              </div>
         )}
