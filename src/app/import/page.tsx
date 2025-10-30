@@ -36,7 +36,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import type { Account, Category, Currency, User, Transaction } from "@/lib/types"
 import { useFirestore, useUser, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { convertAmount } from "@/lib/currency"
 
 const transactionFields = [
     { value: "date", label: "Date" },
@@ -295,21 +294,23 @@ function ImportPageContent() {
                         
                         const isMultiCurrency = fromAccountInfo.currency !== toAccountInfo.currency;
                         
-                        let amountSent = parseFloat(mappedRow.outcome);
-                        let amountReceived = parseFloat(mappedRow.income);
+                        const amountSentNum = parseFloat(mappedRow.outcome);
+                        const amountReceivedNum = parseFloat(mappedRow.income);
 
-                        if (isNaN(amountSent) || isNaN(amountReceived)) {
+                        if (isNaN(amountSentNum) || isNaN(amountReceivedNum)) {
                             result.errorCount++; continue;
                         }
 
                         transactionData = {
                             userId: user.uid, date, description: mappedRow.description || "Imported Transfer",
                             transactionType: 'transfer', fromAccountId: fromAccountInfo.id, toAccountId: toAccountInfo.id,
-                            amountSent, amountReceived, amount: isMultiCurrency ? undefined : amountSent
+                            amount: isMultiCurrency ? null : amountSentNum,
+                            amountSent: isMultiCurrency ? amountSentNum : null,
+                            amountReceived: isMultiCurrency ? amountReceivedNum : null,
                         };
                         
-                        accountBalanceChanges[fromAccountInfo.id] = (accountBalanceChanges[fromAccountInfo.id] || 0) - amountSent;
-                        accountBalanceChanges[toAccountInfo.id] = (accountBalanceChanges[toAccountInfo.id] || 0) + amountReceived;
+                        accountBalanceChanges[fromAccountInfo.id] = (accountBalanceChanges[fromAccountInfo.id] || 0) - amountSentNum;
+                        accountBalanceChanges[toAccountInfo.id] = (accountBalanceChanges[toAccountInfo.id] || 0) + amountReceivedNum;
 
                     } else { // Income or Expense
                         const amount = parseFloat(mappedRow.income || mappedRow.outcome);
@@ -498,7 +499,7 @@ function ImportPageContent() {
                             {previewData.slice(0, 5).map((row, rowIndex) => (
                                 <TableRow key={rowIndex}>
                                     {headers.map(header => (
-                                        <TableCell key={`${rowIndex}-${header}`} className="whitespace-nowrap">
+                                        <TableCell key={`${rowIndex}-${header}`}>
                                             {row[header]}
                                         </TableCell>
                                     ))}
@@ -585,3 +586,5 @@ export default function ImportPage() {
         </AppLayout>
     )
 }
+
+    
