@@ -121,7 +121,7 @@ function TransactionsPageContent() {
 
     let q: Query<DocumentData> = query(collection(firestore, `users/${user.uid}/transactions`));
 
-    // Apply server-side filters where it won't cause composite index issues
+    // Apply server-side filters for date
     if (dateRange?.from) {
       q = query(q, where("date", ">=", Timestamp.fromDate(dateRange.from)));
     }
@@ -129,14 +129,6 @@ function TransactionsPageContent() {
       const toDate = new Date(dateRange.to);
       toDate.setHours(23, 59, 59, 999);
       q = query(q, where("date", "<=", Timestamp.fromDate(toDate)));
-    } else {
-       // Only filter by account/category if no date range is set, to avoid needing composite indexes
-      if (accountId !== 'all') {
-         q = query(q, where("accountId", "==", accountId));
-      }
-      if (categoryId !== 'all') {
-         q = query(q, where("categoryId", "==", categoryId));
-      }
     }
     
     q = query(q, orderBy("date", "desc"));
@@ -150,18 +142,15 @@ function TransactionsPageContent() {
       const documentSnapshots = await getDocs(q);
       let newTransactions = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Transaction[];
       
-      // Apply client-side filtering for cases not handled by the query
+      // Apply client-side filtering for account, category, and search
+      if (accountId !== 'all') {
+        newTransactions = newTransactions.filter(t => t.accountId === accountId || t.fromAccountId === accountId || t.toAccountId === accountId);
+      }
+      if (categoryId !== 'all') {
+        newTransactions = newTransactions.filter(t => t.categoryId === categoryId);
+      }
       if (searchQuery) {
         newTransactions = newTransactions.filter(t => t.description.toLowerCase().includes(searchQuery.toLowerCase()));
-      }
-      // If a date range was set, we need to apply account/category filters on the client
-      if (dateRange) {
-        if (accountId !== 'all') {
-          newTransactions = newTransactions.filter(t => t.accountId === accountId || t.fromAccountId === accountId || t.toAccountId === accountId);
-        }
-        if (categoryId !== 'all') {
-          newTransactions = newTransactions.filter(t => t.categoryId === categoryId);
-        }
       }
 
       const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1] || null;
@@ -174,7 +163,7 @@ function TransactionsPageContent() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [user, firestore, dateRange, accountId, categoryId, searchQuery, hasMore]);
+  }, [user, firestore, dateRange, accountId, categoryId, searchQuery]);
 
 
   React.useEffect(() => {
