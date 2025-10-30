@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -268,16 +269,22 @@ function ImportPageContent() {
                     const incomeAmount = Number(mappedRow.income) || 0;
                     const outcomeAmount = Number(mappedRow.outcome) || 0;
 
-                    let transactionType: 'income' | 'expense' | 'transfer' | null = null;
+                    if (isNaN(incomeAmount) || isNaN(outcomeAmount)) {
+                        result.errorCount++;
+                        continue;
+                    }
 
+                    let transactionType: 'income' | 'expense' | 'transfer' | null = null;
+                    
                     if (incomeAmount > 0 && outcomeAmount > 0) {
                         transactionType = 'transfer';
-                    } else if (incomeAmount > 0) {
-                        transactionType = 'income';
                     } else if (outcomeAmount > 0) {
                         transactionType = 'expense';
+                    } else if (incomeAmount > 0) {
+                        transactionType = 'income';
                     } else {
-                        result.errorCount++; continue;
+                        // This might be an empty row or a row with only zeros, skip it.
+                        continue;
                     }
 
                     const newTransactionRef = doc(transactionsColRef);
@@ -293,7 +300,7 @@ function ImportPageContent() {
                         
                         const isMultiCurrency = fromAccountInfo.currency !== toAccountInfo.currency;
                         
-                        const amountSent = isMultiCurrency ? incomeAmount : outcomeAmount;
+                        const amountSent = isMultiCurrency ? outcomeAmount : outcomeAmount;
                         const amountReceived = isMultiCurrency ? incomeAmount : outcomeAmount;
 
                         transactionData = {
@@ -302,6 +309,10 @@ function ImportPageContent() {
                             amount: isMultiCurrency ? null : outcomeAmount,
                             amountSent: isMultiCurrency ? amountSent : null,
                             amountReceived: isMultiCurrency ? amountReceived : null,
+                            accountId: null,
+                            categoryId: null,
+                            expenseType: null,
+                            incomeType: null,
                         };
                         
                         accountBalanceChanges[fromAccountInfo.id] = (accountBalanceChanges[fromAccountInfo.id] || 0) - amountSent;
@@ -328,9 +339,10 @@ function ImportPageContent() {
                             userId: user.uid, date, amount: Math.abs(amount),
                             description: mappedRow.description || 'Imported Transaction',
                             transactionType: transactionType,
-                            accountId: accountInfo.id, categoryId,
-                            expenseType: transactionType === 'expense' ? 'optional' : undefined,
-                            incomeType: transactionType === 'income' ? 'active' : undefined,
+                            accountId: accountInfo.id, 
+                            categoryId: categoryId || null,
+                            expenseType: transactionType === 'expense' ? 'optional' : null,
+                            incomeType: transactionType === 'income' ? 'active' : null,
                             fromAccountId: null,
                             toAccountId: null,
                             amountSent: null,
@@ -587,3 +599,5 @@ export default function ImportPage() {
         </AppLayout>
     )
 }
+
+    
