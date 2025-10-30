@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { collection, query, orderBy, doc, limit, startAfter, getDocs, where, Timestamp, type Query, type DocumentData } from "firebase/firestore"
-import { useFirestore, useUser, useMemoFirebase, useCollection } from "@/firebase"
+import { useFirestore, useUser, useMemoFirebase, useCollection, useDoc } from "@/firebase"
 import AppLayout from "@/components/layout"
 import {
   ArrowRightLeft,
@@ -175,8 +175,11 @@ function TransactionsPageContent() {
 
 
   React.useEffect(() => {
+    // This effect now correctly depends on all filter states
+    // and will re-fetch data whenever any of them change.
+    // The `fetchTransactions` function is stable due to useCallback.
     if (user && firestore && accounts && categories) {
-      fetchTransactions(false);
+      fetchTransactions(false); // `false` indicates it's a new fetch, not loading more
     }
   }, [user, firestore, accounts, categories, dateRange, accountId, categoryId, searchQuery, fetchTransactions]);
 
