@@ -134,6 +134,18 @@ function SettingsPageContent() {
 
       <Card>
         <CardHeader>
+          <CardTitle>Управление данными</CardTitle>
+          <CardDescription>
+            Экспортируйте свои данные в файл CSV.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+            <Button variant="outline">Экспортировать транзакции</Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Start Over</CardTitle>
           <CardDescription>
             Reset your application data. These actions are irreversible.
