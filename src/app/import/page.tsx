@@ -40,19 +40,14 @@ import { convertAmount } from "@/lib/currency"
 
 const transactionFields = [
     { value: "date", label: "Date" },
+    { value: "category", label: "Category" },
     { value: "description", label: "Description" },
-    { value: "transactionType", label: "Type (income/expense/transfer)" },
-    // Generic fields
-    { value: "amount", label: "Amount (for income/expense)" },
-    { value: "accountName", label: "Account (for income/expense)" },
-    { value: "categoryName", label: "Category" },
-    // Transfer specific
-    { value: "fromAccountName", label: "From Account (for transfers)" },
-    { value: "toAccountName", label: "To Account (for transfers)" },
-    { value: "amountSent", label: "Amount Sent (for transfers)" },
-    { value: "amountReceived", label: "Amount Received (for transfers)" },
-    { value: "fromCurrency", label: "From Currency" },
-    { value: "toCurrency", label: "To Currency" },
+    { value: "outcomeAccountName", label: "Outcome Account" },
+    { value: "outcome", label: "Outcome Amount" },
+    { value: "outcomeCurrency", label: "Outcome Currency" },
+    { value: "incomeAccountName", label: "Income Account" },
+    { value: "income", label: "Income Amount" },
+    { value: "incomeCurrency", label: "Income Currency" },
 ];
 
 
@@ -273,49 +268,62 @@ function ImportPageContent() {
                        continue;
                     }
                     
-                    const transactionType = mappedRow.transactionType?.toLowerCase() || 'expense';
+                    const hasIncome = mappedRow.income && parseFloat(mappedRow.income) > 0;
+                    const hasOutcome = mappedRow.outcome && parseFloat(mappedRow.outcome) > 0;
+
+                    let transactionType: 'income' | 'expense' | 'transfer' | null = null;
+                    if (hasIncome && hasOutcome) {
+                        transactionType = 'transfer';
+                    } else if (hasIncome) {
+                        transactionType = 'income';
+                    } else if (hasOutcome) {
+                        transactionType = 'expense';
+                    } else {
+                        result.errorCount++; continue; // Invalid row
+                    }
 
                     const newTransactionRef = doc(transactionsColRef);
                     let transactionData: Omit<Transaction, 'id'> | null = null;
                     
                     if (transactionType === 'transfer') {
-                        if (!mappedRow.fromAccountName || !mappedRow.toAccountName) {
+                        if (!mappedRow.outcomeAccountName || !mappedRow.incomeAccountName) {
                             result.errorCount++; continue;
                         }
 
-                        const fromAccountInfo = getOrCreateAccount(mappedRow.fromAccountName, mappedRow.fromCurrency, localAccounts, batch, result);
-                        const toAccountInfo = getOrCreateAccount(mappedRow.toAccountName, mappedRow.toCurrency, localAccounts, batch, result);
+                        const fromAccountInfo = getOrCreateAccount(mappedRow.outcomeAccountName, mappedRow.outcomeCurrency, localAccounts, batch, result);
+                        const toAccountInfo = getOrCreateAccount(mappedRow.incomeAccountName, mappedRow.incomeCurrency, localAccounts, batch, result);
                         
                         const isMultiCurrency = fromAccountInfo.currency !== toAccountInfo.currency;
                         
-                        let amountSent = parseFloat(mappedRow.amountSent || mappedRow.amount);
-                        let amountReceived = parseFloat(mappedRow.amountReceived || mappedRow.amount);
-                        if (isNaN(amountSent) || (isMultiCurrency && isNaN(amountReceived))) {
+                        let amountSent = parseFloat(mappedRow.outcome);
+                        let amountReceived = parseFloat(mappedRow.income);
+
+                        if (isNaN(amountSent) || isNaN(amountReceived)) {
                             result.errorCount++; continue;
-                        }
-                        if (isMultiCurrency && !mappedRow.amountReceived) {
-                           amountReceived = convertAmount(amountSent, fromAccountInfo.currency, toAccountInfo.currency);
                         }
 
                         transactionData = {
                             userId: user.uid, date, description: mappedRow.description || "Imported Transfer",
                             transactionType: 'transfer', fromAccountId: fromAccountInfo.id, toAccountId: toAccountInfo.id,
-                            amountSent, amountReceived,
+                            amountSent, amountReceived, amount: isMultiCurrency ? undefined : amountSent
                         };
                         
                         accountBalanceChanges[fromAccountInfo.id] = (accountBalanceChanges[fromAccountInfo.id] || 0) - amountSent;
                         accountBalanceChanges[toAccountInfo.id] = (accountBalanceChanges[toAccountInfo.id] || 0) + amountReceived;
 
                     } else { // Income or Expense
-                        const amount = parseFloat(mappedRow.amount);
-                        if (isNaN(amount) || !mappedRow.accountName) {
+                        const amount = parseFloat(mappedRow.income || mappedRow.outcome);
+                        const accountName = mappedRow.incomeAccountName || mappedRow.outcomeAccountName;
+                        const currency = mappedRow.incomeCurrency || mappedRow.outcomeCurrency;
+                        
+                        if (isNaN(amount) || !accountName) {
                            result.errorCount++; continue;
                         }
                         
-                        const accountInfo = getOrCreateAccount(mappedRow.accountName, mappedRow.fromCurrency || mappedRow.toCurrency, localAccounts, batch, result);
+                        const accountInfo = getOrCreateAccount(accountName, currency, localAccounts, batch, result);
                         let categoryId: string | undefined = undefined;
-                        if (mappedRow.categoryName) {
-                           categoryId = getOrCreateCategory(mappedRow.categoryName, transactionType as 'income' | 'expense', localCategories, batch, result);
+                        if (mappedRow.category) {
+                           categoryId = getOrCreateCategory(mappedRow.category, transactionType, localCategories, batch, result);
                         }
                         
                         const finalAmount = transactionType === 'expense' ? -Math.abs(amount) : Math.abs(amount);
@@ -323,7 +331,7 @@ function ImportPageContent() {
                         transactionData = {
                             userId: user.uid, date, amount: Math.abs(amount),
                             description: mappedRow.description || 'Imported Transaction',
-                            transactionType: transactionType as 'income' | 'expense',
+                            transactionType: transactionType,
                             accountId: accountInfo.id, categoryId,
                             expenseType: transactionType === 'expense' ? 'optional' : undefined,
                             incomeType: transactionType === 'income' ? 'active' : undefined,
@@ -490,7 +498,9 @@ function ImportPageContent() {
                             {previewData.slice(0, 5).map((row, rowIndex) => (
                                 <TableRow key={rowIndex}>
                                     {headers.map(header => (
-                                        <TableCell key={`${rowIndex}-${header}`}>{row[header]}</TableCell>
+                                        <TableCell key={`${rowIndex}-${header}`} className="whitespace-nowrap">
+                                            {row[header]}
+                                        </TableCell>
                                     ))}
                                 </TableRow>
                             ))}
