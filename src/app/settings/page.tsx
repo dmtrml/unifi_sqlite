@@ -118,7 +118,7 @@ function SettingsPageContent() {
     const getCategory = (id?: string) => categories.find(c => c.id === id);
 
     const headers = [
-      "Date", "Category", "Description", 
+      "date", "categoryName", "comment", 
       "outcomeAccountName", "outcome", "outcomeCurrency",
       "incomeAccountName", "income", "incomeCurrency"
     ];
@@ -127,9 +127,9 @@ function SettingsPageContent() {
 
     transactions.forEach(t => {
       const date = format(t.date.toDate(), "yyyy-MM-dd");
-      const description = `"${t.description?.replace(/"/g, '""') || ''}"`;
+      const comment = `"${t.description?.replace(/"/g, '""') || ''}"`;
       
-      let category = '';
+      let categoryName = '';
       let outcomeAccountName = '';
       let outcome = '';
       let outcomeCurrency = '';
@@ -140,14 +140,14 @@ function SettingsPageContent() {
       if (t.transactionType === 'expense') {
         const acc = getAccount(t.accountId);
         const cat = getCategory(t.categoryId);
-        category = cat?.name || 'Uncategorized';
+        categoryName = cat?.name || 'Uncategorized';
         outcomeAccountName = acc?.name || 'N/A';
         outcome = String(t.amount || 0);
         outcomeCurrency = acc?.currency || '';
       } else if (t.transactionType === 'income') {
         const acc = getAccount(t.accountId);
         const cat = getCategory(t.categoryId);
-        category = cat?.name || 'Uncategorized';
+        categoryName = cat?.name || 'Uncategorized';
         incomeAccountName = acc?.name || 'N/A';
         income = String(t.amount || 0);
         incomeCurrency = acc?.currency || '';
@@ -171,7 +171,7 @@ function SettingsPageContent() {
       }
 
       const row = [
-        date, category, description,
+        date, categoryName, comment,
         outcomeAccountName, outcome, outcomeCurrency,
         incomeAccountName, income, incomeCurrency
       ];

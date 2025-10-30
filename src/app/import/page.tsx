@@ -38,15 +38,15 @@ import type { Account, Category, Currency, User, Transaction } from "@/lib/types
 import { useFirestore, useUser, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 
 const transactionFields = [
-    { value: "date", label: "Date" },
-    { value: "category", label: "Category" },
-    { value: "description", label: "Description" },
-    { value: "outcomeAccountName", label: "Outcome Account" },
-    { value: "outcome", label: "Outcome Amount" },
-    { value: "outcomeCurrency", label: "Outcome Currency" },
-    { value: "incomeAccountName", label: "Income Account" },
-    { value: "income", label: "Income Amount" },
-    { value: "incomeCurrency", label: "Income Currency" },
+    { value: "date", label: "date" },
+    { value: "categoryName", label: "categoryName" },
+    { value: "comment", label: "comment" },
+    { value: "outcomeAccountName", label: "outcomeAccountName" },
+    { value: "outcome", label: "outcome" },
+    { value: "outcomeCurrency", label: "outcomeCurrency" },
+    { value: "incomeAccountName", label: "incomeAccountName" },
+    { value: "income", label: "income" },
+    { value: "incomeCurrency", label: "incomeCurrency" },
 ];
 
 interface ImportResult {
@@ -304,7 +304,7 @@ function ImportPageContent() {
                         const amountReceived = isMultiCurrency ? incomeAmount : outcomeAmount;
 
                         transactionData = {
-                            userId: user.uid, date, description: mappedRow.description || "Imported Transfer",
+                            userId: user.uid, date, description: mappedRow.comment || "Imported Transfer",
                             transactionType: 'transfer', fromAccountId: fromAccountInfo.id, toAccountId: toAccountInfo.id,
                             amount: isMultiCurrency ? null : outcomeAmount,
                             amountSent: isMultiCurrency ? amountSent : null,
@@ -329,15 +329,15 @@ function ImportPageContent() {
                         
                         const accountInfo = getOrCreateAccount(accountName, currency, localAccounts, batch, result);
                         let categoryId: string | undefined = undefined;
-                        if (mappedRow.category) {
-                           categoryId = getOrCreateCategory(mappedRow.category, transactionType, localCategories, batch, result);
+                        if (mappedRow.categoryName) {
+                           categoryId = getOrCreateCategory(mappedRow.categoryName, transactionType, localCategories, batch, result);
                         }
                         
                         const finalAmount = transactionType === 'expense' ? -Math.abs(amount) : Math.abs(amount);
                         
                         transactionData = {
                             userId: user.uid, date, amount: Math.abs(amount),
-                            description: mappedRow.description || 'Imported Transaction',
+                            description: mappedRow.comment || 'Imported Transaction',
                             transactionType: transactionType,
                             accountId: accountInfo.id, 
                             categoryId: categoryId || null,
@@ -599,5 +599,3 @@ export default function ImportPage() {
         </AppLayout>
     )
 }
-
-    
