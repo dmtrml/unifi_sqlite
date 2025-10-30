@@ -1,11 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { collection, query, orderBy, doc } from "firebase/firestore"
-import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase"
+import { collection, query, orderBy, doc, limit, startAfter, getDocs, where, Timestamp, type Query, type DocumentData } from "firebase/firestore"
+import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase"
 import AppLayout from "@/components/layout"
 import {
-  ArrowRightLeft
+  ArrowRightLeft,
+  Loader2
 } from "lucide-react"
 import { format } from 'date-fns';
 
@@ -41,6 +42,8 @@ import { TransactionFilters } from "@/components/transaction-filters"
 import { DuplicateTransactionDialog } from "@/components/duplicate-transaction-dialog"
 import { convertAmount } from "@/lib/currency"
 
+const PAGE_SIZE = 25;
+
 function getCategory(categories: Category[], categoryId?: string): Category | undefined {
   if (!categoryId) return undefined;
   return categories.find(c => c.id === categoryId)
@@ -71,6 +74,14 @@ function TransactionsPageContent() {
   const { user } = useUser()
   const firestore = useFirestore()
 
+  // State for pagination
+  const [transactions, setTransactions] = React.useState<Transaction[]>([]);
+  const [lastVisible, setLastVisible] = React.useState<DocumentData | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
+  const [hasMore, setHasMore] = React.useState(true);
+
+  // State for filters
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
   const [accountId, setAccountId] = React.useState<string>("all");
   const [categoryId, setCategoryId] = React.useState<string>("all");
@@ -83,10 +94,6 @@ function TransactionsPageContent() {
   const { data: userData } = useDoc<User>(userDocRef);
   const mainCurrency = userData?.mainCurrency || "USD";
 
-  const transactionsQuery = useMemoFirebase(() => 
-    user ? query(collection(firestore, "users", user.uid, "transactions"), orderBy("date", "desc")) : null, 
-    [user, firestore]
-  );
   const categoriesQuery = useMemoFirebase(() => 
     user ? query(collection(firestore, "users", user.uid, "categories")) : null, 
     [user, firestore]
@@ -96,33 +103,74 @@ function TransactionsPageContent() {
     [user, firestore]
   );
 
-  const { data: transactions } = useCollection<Transaction>(transactionsQuery);
   const { data: categories } = useCollection<Category>(categoriesQuery);
   const { data: accounts } = useCollection<Account>(accountsQuery);
   
-  const safeTransactions = transactions || [];
   const safeCategories = categories || [];
   const safeAccounts = accounts || [];
-  
-  const filteredTransactions = React.useMemo(() => {
-    return safeTransactions.filter(transaction => {
-      const transactionDate = new Date(transaction.date.seconds * 1000);
-      if (dateRange?.from && transactionDate < dateRange.from) return false;
-      if (dateRange?.to) {
+
+  const fetchTransactions = React.useCallback(async (loadMore = false) => {
+    if (!user || !firestore) return;
+    
+    if (loadMore) {
+        setIsLoadingMore(true);
+    } else {
+        setIsLoading(true);
+    }
+
+    let q: Query<DocumentData> = query(collection(firestore, `users/${user.uid}/transactions`), orderBy("date", "desc"));
+    
+    // Apply filters
+    if (dateRange?.from) q = query(q, where("date", ">=", Timestamp.fromDate(dateRange.from)));
+    if (dateRange?.to) {
         const toDate = new Date(dateRange.to);
         toDate.setHours(23, 59, 59, 999);
-        if (transactionDate > toDate) return false;
-      }
-      if (accountId !== 'all' && transaction.accountId !== accountId && transaction.fromAccountId !== accountId && transaction.toAccountId !== accountId) return false;
-      if (categoryId !== 'all' && transaction.categoryId !== categoryId) return false;
-      if (searchQuery && !transaction.description.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-      return true;
-    });
-  }, [safeTransactions, dateRange, accountId, categoryId, searchQuery]);
+        q = query(q, where("date", "<=", Timestamp.fromDate(toDate)));
+    }
+    if (accountId !== 'all') q = query(q, where("accountId", "==", accountId));
+    if (categoryId !== 'all') q = query(q, where("categoryId", "==", categoryId));
+    // Search query is handled client-side after fetch for simplicity with pagination
+
+    q = query(q, limit(PAGE_SIZE));
+
+    if (loadMore && lastVisible) {
+        q = query(q, startAfter(lastVisible));
+    }
+
+    try {
+      const documentSnapshots = await getDocs(q);
+      const newTransactions = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Transaction[];
+      
+      // Client-side search filtering
+      const filteredNewTransactions = searchQuery 
+        ? newTransactions.filter(t => t.description.toLowerCase().includes(searchQuery.toLowerCase())) 
+        : newTransactions;
+
+      setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
+      setTransactions(prev => loadMore ? [...prev, ...filteredNewTransactions] : filteredNewTransactions);
+      setHasMore(documentSnapshots.docs.length === PAGE_SIZE);
+    } catch (error) {
+      console.error("Error fetching transactions: ", error);
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+
+  }, [user, firestore, dateRange, accountId, categoryId, searchQuery, lastVisible]);
+
+  // Effect to fetch initial data and re-fetch on filter changes
+  React.useEffect(() => {
+    // Reset and fetch new
+    setTransactions([]);
+    setLastVisible(null);
+    setHasMore(true);
+    fetchTransactions(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, dateRange, accountId, categoryId, searchQuery]);
 
 
   const groupedTransactions = React.useMemo(() => {
-    return filteredTransactions.reduce((acc, transaction) => {
+    return transactions.reduce((acc, transaction) => {
       const jsDate = new Date(transaction.date.seconds * 1000);
       const dateStr = format(jsDate, 'yyyy-MM-dd');
       
@@ -132,7 +180,7 @@ function TransactionsPageContent() {
       acc[dateStr].push(transaction);
       return acc;
     }, {} as Record<string, Transaction[]>);
-  }, [filteredTransactions]);
+  }, [transactions]);
 
   const handleFiltersReset = () => {
     setDateRange(undefined);
@@ -201,7 +249,15 @@ function TransactionsPageContent() {
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
-                {Object.keys(groupedTransactions).length === 0 ? (
+                {isLoading ? (
+                    <TableBody>
+                        <TableRow>
+                            <TableCell colSpan={7} className="text-center h-24">
+                                <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+                            </TableCell>
+                        </TableRow>
+                    </TableBody>
+                ) : Object.keys(groupedTransactions).length === 0 ? (
                   <TableBody>
                     <TableRow>
                       <TableCell colSpan={7} className="text-center h-24">
@@ -302,7 +358,11 @@ function TransactionsPageContent() {
             
             {/* Mobile List */}
             <div className="md:hidden">
-              {Object.keys(groupedTransactions).length === 0 ? (
+              {isLoading ? (
+                    <div className="text-center h-24 flex items-center justify-center text-muted-foreground">
+                       <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+                    </div>
+              ) : Object.keys(groupedTransactions).length === 0 ? (
                  <div className="text-center h-24 flex items-center justify-center text-muted-foreground">
                     No transactions found for the selected filters.
                   </div>
@@ -420,6 +480,13 @@ function TransactionsPageContent() {
                   </div>
                 )})
               )}
+               {hasMore && !isLoading && (
+                  <div className="mt-6 flex justify-center">
+                    <Button onClick={() => fetchTransactions(true)} disabled={isLoadingMore}>
+                      {isLoadingMore ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Load More"}
+                    </Button>
+                  </div>
+                )}
             </div>
           </CardContent>
         </Card>
