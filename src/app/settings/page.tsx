@@ -118,8 +118,9 @@ function SettingsPageContent() {
     const getCategory = (id?: string) => categories.find(c => c.id === id);
 
     const headers = [
-      "Date", "Description", "Type", "Amount", "Currency", "Category", 
-      "Account", "From Account", "From Currency", "To Account", "To Currency", "Amount Sent", "Amount Received"
+      "Date", "Category", "Description", 
+      "outcomeAccountName", "outcome", "outcomeCurrency",
+      "incomeAccountName", "income", "incomeCurrency"
     ];
 
     const csvRows = [headers.join(",")];
@@ -127,42 +128,54 @@ function SettingsPageContent() {
     transactions.forEach(t => {
       const date = format(t.date.toDate(), "yyyy-MM-dd");
       const description = `"${t.description?.replace(/"/g, '""') || ''}"`;
-      const type = t.transactionType;
       
-      let row: (string | number | undefined)[] = [date, description, type];
+      let category = '';
+      let outcomeAccountName = '';
+      let outcome = '';
+      let outcomeCurrency = '';
+      let incomeAccountName = '';
+      let income = '';
+      let incomeCurrency = '';
 
-      if (type === 'transfer') {
+      if (t.transactionType === 'expense') {
+        const acc = getAccount(t.accountId);
+        const cat = getCategory(t.categoryId);
+        category = cat?.name || 'Uncategorized';
+        outcomeAccountName = acc?.name || 'N/A';
+        outcome = String(t.amount || 0);
+        outcomeCurrency = acc?.currency || '';
+      } else if (t.transactionType === 'income') {
+        const acc = getAccount(t.accountId);
+        const cat = getCategory(t.categoryId);
+        category = cat?.name || 'Uncategorized';
+        incomeAccountName = acc?.name || 'N/A';
+        income = String(t.amount || 0);
+        incomeCurrency = acc?.currency || '';
+      } else if (t.transactionType === 'transfer') {
         const fromAccount = getAccount(t.fromAccountId);
         const toAccount = getAccount(t.toAccountId);
-        row.push(
-          '', // Amount
-          '', // Currency
-          '', // Category
-          '', // Account
-          fromAccount?.name || 'N/A',
-          fromAccount?.currency || '',
-          toAccount?.name || 'N/A',
-          toAccount?.currency || '',
-          t.amountSent,
-          t.amountReceived
-        );
-      } else {
-        const account = getAccount(t.accountId);
-        const category = getCategory(t.categoryId);
-        row.push(
-          t.amount,
-          account?.currency || '',
-          category?.name || 'Uncategorized',
-          account?.name || 'N/A',
-          '', // From Account
-          '', // From Currency
-          '', // To Account
-          '', // To Currency
-          '', // Amount Sent
-          ''  // Amount Received
-        );
+        const isMultiCurrency = fromAccount?.currency !== toAccount?.currency;
+        
+        outcomeAccountName = fromAccount?.name || 'N/A';
+        outcomeCurrency = fromAccount?.currency || '';
+        incomeAccountName = toAccount?.name || 'N/A';
+        incomeCurrency = toAccount?.currency || '';
+
+        if (isMultiCurrency) {
+            outcome = String(t.amountSent || 0);
+            income = String(t.amountReceived || 0);
+        } else {
+            outcome = String(t.amount || 0);
+            income = String(t.amount || 0);
+        }
       }
-      csvRows.push(row.join(","));
+
+      const row = [
+        date, category, description,
+        outcomeAccountName, outcome, outcomeCurrency,
+        incomeAccountName, income, incomeCurrency
+      ];
+      csvRows.push(row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","));
     });
 
     const csvString = csvRows.join("\n");
