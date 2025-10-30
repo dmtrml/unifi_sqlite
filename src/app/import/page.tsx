@@ -76,7 +76,7 @@ function ImportPageContent() {
     () => (user ? doc(firestore, "users", user.uid) : null),
     [user, firestore]
   )
-  const { data: userData } = useDoc<User>(userData);
+  const { data: userData } = useDoc<User>(userDocRef);
 
   const categoriesQuery = useMemoFirebase(() => 
     user ? query(collection(firestore, "users", user.uid, "categories")) : null, 
@@ -286,7 +286,7 @@ function ImportPageContent() {
                     }
 
                     const newTransactionRef = doc(transactionsColRef);
-                    let transactionData: Omit<Transaction, 'id'> | null = null;
+                    let transactionData: Partial<Transaction> | null = null;
                     
                     if (transactionType === 'transfer') {
                         if (!mappedRow.outcomeAccountName || !mappedRow.incomeAccountName) {
