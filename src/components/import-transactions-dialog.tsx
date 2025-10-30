@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils"
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert"
 import type { Account, Category, Currency } from "@/lib/types"
 import { useFirestore, useUser } from "@/firebase"
+import { ScrollArea } from "./ui/scroll-area"
 
 // The fields we can map to in our transaction object
 const transactionFields = [
@@ -363,30 +364,32 @@ export function ImportTransactionsDialog({ accounts, categories, mainCurrency }:
                   <p className="text-sm text-muted-foreground mb-4">
                     Match each column from your file to a transaction field.
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {headers.map((header) => (
-                      <div key={header} className="space-y-2">
-                        <span className="font-medium text-sm px-3 py-1.5 bg-secondary text-secondary-foreground rounded-md block truncate">{header}</span>
-                        <Select
-                          value={columnMapping[header] || "ignore"}
-                          onValueChange={(value) => handleColumnMappingChange(header, value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select field..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ignore">Ignore</SelectItem>
-                            <SelectSeparator />
-                            {transactionFields.map(field => (
-                              <SelectItem key={field.value} value={field.value}>
-                                {field.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    ))}
-                  </div>
+                  <ScrollArea className="h-48 rounded-md border">
+                    <div className="p-4 space-y-4">
+                      {headers.map((header) => (
+                        <div key={header} className="grid grid-cols-2 items-center gap-4">
+                          <span className="font-medium text-sm text-muted-foreground truncate">{header}</span>
+                          <Select
+                            value={columnMapping[header] || "ignore"}
+                            onValueChange={(value) => handleColumnMappingChange(header, value)}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select field..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="ignore">Ignore</SelectItem>
+                              <SelectSeparator />
+                              {transactionFields.map(field => (
+                                <SelectItem key={field.value} value={field.value}>
+                                  {field.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 </div>
 
                 <div>
