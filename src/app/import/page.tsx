@@ -33,18 +33,28 @@ import {
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import type { Account, Category, Currency, User } from "@/lib/types"
+import type { Account, Category, Currency, User, Transaction } from "@/lib/types"
 import { useFirestore, useUser, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { convertAmount } from "@/lib/currency"
 
 const transactionFields = [
     { value: "date", label: "Date" },
     { value: "description", label: "Description" },
-    { value: "amount", label: "Amount" },
+    { value: "transactionType", label: "Type (income/expense/transfer)" },
+    // Generic fields
+    { value: "amount", label: "Amount (for income/expense)" },
+    { value: "accountName", label: "Account (for income/expense)" },
     { value: "categoryName", label: "Category" },
-    { value: "accountName", label: "Account" },
-    { value: "transactionType", label: "Type (income/expense)" },
+    // Transfer specific
+    { value: "fromAccountName", label: "From Account (for transfers)" },
+    { value: "toAccountName", label: "To Account (for transfers)" },
+    { value: "amountSent", label: "Amount Sent (for transfers)" },
+    { value: "amountReceived", label: "Amount Received (for transfers)" },
+    { value: "fromCurrency", label: "From Currency" },
+    { value: "toCurrency", label: "To Currency" },
 ];
+
 
 interface ImportResult {
     successCount: number;
@@ -108,18 +118,31 @@ function ImportPageContent() {
 
   const tryAutoMapping = (csvHeaders: string[]) => {
       const newMapping: Record<string, string> = {};
+      const lowerCaseHeaders = csvHeaders.map(h => h.toLowerCase().replace(/[^a-z0-9]/gi, ''));
+
+      transactionFields.forEach(field => {
+          const fieldVariants = [
+              field.value.toLowerCase(), 
+              field.label.toLowerCase().replace(/[^a-z0-9]/gi, '')
+          ];
+          
+          let found = false;
+          for (const header of csvHeaders) {
+              const lowerHeader = header.toLowerCase().replace(/[^a-z0-9]/gi, '');
+              if (fieldVariants.some(variant => lowerHeader.includes(variant)) && !Object.values(newMapping).includes(field.value)) {
+                  newMapping[header] = field.value;
+                  found = true;
+                  break;
+              }
+          }
+      });
+      
       csvHeaders.forEach(header => {
-          const lowerHeader = header.toLowerCase().replace(/[^a-z0-9]/gi, '');
-          const matchedField = transactionFields.find(field => 
-              lowerHeader.includes(field.value.toLowerCase()) || 
-              field.label.toLowerCase().includes(lowerHeader)
-          );
-          if (matchedField) {
-              newMapping[header] = matchedField.value;
-          } else {
+          if(!newMapping[header]) {
               newMapping[header] = "ignore";
           }
       });
+
       setColumnMapping(newMapping);
   }
 
@@ -157,6 +180,62 @@ function ImportPageContent() {
       }
     });
   }
+  
+  type MappedRow = Record<string, string>;
+
+  const getOrCreateAccount = (
+    name: string,
+    currency: string | undefined,
+    localAccounts: (Account & { ref?: DocumentReference })[],
+    batch: any,
+    result: ImportResult
+  ): { id: string, currency: Currency } => {
+      let account = localAccounts.find(a => a.name.toLowerCase() === name.toLowerCase());
+      if (account) {
+          return { id: account.id, currency: account.currency };
+      }
+      
+      const newAccountCurrency = (currency?.toUpperCase() as Currency) || mainCurrency;
+      const newAccountData = {
+          name: name,
+          balance: 0, 
+          userId: user!.uid,
+          icon: "Landmark",
+          color: "hsl(var(--muted-foreground))",
+          type: 'Bank Account' as const,
+          currency: newAccountCurrency,
+      };
+
+      const newAccountRef = doc(collection(firestore!, `users/${user!.uid}/accounts`));
+      batch.set(newAccountRef, newAccountData);
+      
+      const newLocalAccount = { ...newAccountData, id: newAccountRef.id, ref: newAccountRef };
+      localAccounts.push(newLocalAccount);
+      result.newAccounts++;
+      
+      return { id: newAccountRef.id, currency: newAccountCurrency };
+  };
+
+  const getOrCreateCategory = (name: string, type: 'expense' | 'income', localCategories: Category[], batch: any, result: ImportResult): string => {
+    let category = localCategories.find(c => c.name.toLowerCase() === name.toLowerCase());
+    if (category) {
+      return category.id;
+    }
+
+    const newCategoryData = {
+      name: name,
+      userId: user!.uid,
+      icon: "MoreHorizontal",
+      color: "hsl(var(--muted-foreground))",
+      type: type,
+    };
+    const newCategoryRef = doc(collection(firestore!, `users/${user!.uid}/categories`));
+    batch.set(newCategoryRef, newCategoryData);
+    localCategories.push({ ...newCategoryData, id: newCategoryRef.id });
+    result.newCategories++;
+    return newCategoryRef.id;
+  };
+
 
   const handleImport = async () => {
     if (!file || !user || !firestore || !accounts || !categories) return;
@@ -176,93 +255,104 @@ function ImportPageContent() {
             const result: ImportResult = { successCount: 0, errorCount: 0, newCategories: 0, newAccounts: 0 };
             const transactionsColRef = collection(firestore, `users/${user.uid}/transactions`);
             
-            for (const row of results.data as Record<string, string>[]) {
+            const allRows = results.data as Record<string, string>[];
+            const accountBalanceChanges: Record<string, number> = {};
+
+            for (const row of allRows) {
                 try {
-                    const mappedRow = Object.entries(columnMapping).reduce((acc, [csvHeader, field]) => {
+                    const mappedRow: MappedRow = Object.entries(columnMapping).reduce((acc, [csvHeader, field]) => {
                         if (field !== 'ignore' && row[csvHeader]) {
                             acc[field] = row[csvHeader];
                         }
                         return acc;
-                    }, {} as Record<string, string>);
-
+                    }, {} as MappedRow);
+                    
                     const date = new Date(mappedRow.date);
-                    const amount = parseFloat(mappedRow.amount);
-                    if (isNaN(date.getTime()) || isNaN(amount)) {
+                    if (isNaN(date.getTime())) {
                        result.errorCount++;
                        continue;
                     }
-
-                    let categoryId = localCategories.find(c => c.name.toLowerCase() === mappedRow.categoryName?.toLowerCase())?.id;
-                    if (!categoryId && mappedRow.categoryName) {
-                        const newCategory = {
-                            name: mappedRow.categoryName,
-                            userId: user.uid,
-                            icon: "MoreHorizontal",
-                            color: "hsl(var(--muted-foreground))",
-                            type: amount < 0 ? 'expense' : 'income'
-                        } as Omit<Category, 'id'>;
-                        const newCategoryRef = doc(collection(firestore, `users/${user.uid}/categories`));
-                        batch.set(newCategoryRef, newCategory);
-                        categoryId = newCategoryRef.id;
-                        localCategories.push({ ...newCategory, id: categoryId });
-                        result.newCategories++;
-                    }
-
-                    let accountId = localAccounts.find(a => a.name.toLowerCase() === mappedRow.accountName?.toLowerCase())?.id;
-                    if (!accountId && mappedRow.accountName) {
-                        const newAccount = {
-                            name: mappedRow.accountName,
-                            balance: 0, 
-                            userId: user.uid,
-                            icon: "Landmark",
-                            color: "hsl(var(--muted-foreground))",
-                            type: 'Bank Account',
-                            currency: mainCurrency,
-                        } as Omit<Account, 'id'>;
-                        const newAccountRef = doc(collection(firestore, `users/${user.uid}/accounts`));
-                        batch.set(newAccountRef, newAccount);
-                        accountId = newAccountRef.id;
-                        localAccounts.push({ ...newAccount, id: accountId });
-                        result.newAccounts++;
-                    }
-
-                    if (!accountId) { 
-                        result.errorCount++;
-                        continue;
-                    }
                     
-                    const transactionType = mappedRow.transactionType?.toLowerCase() === 'income' || (!mappedRow.transactionType && amount > 0) ? 'income' : 'expense';
-                    const finalAmount = transactionType === 'expense' ? -Math.abs(amount) : Math.abs(amount);
-                    
+                    const transactionType = mappedRow.transactionType?.toLowerCase() || 'expense';
+
                     const newTransactionRef = doc(transactionsColRef);
-                    batch.set(newTransactionRef, {
-                        userId: user.uid,
-                        date: date,
-                        amount: Math.abs(finalAmount),
-                        description: mappedRow.description || 'Imported Transaction',
-                        transactionType: transactionType,
-                        accountId: accountId,
-                        categoryId: categoryId,
-                        createdAt: serverTimestamp(),
-                        expenseType: transactionType === 'expense' ? 'optional' : null,
-                        incomeType: transactionType === 'income' ? 'active' : null,
-                    });
+                    let transactionData: Omit<Transaction, 'id'> | null = null;
                     
-                    const accountRef = doc(firestore, `users/${user.uid}/accounts`, accountId);
-                    const accountData = localAccounts.find(a => a.id === accountId);
-                    if(accountData) {
-                        const newBalance = (accountData.balance || 0) + finalAmount;
-                        batch.update(accountRef, { balance: newBalance });
-                        accountData.balance = newBalance;
-                    }
+                    if (transactionType === 'transfer') {
+                        if (!mappedRow.fromAccountName || !mappedRow.toAccountName) {
+                            result.errorCount++; continue;
+                        }
 
-                    result.successCount++;
+                        const fromAccountInfo = getOrCreateAccount(mappedRow.fromAccountName, mappedRow.fromCurrency, localAccounts, batch, result);
+                        const toAccountInfo = getOrCreateAccount(mappedRow.toAccountName, mappedRow.toCurrency, localAccounts, batch, result);
+                        
+                        const isMultiCurrency = fromAccountInfo.currency !== toAccountInfo.currency;
+                        
+                        let amountSent = parseFloat(mappedRow.amountSent || mappedRow.amount);
+                        let amountReceived = parseFloat(mappedRow.amountReceived || mappedRow.amount);
+                        if (isNaN(amountSent) || (isMultiCurrency && isNaN(amountReceived))) {
+                            result.errorCount++; continue;
+                        }
+                        if (isMultiCurrency && !mappedRow.amountReceived) {
+                           amountReceived = convertAmount(amountSent, fromAccountInfo.currency, toAccountInfo.currency);
+                        }
+
+                        transactionData = {
+                            userId: user.uid, date, description: mappedRow.description || "Imported Transfer",
+                            transactionType: 'transfer', fromAccountId: fromAccountInfo.id, toAccountId: toAccountInfo.id,
+                            amountSent, amountReceived,
+                        };
+                        
+                        accountBalanceChanges[fromAccountInfo.id] = (accountBalanceChanges[fromAccountInfo.id] || 0) - amountSent;
+                        accountBalanceChanges[toAccountInfo.id] = (accountBalanceChanges[toAccountInfo.id] || 0) + amountReceived;
+
+                    } else { // Income or Expense
+                        const amount = parseFloat(mappedRow.amount);
+                        if (isNaN(amount) || !mappedRow.accountName) {
+                           result.errorCount++; continue;
+                        }
+                        
+                        const accountInfo = getOrCreateAccount(mappedRow.accountName, mappedRow.fromCurrency || mappedRow.toCurrency, localAccounts, batch, result);
+                        let categoryId: string | undefined = undefined;
+                        if (mappedRow.categoryName) {
+                           categoryId = getOrCreateCategory(mappedRow.categoryName, transactionType as 'income' | 'expense', localCategories, batch, result);
+                        }
+                        
+                        const finalAmount = transactionType === 'expense' ? -Math.abs(amount) : Math.abs(amount);
+                        
+                        transactionData = {
+                            userId: user.uid, date, amount: Math.abs(amount),
+                            description: mappedRow.description || 'Imported Transaction',
+                            transactionType: transactionType as 'income' | 'expense',
+                            accountId: accountInfo.id, categoryId,
+                            expenseType: transactionType === 'expense' ? 'optional' : undefined,
+                            incomeType: transactionType === 'income' ? 'active' : undefined,
+                        };
+
+                        accountBalanceChanges[accountInfo.id] = (accountBalanceChanges[accountInfo.id] || 0) + finalAmount;
+                    }
+                    
+                    if (transactionData) {
+                        batch.set(newTransactionRef, { ...transactionData, createdAt: serverTimestamp() });
+                        result.successCount++;
+                    }
 
                 } catch (e) {
                     console.error("Error processing row: ", row, e);
                     result.errorCount++;
                 }
             }
+            
+            // Apply balance changes
+            for (const accountId in accountBalanceChanges) {
+                const account = localAccounts.find(a => a.id === accountId);
+                if (account) {
+                  const accountRef = doc(firestore, `users/${user.uid}/accounts`, accountId);
+                  const newBalance = (account.balance || 0) + accountBalanceChanges[accountId];
+                  batch.update(accountRef, { balance: newBalance });
+                }
+            }
+
 
             try {
                 await batch.commit();
@@ -358,10 +448,10 @@ function ImportPageContent() {
             <CardContent className="space-y-6">
                <div>
                   <h3 className="text-base font-medium mb-2">Column Mapping</h3>
-                  <ScrollArea className="h-48 rounded-md border">
-                    <div className="p-4 space-y-4">
+                  <ScrollArea className="h-64 rounded-md border">
+                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {headers.map((header) => (
-                        <div key={header} className="grid grid-cols-2 items-center gap-4">
+                        <div key={header} className="grid grid-cols-2 items-center gap-2">
                           <span className="font-medium text-sm text-muted-foreground truncate">{header}</span>
                           <Select
                             value={columnMapping[header] || "ignore"}
@@ -388,24 +478,26 @@ function ImportPageContent() {
 
                 <div>
                    <h3 className="text-base font-medium mb-2">Data Preview (first 5 rows)</h3>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                            {headers.map(header => (
-                                <TableHead key={header}>{header}</TableHead>
-                            ))}
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {previewData.slice(0, 5).map((row, rowIndex) => (
-                                <TableRow key={rowIndex}>
-                                    {headers.map(header => (
-                                        <TableCell key={`${rowIndex}-${header}`}>{row[header]}</TableCell>
-                                    ))}
+                    <ScrollArea className="w-full whitespace-nowrap rounded-md border">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                {headers.map(header => (
+                                    <TableHead key={header} className="whitespace-nowrap">{header}</TableHead>
+                                ))}
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {previewData.slice(0, 5).map((row, rowIndex) => (
+                                    <TableRow key={rowIndex}>
+                                        {headers.map(header => (
+                                            <TableCell key={`${rowIndex}-${header}`} className="whitespace-nowrap">{row[header]}</TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </ScrollArea>
                 </div>
             </CardContent>
             <CardFooter className="justify-end gap-2">
