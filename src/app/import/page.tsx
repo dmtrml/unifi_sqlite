@@ -2,9 +2,10 @@
 "use client"
 
 import * as React from "react"
-import { Upload, FileUp, X, Check, Loader2 } from "lucide-react"
+import { Upload, FileUp, X, Check, Loader2, Info } from "lucide-react"
 import Papa from "papaparse"
 import { collection, doc, writeBatch, serverTimestamp, query, DocumentReference } from "firebase/firestore"
+import Link from "next/link"
 
 import AppLayout from "@/components/layout"
 import { Button } from "@/components/ui/button"
@@ -276,7 +277,7 @@ function ImportPageContent() {
 
                     let transactionType: 'income' | 'expense' | 'transfer' | null = null;
                     
-                    if (incomeAmount > 0 && outcomeAmount > 0) {
+                    if (outcomeAmount > 0 && incomeAmount > 0) {
                         transactionType = 'transfer';
                     } else if (outcomeAmount > 0) {
                         transactionType = 'expense';
@@ -559,6 +560,27 @@ function ImportPageContent() {
                              <div className="flex justify-between"><span>New categories created:</span> <span className="font-medium">{importResult.newCategories}</span></div>
                              <div className="flex justify-between"><span>New accounts created:</span> <span className="font-medium">{importResult.newAccounts}</span></div>
                           </div>
+                           {(importResult.newCategories > 0 || importResult.newAccounts > 0) && (
+                                <Alert className="mt-6 text-left max-w-lg mx-auto">
+                                  <Info className="h-4 w-4" />
+                                  <AlertTitle>Action Required</AlertTitle>
+                                  <AlertDescription>
+                                    New categories and/or accounts were created with default styles.
+                                    <div className="mt-2 space-x-2">
+                                      {importResult.newCategories > 0 && (
+                                        <Button asChild variant="outline" size="sm">
+                                          <Link href="/categories">Style Categories</Link>
+                                        </Button>
+                                      )}
+                                      {importResult.newAccounts > 0 && (
+                                        <Button asChild variant="outline" size="sm">
+                                          <Link href="/accounts">Style Accounts</Link>
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </AlertDescription>
+                                </Alert>
+                            )}
                           <p className="text-muted-foreground text-sm pt-4">You can now close this window or start a new import.</p>
                       </div>
                   ) : error ? (
