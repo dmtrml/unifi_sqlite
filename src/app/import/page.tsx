@@ -76,7 +76,7 @@ function ImportPageContent() {
     () => (user ? doc(firestore, "users", user.uid) : null),
     [user, firestore]
   )
-  const { data: userData } = useDoc<User>(userDocRef);
+  const { data: userData } = useDoc<User>(userData);
 
   const categoriesQuery = useMemoFirebase(() => 
     user ? query(collection(firestore, "users", user.uid, "categories")) : null, 
@@ -255,7 +255,7 @@ function ImportPageContent() {
             for (const row of allRows) {
                 try {
                     const mappedRow: MappedRow = Object.entries(columnMapping).reduce((acc, [csvHeader, field]) => {
-                        if (field !== 'ignore' && row[csvHeader]) {
+                        if (field !== 'ignore' && row[csvHeader] != null && row[csvHeader] !== '') {
                             acc[field] = row[csvHeader];
                         }
                         return acc;
@@ -267,10 +267,14 @@ function ImportPageContent() {
                        continue;
                     }
                     
-                    const hasIncome = mappedRow.income && parseFloat(mappedRow.income) > 0;
-                    const hasOutcome = mappedRow.outcome && parseFloat(mappedRow.outcome) > 0;
+                    const incomeAmount = mappedRow.income ? Number(mappedRow.income) : NaN;
+                    const outcomeAmount = mappedRow.outcome ? Number(mappedRow.outcome) : NaN;
+
+                    const hasIncome = !isNaN(incomeAmount) && incomeAmount > 0;
+                    const hasOutcome = !isNaN(outcomeAmount) && outcomeAmount > 0;
 
                     let transactionType: 'income' | 'expense' | 'transfer' | null = null;
+
                     if (hasIncome && hasOutcome) {
                         transactionType = 'transfer';
                     } else if (hasIncome) {
@@ -278,7 +282,7 @@ function ImportPageContent() {
                     } else if (hasOutcome) {
                         transactionType = 'expense';
                     } else {
-                        result.errorCount++; continue; // Invalid row
+                        result.errorCount++; continue;
                     }
 
                     const newTransactionRef = doc(transactionsColRef);
@@ -293,27 +297,20 @@ function ImportPageContent() {
                         const toAccountInfo = getOrCreateAccount(mappedRow.incomeAccountName, mappedRow.incomeCurrency, localAccounts, batch, result);
                         
                         const isMultiCurrency = fromAccountInfo.currency !== toAccountInfo.currency;
-                        
-                        const amountSentNum = parseFloat(mappedRow.outcome);
-                        const amountReceivedNum = parseFloat(mappedRow.income);
-
-                        if (isNaN(amountSentNum) || isNaN(amountReceivedNum)) {
-                            result.errorCount++; continue;
-                        }
 
                         transactionData = {
                             userId: user.uid, date, description: mappedRow.description || "Imported Transfer",
                             transactionType: 'transfer', fromAccountId: fromAccountInfo.id, toAccountId: toAccountInfo.id,
-                            amount: isMultiCurrency ? null : amountSentNum,
-                            amountSent: isMultiCurrency ? amountSentNum : null,
-                            amountReceived: isMultiCurrency ? amountReceivedNum : null,
+                            amount: isMultiCurrency ? null : outcomeAmount,
+                            amountSent: isMultiCurrency ? outcomeAmount : null,
+                            amountReceived: isMultiCurrency ? incomeAmount : null,
                         };
                         
-                        accountBalanceChanges[fromAccountInfo.id] = (accountBalanceChanges[fromAccountInfo.id] || 0) - amountSentNum;
-                        accountBalanceChanges[toAccountInfo.id] = (accountBalanceChanges[toAccountInfo.id] || 0) + amountReceivedNum;
+                        accountBalanceChanges[fromAccountInfo.id] = (accountBalanceChanges[fromAccountInfo.id] || 0) - outcomeAmount;
+                        accountBalanceChanges[toAccountInfo.id] = (accountBalanceChanges[toAccountInfo.id] || 0) + incomeAmount;
 
                     } else { // Income or Expense
-                        const amount = parseFloat(mappedRow.income || mappedRow.outcome);
+                        const amount = transactionType === 'income' ? incomeAmount : outcomeAmount;
                         const accountName = mappedRow.incomeAccountName || mappedRow.outcomeAccountName;
                         const currency = mappedRow.incomeCurrency || mappedRow.outcomeCurrency;
                         
@@ -336,6 +333,8 @@ function ImportPageContent() {
                             accountId: accountInfo.id, categoryId,
                             expenseType: transactionType === 'expense' ? 'optional' : undefined,
                             incomeType: transactionType === 'income' ? 'active' : undefined,
+                            amountSent: null,
+                            amountReceived: null,
                         };
 
                         accountBalanceChanges[accountInfo.id] = (accountBalanceChanges[accountInfo.id] || 0) + finalAmount;
