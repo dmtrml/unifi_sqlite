@@ -109,8 +109,8 @@ function TransactionsPageContent() {
   const safeCategories = categories || [];
   const safeAccounts = accounts || [];
 
-  const fetchTransactions = React.useCallback(async (loadMore = false) => {
-    if (!user || !firestore) return;
+  const fetchTransactions = async (loadMore = false, lastDoc: DocumentData | null = null) => {
+    if (!user || !firestore || !accounts || !categories) return;
 
     if (loadMore) {
       if (!hasMore) return;
@@ -118,7 +118,6 @@ function TransactionsPageContent() {
     } else {
       setIsLoading(true);
       setTransactions([]);
-      setLastVisible(null);
       setHasMore(true);
     }
 
@@ -134,8 +133,8 @@ function TransactionsPageContent() {
 
     q = query(q, limit(PAGE_SIZE));
 
-    if (loadMore && lastVisible) {
-      q = query(q, startAfter(lastVisible));
+    if (loadMore && lastDoc) {
+      q = query(q, startAfter(lastDoc));
     }
 
     try {
@@ -153,7 +152,8 @@ function TransactionsPageContent() {
         newTransactions = newTransactions.filter(t => t.categoryId === categoryId);
       }
 
-      setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1] || null);
+      const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1] || null;
+      setLastVisible(newLastVisible);
       setTransactions(prev => loadMore ? [...prev, ...newTransactions] : newTransactions);
       setHasMore(documentSnapshots.docs.length === PAGE_SIZE);
     } catch (error) {
@@ -162,16 +162,18 @@ function TransactionsPageContent() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [user, firestore, dateRange, categoryId, searchQuery, lastVisible, accountId]); // accountId added for client filtering
+  };
 
   // Effect to fetch initial data and re-fetch on filter changes
   React.useEffect(() => {
-    fetchTransactions(false);
+    if (user && firestore && accounts && categories) {
+      fetchTransactions(false);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange, accountId, categoryId, searchQuery]);
+  }, [user, firestore, accounts, categories, dateRange, accountId, categoryId, searchQuery]);
 
   const fetchMoreTransactions = () => {
-    fetchTransactions(true);
+    fetchTransactions(true, lastVisible);
   }
 
   const groupedTransactions = React.useMemo(() => {
