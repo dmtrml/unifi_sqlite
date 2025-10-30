@@ -74,14 +74,12 @@ function TransactionsPageContent() {
   const { user } = useUser()
   const firestore = useFirestore()
 
-  // State for pagination
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [lastVisible, setLastVisible] = React.useState<DocumentData | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [hasMore, setHasMore] = React.useState(true);
 
-  // State for filters
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
   const [accountId, setAccountId] = React.useState<string>("all");
   const [categoryId, setCategoryId] = React.useState<string>("all");
@@ -109,28 +107,39 @@ function TransactionsPageContent() {
   const safeCategories = categories || [];
   const safeAccounts = accounts || [];
 
-  const fetchTransactions = async (loadMore = false, lastDoc: DocumentData | null = null) => {
-    if (!user || !firestore || !accounts || !categories) return;
+  const fetchTransactions = React.useCallback(async (loadMore = false, lastDoc: DocumentData | null = null) => {
+    if (!user || !firestore) return;
 
     if (loadMore) {
       if (!hasMore) return;
       setIsLoadingMore(true);
     } else {
       setIsLoading(true);
-      setTransactions([]);
+      setTransactions([]); 
       setHasMore(true);
     }
 
-    let q: Query<DocumentData> = query(collection(firestore, `users/${user.uid}/transactions`), orderBy("date", "desc"));
-    
-    // Apply server-side filters
-    if (dateRange?.from) q = query(q, where("date", ">=", Timestamp.fromDate(dateRange.from)));
+    let q: Query<DocumentData> = query(collection(firestore, `users/${user.uid}/transactions`));
+
+    // Apply server-side filters where it won't cause composite index issues
+    if (dateRange?.from) {
+      q = query(q, where("date", ">=", Timestamp.fromDate(dateRange.from)));
+    }
     if (dateRange?.to) {
       const toDate = new Date(dateRange.to);
       toDate.setHours(23, 59, 59, 999);
       q = query(q, where("date", "<=", Timestamp.fromDate(toDate)));
+    } else {
+       // Only filter by account/category if no date range is set, to avoid needing composite indexes
+      if (accountId !== 'all') {
+         q = query(q, where("accountId", "==", accountId));
+      }
+      if (categoryId !== 'all') {
+         q = query(q, where("categoryId", "==", categoryId));
+      }
     }
-
+    
+    q = query(q, orderBy("date", "desc"));
     q = query(q, limit(PAGE_SIZE));
 
     if (loadMore && lastDoc) {
@@ -141,15 +150,18 @@ function TransactionsPageContent() {
       const documentSnapshots = await getDocs(q);
       let newTransactions = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Transaction[];
       
-      // Client-side search and account filtering
+      // Apply client-side filtering for cases not handled by the query
       if (searchQuery) {
         newTransactions = newTransactions.filter(t => t.description.toLowerCase().includes(searchQuery.toLowerCase()));
       }
-      if (accountId !== 'all') {
-        newTransactions = newTransactions.filter(t => t.accountId === accountId || t.fromAccountId === accountId || t.toAccountId === accountId);
-      }
-      if (categoryId !== 'all') {
-        newTransactions = newTransactions.filter(t => t.categoryId === categoryId);
+      // If a date range was set, we need to apply account/category filters on the client
+      if (dateRange) {
+        if (accountId !== 'all') {
+          newTransactions = newTransactions.filter(t => t.accountId === accountId || t.fromAccountId === accountId || t.toAccountId === accountId);
+        }
+        if (categoryId !== 'all') {
+          newTransactions = newTransactions.filter(t => t.categoryId === categoryId);
+        }
       }
 
       const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1] || null;
@@ -162,12 +174,12 @@ function TransactionsPageContent() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  };
+  }, [user, firestore, dateRange, accountId, categoryId, searchQuery, hasMore]);
 
-  // Effect to fetch initial data and re-fetch on filter changes
+
   React.useEffect(() => {
     if (user && firestore && accounts && categories) {
-      fetchTransactions(false);
+      fetchTransactions(false, null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, firestore, accounts, categories, dateRange, accountId, categoryId, searchQuery]);
