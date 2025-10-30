@@ -388,7 +388,7 @@ function ImportPageContent() {
 
                 <div>
                    <h3 className="text-base font-medium mb-2">Data Preview (first 5 rows)</h3>
-                   <ScrollArea className="w-full whitespace-nowrap rounded-md border">
+                   <ScrollArea className="rounded-md border">
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -401,7 +401,7 @@ function ImportPageContent() {
                                 {previewData.slice(0, 5).map((row, rowIndex) => (
                                     <TableRow key={rowIndex}>
                                         {headers.map(header => (
-                                            <TableCell key={`${rowIndex}-${header}`} className="truncate max-w-xs">{row[header]}</TableCell>
+                                            <TableCell key={`${rowIndex}-${header}`} className="whitespace-nowrap">{row[header]}</TableCell>
                                         ))}
                                     </TableRow>
                                 ))}
