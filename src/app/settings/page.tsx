@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { doc, setDoc } from "firebase/firestore"
-import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase"
+import { doc, setDoc, collection, query } from "firebase/firestore"
+import { useDoc, useFirestore, useUser, useMemoFirebase, useCollection } from "@/firebase"
 import AppLayout from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import {
@@ -15,7 +15,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
-import type { User, Currency } from "@/lib/types"
+import type { User, Currency, Transaction, Category, Account } from "@/lib/types"
 import {
   Select,
   SelectContent,
@@ -24,6 +24,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { DeleteDataDialog } from "@/components/delete-data-dialog"
+import { format } from "date-fns"
+
 
 const currencies: Currency[] = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS", "RUB"];
 
@@ -37,6 +39,23 @@ function SettingsPageContent() {
     [user, firestore]
   )
   const { data: userData } = useDoc<User>(userDocRef)
+
+  const transactionsQuery = useMemoFirebase(() => 
+    user ? query(collection(firestore, "users", user.uid, "transactions")) : null, 
+    [user, firestore]
+  );
+  const categoriesQuery = useMemoFirebase(() => 
+    user ? query(collection(firestore, "users", user.uid, "categories")) : null, 
+    [user, firestore]
+  );
+  const accountsQuery = useMemoFirebase(() =>
+    user ? query(collection(firestore, "users", user.uid, "accounts")) : null,
+    [user, firestore]
+  );
+
+  const { data: transactions } = useCollection<Transaction>(transactionsQuery);
+  const { data: categories } = useCollection<Category>(categoriesQuery);
+  const { data: accounts } = useCollection<Account>(accountsQuery);
 
   const [isDarkTheme, setIsDarkTheme] = React.useState(false)
   const [mainCurrency, setMainCurrency] = React.useState<Currency>("USD")
@@ -81,6 +100,79 @@ function SettingsPageContent() {
       })
     }
   }
+
+   const handleExportTransactions = () => {
+    if (!transactions || !categories || !accounts) {
+      toast({
+        title: "Error",
+        description: "Data not loaded yet. Please try again in a moment.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const getAccount = (id?: string) => accounts.find(a => a.id === id);
+    const getCategory = (id?: string) => categories.find(c => c.id === id);
+
+    const headers = [
+      "Date", "Description", "Type", "Amount", "Currency", "Category", 
+      "Account", "From Account", "To Account", "Amount Sent", "Amount Received"
+    ];
+
+    const csvRows = [headers.join(",")];
+
+    transactions.forEach(t => {
+      const date = format(t.date.toDate(), "yyyy-MM-dd");
+      const description = `"${t.description?.replace(/"/g, '""') || ''}"`;
+      const type = t.transactionType;
+      
+      let row: (string | number | undefined)[] = [date, description, type];
+
+      if (type === 'transfer') {
+        const fromAccount = getAccount(t.fromAccountId);
+        const toAccount = getAccount(t.toAccountId);
+        row.push(
+          '', // Amount
+          '', // Currency
+          '', // Category
+          '', // Account
+          fromAccount?.name || 'N/A',
+          toAccount?.name || 'N/A',
+          t.amountSent,
+          t.amountReceived
+        );
+      } else {
+        const account = getAccount(t.accountId);
+        const category = getCategory(t.categoryId);
+        row.push(
+          t.amount,
+          account?.currency || '',
+          category?.name || 'Uncategorized',
+          account?.name || 'N/A',
+          '', // From Account
+          '', // To Account
+          '', // Amount Sent
+          ''  // Amount Received
+        );
+      }
+      csvRows.push(row.join(","));
+    });
+
+    const csvString = csvRows.join("\n");
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "transactions.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({
+      title: "Export Successful",
+      description: "Your transactions have been exported to transactions.csv.",
+    });
+  };
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
@@ -140,7 +232,7 @@ function SettingsPageContent() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-            <Button variant="outline">Экспортировать транзакции</Button>
+          <Button variant="outline" onClick={handleExportTransactions}>Экспортировать транзакции</Button>
         </CardContent>
       </Card>
 
