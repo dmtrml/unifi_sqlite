@@ -58,7 +58,7 @@ export function DeleteAccountDialog({ accountId, children }: DeleteAccountDialog
           <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
           <AlertDialogDescription>
             This action cannot be undone. This will permanently delete this
-            account from our servers. All transactions associated with this account will also be unlinked.
+            account and all of its associated transactions.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
