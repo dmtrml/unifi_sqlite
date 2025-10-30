@@ -109,65 +109,109 @@ function TransactionsPageContent() {
   const safeCategories = categories || [];
   const safeAccounts = accounts || [];
 
-  const fetchTransactions = React.useCallback(async (loadMore = false) => {
-    if (!user || !firestore) return;
-    
-    if (loadMore) {
-        setIsLoadingMore(true);
-    } else {
-        setIsLoading(true);
-    }
-
-    let q: Query<DocumentData> = query(collection(firestore, `users/${user.uid}/transactions`), orderBy("date", "desc"));
-    
-    // Apply filters
-    if (dateRange?.from) q = query(q, where("date", ">=", Timestamp.fromDate(dateRange.from)));
-    if (dateRange?.to) {
-        const toDate = new Date(dateRange.to);
-        toDate.setHours(23, 59, 59, 999);
-        q = query(q, where("date", "<=", Timestamp.fromDate(toDate)));
-    }
-    if (accountId !== 'all') q = query(q, where("accountId", "==", accountId));
-    if (categoryId !== 'all') q = query(q, where("categoryId", "==", categoryId));
-    // Search query is handled client-side after fetch for simplicity with pagination
-
-    q = query(q, limit(PAGE_SIZE));
-
-    if (loadMore && lastVisible) {
-        q = query(q, startAfter(lastVisible));
-    }
-
-    try {
-      const documentSnapshots = await getDocs(q);
-      const newTransactions = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Transaction[];
-      
-      // Client-side search filtering
-      const filteredNewTransactions = searchQuery 
-        ? newTransactions.filter(t => t.description.toLowerCase().includes(searchQuery.toLowerCase())) 
-        : newTransactions;
-
-      setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
-      setTransactions(prev => loadMore ? [...prev, ...filteredNewTransactions] : filteredNewTransactions);
-      setHasMore(documentSnapshots.docs.length === PAGE_SIZE);
-    } catch (error) {
-      console.error("Error fetching transactions: ", error);
-    } finally {
-      setIsLoading(false);
-      setIsLoadingMore(false);
-    }
-
-  }, [user, firestore, dateRange, accountId, categoryId, searchQuery, lastVisible]);
 
   // Effect to fetch initial data and re-fetch on filter changes
   React.useEffect(() => {
-    // Reset and fetch new
-    setTransactions([]);
-    setLastVisible(null);
-    setHasMore(true);
+    const fetchTransactions = async (loadMore = false, lastDoc: DocumentData | null = null) => {
+      if (!user || !firestore) return;
+      
+      if (loadMore) {
+          setIsLoadingMore(true);
+      } else {
+          setIsLoading(true);
+          setTransactions([]); // Clear transactions when filters change
+      }
+  
+      let q: Query<DocumentData> = query(collection(firestore, `users/${user.uid}/transactions`), orderBy("date", "desc"));
+      
+      // Apply filters
+      if (dateRange?.from) q = query(q, where("date", ">=", Timestamp.fromDate(dateRange.from)));
+      if (dateRange?.to) {
+          const toDate = new Date(dateRange.to);
+          toDate.setHours(23, 59, 59, 999);
+          q = query(q, where("date", "<=", Timestamp.fromDate(toDate)));
+      }
+      if (accountId !== 'all') q = query(q, where("accountId", "==", accountId));
+      if (categoryId !== 'all') q = query(q, where("categoryId", "==", categoryId));
+      // Search query is handled client-side after fetch for simplicity with pagination
+  
+      q = query(q, limit(PAGE_SIZE));
+  
+      if (loadMore && lastDoc) {
+          q = query(q, startAfter(lastDoc));
+      }
+  
+      try {
+        const documentSnapshots = await getDocs(q);
+        const newTransactions = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Transaction[];
+        
+        // Client-side search filtering
+        const filteredNewTransactions = searchQuery 
+          ? newTransactions.filter(t => t.description.toLowerCase().includes(searchQuery.toLowerCase())) 
+          : newTransactions;
+  
+        setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
+        setTransactions(prev => loadMore ? [...prev, ...filteredNewTransactions] : filteredNewTransactions);
+        setHasMore(documentSnapshots.docs.length === PAGE_SIZE);
+      } catch (error) {
+        console.error("Error fetching transactions: ", error);
+      } finally {
+        setIsLoading(false);
+        setIsLoadingMore(false);
+      }
+    };
+    
+    // Initial fetch when component mounts or filters change
     fetchTransactions(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, dateRange, accountId, categoryId, searchQuery]);
+  
+  }, [user, firestore, dateRange, accountId, categoryId, searchQuery]);
 
+  const fetchMoreTransactions = () => {
+     const fetchTransactions = async (lastDoc: DocumentData | null = null) => {
+      if (!user || !firestore || !hasMore) return;
+      
+      setIsLoadingMore(true);
+        
+      let q: Query<DocumentData> = query(collection(firestore, `users/${user.uid}/transactions`), orderBy("date", "desc"));
+      
+      // Apply filters
+      if (dateRange?.from) q = query(q, where("date", ">=", Timestamp.fromDate(dateRange.from)));
+      if (dateRange?.to) {
+          const toDate = new Date(dateRange.to);
+          toDate.setHours(23, 59, 59, 999);
+          q = query(q, where("date", "<=", Timestamp.fromDate(toDate)));
+      }
+      if (accountId !== 'all') q = query(q, where("accountId", "==", accountId));
+      if (categoryId !== 'all') q = query(q, where("categoryId", "==", categoryId));
+      // Search query is handled client-side after fetch for simplicity with pagination
+  
+      q = query(q, limit(PAGE_SIZE));
+  
+      if (lastDoc) {
+          q = query(q, startAfter(lastDoc));
+      }
+  
+      try {
+        const documentSnapshots = await getDocs(q);
+        const newTransactions = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Transaction[];
+        
+        // Client-side search filtering
+        const filteredNewTransactions = searchQuery 
+          ? newTransactions.filter(t => t.description.toLowerCase().includes(searchQuery.toLowerCase())) 
+          : newTransactions;
+  
+        setLastVisible(documentSnapshots.docs[documentSnapshots.docs.length - 1]);
+        setTransactions(prev => [...prev, ...filteredNewTransactions]);
+        setHasMore(documentSnapshots.docs.length === PAGE_SIZE);
+      } catch (error) {
+        console.error("Error fetching transactions: ", error);
+      } finally {
+        setIsLoadingMore(false);
+      }
+    };
+
+    fetchTransactions(lastVisible);
+  }
 
   const groupedTransactions = React.useMemo(() => {
     return transactions.reduce((acc, transaction) => {
@@ -482,7 +526,7 @@ function TransactionsPageContent() {
               )}
                {hasMore && !isLoading && (
                   <div className="mt-6 flex justify-center">
-                    <Button onClick={() => fetchTransactions(true)} disabled={isLoadingMore}>
+                    <Button onClick={fetchMoreTransactions} disabled={isLoadingMore}>
                       {isLoadingMore ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Load More"}
                     </Button>
                   </div>
