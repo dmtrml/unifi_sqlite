@@ -31,8 +31,13 @@ import { MoreHorizontal } from "lucide-react"
 import { AddCategoryDialog } from "@/components/add-category-dialog"
 import { EditCategoryDialog } from "@/components/edit-category-dialog"
 import { DeleteCategoryDialog } from "@/components/delete-category-dialog"
+import { UnstyledCategoriesManager } from "@/components/unstyled-categories-manager"
 
 function CategoryTable({ title, categories }: { title: string, categories: Category[] }) {
+  if (categories.length === 0) {
+    return null;
+  }
+  
   return (
     <Card>
       <CardHeader>
@@ -90,8 +95,15 @@ function CategoriesPageContent() {
   );
   const { data: categories } = useCollection<Category>(categoriesQuery);
   
-  const expenseCategories = React.useMemo(() => (categories || []).filter(c => !c.type || c.type === 'expense'), [categories]);
-  const incomeCategories = React.useMemo(() => (categories || []).filter(c => c.type === 'income'), [categories]);
+  const [styledCategories, unstyledCategories] = React.useMemo(() => {
+    const allCategories = categories || [];
+    const unstyled = allCategories.filter(c => c.icon === "MoreHorizontal" && c.color === "hsl(var(--muted-foreground))");
+    const styled = allCategories.filter(c => !unstyled.some(uc => uc.id === c.id));
+    return [styled, unstyled];
+  }, [categories]);
+
+  const expenseCategories = React.useMemo(() => styledCategories.filter(c => !c.type || c.type === 'expense'), [styledCategories]);
+  const incomeCategories = React.useMemo(() => styledCategories.filter(c => c.type === 'income'), [styledCategories]);
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
@@ -102,6 +114,7 @@ function CategoriesPageContent() {
         </div>
       </div>
       <div className="flex flex-col gap-6">
+        {unstyledCategories.length > 0 && <UnstyledCategoriesManager categories={unstyledCategories} />}
         <CategoryTable title="Expense Categories" categories={expenseCategories} />
         <CategoryTable title="Income Categories" categories={incomeCategories} />
       </div>
