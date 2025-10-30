@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -25,6 +26,7 @@ import {
 } from "@/components/ui/select"
 import { DeleteDataDialog } from "@/components/delete-data-dialog"
 import { format } from "date-fns"
+import { ImportTransactionsDialog } from "@/components/import-transactions-dialog"
 
 
 const currencies: Currency[] = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS", "RUB"];
@@ -228,11 +230,12 @@ function SettingsPageContent() {
         <CardHeader>
           <CardTitle>Управление данными</CardTitle>
           <CardDescription>
-            Экспортируйте свои данные в файл CSV.
+            Экспортируйте или импортируйте свои данные.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex gap-2">
           <Button variant="outline" onClick={handleExportTransactions}>Экспортировать транзакции</Button>
+          <ImportTransactionsDialog />
         </CardContent>
       </Card>
 
