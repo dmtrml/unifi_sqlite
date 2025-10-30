@@ -4,7 +4,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { doc, setDoc, collection, query } from "firebase/firestore"
+import { doc, setDoc, collection, query, orderBy } from "firebase/firestore"
 import { useDoc, useFirestore, useUser, useMemoFirebase, useCollection } from "@/firebase"
 import AppLayout from "@/components/layout"
 import { Button } from "@/components/ui/button"
@@ -44,7 +44,7 @@ function SettingsPageContent() {
   const { data: userData } = useDoc<User>(userDocRef)
 
   const transactionsQuery = useMemoFirebase(() => 
-    user ? query(collection(firestore, "users", user.uid, "transactions")) : null, 
+    user ? query(collection(firestore, "users", user.uid, "transactions"), orderBy("date", "desc")) : null, 
     [user, firestore]
   );
   const categoriesQuery = useMemoFirebase(() => 
