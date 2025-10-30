@@ -106,76 +106,84 @@ function TransactionsPageContent() {
   
   const safeCategories = categories || [];
   const safeAccounts = accounts || [];
-
-  const fetchTransactions = React.useCallback(async (loadMore = false, lastDoc: DocumentData | null = null) => {
+  
+  const fetchTransactions = React.useCallback(async (loadMore = false) => {
     if (!user || !firestore) return;
 
     if (loadMore) {
-      if (!hasMore) return;
-      setIsLoadingMore(true);
+        if (!hasMore) return;
+        setIsLoadingMore(true);
     } else {
-      setIsLoading(true);
-      setTransactions([]); 
-      setHasMore(true);
+        setIsLoading(true);
+        setTransactions([]);
+        setLastVisible(null);
+        setHasMore(true);
     }
 
     let q: Query<DocumentData> = query(collection(firestore, `users/${user.uid}/transactions`));
 
-    // Apply server-side filters
+    // Apply server-side filters that don't require complex indexes with date sort
     if (dateRange?.from) {
-      q = query(q, where("date", ">=", Timestamp.fromDate(dateRange.from)));
+        q = query(q, where("date", ">=", Timestamp.fromDate(dateRange.from)));
     }
     if (dateRange?.to) {
-      const toDate = new Date(dateRange.to);
-      toDate.setHours(23, 59, 59, 999);
-      q = query(q, where("date", "<=", Timestamp.fromDate(toDate)));
+        const toDate = new Date(dateRange.to);
+        toDate.setHours(23, 59, 59, 999);
+        q = query(q, where("date", "<=", Timestamp.fromDate(toDate)));
     }
+    
+    // Apply specific filters if they are not "all"
     if (accountId !== 'all') {
       q = query(q, where("accountId", "==", accountId));
     }
     if (categoryId !== 'all') {
       q = query(q, where("categoryId", "==", categoryId));
     }
-    
+
+    // Always order by date
     q = query(q, orderBy("date", "desc"));
+    
+    if (loadMore && lastVisible) {
+        q = query(q, startAfter(lastVisible));
+    }
+
     q = query(q, limit(PAGE_SIZE));
 
-    if (loadMore && lastDoc) {
-      q = query(q, startAfter(lastDoc));
-    }
-
     try {
-      const documentSnapshots = await getDocs(q);
-      let newTransactions = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Transaction[];
-      
-      // Apply client-side filtering for search (as Firestore doesn't support partial text search natively)
-      if (searchQuery) {
-        newTransactions = newTransactions.filter(t => t.description.toLowerCase().includes(searchQuery.toLowerCase()));
-      }
+        const documentSnapshots = await getDocs(q);
+        let newTransactions = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Transaction[];
+        
+        // Client-side search filtering
+        if (searchQuery) {
+            newTransactions = newTransactions.filter(t => 
+                t.description?.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+        }
 
-      const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1] || null;
-      setLastVisible(newLastVisible);
-      setTransactions(prev => loadMore ? [...prev, ...newTransactions] : newTransactions);
-      setHasMore(documentSnapshots.docs.length === PAGE_SIZE);
+        const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1] || null;
+        setLastVisible(newLastVisible);
+        setTransactions(prev => loadMore ? [...prev, ...newTransactions] : newTransactions);
+        setHasMore(documentSnapshots.docs.length === PAGE_SIZE);
     } catch (error) {
-      console.error("Error fetching transactions: ", error);
+        console.error("Error fetching transactions: ", error);
+        toast({ title: "Error", description: "Could not fetch transactions. Check console for details.", variant: "destructive" });
     } finally {
-      setIsLoading(false);
-      setIsLoadingMore(false);
+        setIsLoading(false);
+        setIsLoadingMore(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, firestore, dateRange, accountId, categoryId, searchQuery]);
+  }, [user, firestore, dateRange, accountId, categoryId, searchQuery, hasMore, lastVisible]);
 
 
   React.useEffect(() => {
+    // This effect triggers the initial fetch and re-fetches when filters change.
     if (user && firestore && accounts && categories) {
-      fetchTransactions(false, null);
+      fetchTransactions(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, firestore, accounts, categories, dateRange, accountId, categoryId, searchQuery]);
 
   const fetchMoreTransactions = () => {
-    fetchTransactions(true, lastVisible);
+    fetchTransactions(true);
   }
 
   const groupedTransactions = React.useMemo(() => {
