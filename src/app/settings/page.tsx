@@ -114,6 +114,8 @@ function SettingsPageContent() {
       return;
     }
 
+    const sortedTransactions = [...transactions].sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime());
+
     const getAccount = (id?: string) => accounts.find(a => a.id === id);
     const getCategory = (id?: string) => categories.find(c => c.id === id);
 
@@ -125,9 +127,9 @@ function SettingsPageContent() {
 
     const csvRows = [headers.join(",")];
 
-    transactions.forEach(t => {
+    sortedTransactions.forEach(t => {
       const date = format(t.date.toDate(), "yyyy-MM-dd");
-      const comment = `"${t.description?.replace(/"/g, '""') || ''}"`;
+      const comment = t.description?.replace(/"/g, '""').trim() || '';
       
       let categoryName = '';
       let outcomeAccountName = '';
@@ -175,7 +177,15 @@ function SettingsPageContent() {
         outcomeAccountName, outcome, outcomeCurrency,
         incomeAccountName, income, incomeCurrency
       ];
-      csvRows.push(row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","));
+       const csvRow = row.map(val => {
+            const strVal = String(val);
+            // Add quotes only if the value contains a comma
+            if (strVal.includes(',')) {
+                return `"${strVal.replace(/"/g, '""')}"`;
+            }
+            return strVal;
+        }).join(",");
+      csvRows.push(csvRow);
     });
 
     const csvString = csvRows.join("\n");
