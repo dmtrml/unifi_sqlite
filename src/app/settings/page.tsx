@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import * as React from "react"
@@ -118,7 +119,7 @@ function SettingsPageContent() {
 
     const headers = [
       "Date", "Description", "Type", "Amount", "Currency", "Category", 
-      "Account", "From Account", "To Account", "Amount Sent", "Amount Received"
+      "Account", "From Account", "From Currency", "To Account", "To Currency", "Amount Sent", "Amount Received"
     ];
 
     const csvRows = [headers.join(",")];
@@ -139,7 +140,9 @@ function SettingsPageContent() {
           '', // Category
           '', // Account
           fromAccount?.name || 'N/A',
+          fromAccount?.currency || '',
           toAccount?.name || 'N/A',
+          toAccount?.currency || '',
           t.amountSent,
           t.amountReceived
         );
@@ -152,7 +155,9 @@ function SettingsPageContent() {
           category?.name || 'Uncategorized',
           account?.name || 'N/A',
           '', // From Account
+          '', // From Currency
           '', // To Account
+          '', // To Currency
           '', // Amount Sent
           ''  // Amount Received
         );
