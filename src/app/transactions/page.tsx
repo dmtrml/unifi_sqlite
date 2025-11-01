@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { collection, query, orderBy, doc, limit, startAfter, getDocs, where, Timestamp, type Query, type DocumentData, collectionGroup } from "firebase/firestore"
-import { useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase"
+import { useFirestore, useUser, useMemoFirebase, useDoc, useCollection } from "@/firebase"
 import AppLayout from "@/components/layout"
 import {
   ArrowRightLeft,
