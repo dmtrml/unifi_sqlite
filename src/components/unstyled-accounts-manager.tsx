@@ -24,6 +24,8 @@ import { useFirestore, useUser } from "@/firebase"
 import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import type { Account, AccountType } from "@/lib/types"
 
+const accountTypes: AccountType[] = ["Cash", "Card", "Bank Account", "Deposit", "Loan"];
+
 const accountIconMap: Record<AccountType, string> = {
     "Cash": "Wallet",
     "Card": "CreditCard",
@@ -31,8 +33,6 @@ const accountIconMap: Record<AccountType, string> = {
     "Deposit": "PiggyBank",
     "Loan": "HandCoins"
 };
-
-const iconNames = Object.values(accountIconMap);
 
 const colorOptions = [
     { value: "hsl(var(--chart-1))", label: "Teal" },
@@ -51,20 +51,20 @@ export function UnstyledAccountsManager({ accounts }: UnstyledAccountsManagerPro
   const firestore = useFirestore()
   const { user } = useUser()
 
-  const [accountStyles, setAccountStyles] = React.useState<Record<string, { icon: string; color: string }>>({})
+  const [accountStyles, setAccountStyles] = React.useState<Record<string, { type: AccountType; color: string }>>({})
 
   React.useEffect(() => {
     const initialStyles = accounts.reduce((acc, account) => {
-      acc[account.id] = { icon: account.icon, color: account.color }
+      acc[account.id] = { type: account.type, color: account.color }
       return acc
-    }, {} as Record<string, { icon: string; color: string }>)
+    }, {} as Record<string, { type: AccountType; color: string }>)
     setAccountStyles(initialStyles)
   }, [accounts])
 
-  const handleStyleChange = (accountId: string, field: 'icon' | 'color', value: string) => {
+  const handleStyleChange = (accountId: string, field: 'type' | 'color', value: string) => {
     setAccountStyles(prev => ({
       ...prev,
-      [accountId]: { ...prev[accountId], [field]: value }
+      [accountId]: { ...prev[accountId], [field]: value as AccountType }
     }))
   }
 
@@ -77,9 +77,12 @@ export function UnstyledAccountsManager({ accounts }: UnstyledAccountsManagerPro
     const styles = accountStyles[accountId]
     if (!styles) return
 
+    const icon = accountIconMap[styles.type] || "Landmark";
+
     const accountRef = doc(firestore, `users/${user.uid}/accounts/${accountId}`)
     updateDocumentNonBlocking(accountRef, {
-      icon: styles.icon,
+      type: styles.type,
+      icon: icon,
       color: styles.color,
     })
 
@@ -107,20 +110,20 @@ export function UnstyledAccountsManager({ accounts }: UnstyledAccountsManagerPro
             <div className="font-medium">{account.name}</div>
             <div className="flex items-center gap-2">
               <Select
-                value={accountStyles[account.id]?.icon || account.icon}
-                onValueChange={(value) => handleStyleChange(account.id, 'icon', value)}
+                value={accountStyles[account.id]?.type || account.type}
+                onValueChange={(value) => handleStyleChange(account.id, 'type', value)}
               >
                 <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Select icon" />
+                  <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {iconNames.map(iconName => {
-                    const IconComponent = (Icons as any)[iconName];
+                  {accountTypes.map(type => {
+                    const IconComponent = (Icons as any)[accountIconMap[type]];
                     return (
-                      <SelectItem key={iconName} value={iconName}>
+                      <SelectItem key={type} value={type}>
                         <div className="flex items-center gap-2">
                           {IconComponent && <IconComponent className="h-4 w-4" />}
-                          <span>{iconName}</span>
+                          <span>{type}</span>
                         </div>
                       </SelectItem>
                     )
