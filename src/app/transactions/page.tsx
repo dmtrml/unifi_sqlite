@@ -86,6 +86,7 @@ function TransactionsPageContent() {
   const [accountId, setAccountId] = React.useState<string>("all");
   const [categoryId, setCategoryId] = React.useState<string>("all");
   const [searchQuery, setSearchQuery] = React.useState<string>("");
+  const [sortOrder, setSortOrder] = React.useState<'desc' | 'asc'>('desc');
 
   const userDocRef = useMemoFirebase(
     () => (user ? doc(firestore, "users", user.uid) : null),
@@ -124,7 +125,6 @@ function TransactionsPageContent() {
 
     let q: Query<DocumentData> = query(collection(firestore, `users/${user.uid}/transactions`));
 
-    // Apply server-side filters that don't require composite indexes with date ordering
     if (accountId !== 'all') {
       q = query(q, where("accountId", "==", accountId));
     }
@@ -132,12 +132,8 @@ function TransactionsPageContent() {
       q = query(q, where("categoryId", "==", categoryId));
     }
 
-    // Always order by date
-    q = query(q, orderBy("date", "desc"));
+    q = query(q, orderBy("date", sortOrder));
     
-    // Date range filter is tricky with other filters. We'll apply it on client for simplicity
-    // without manual indexes. For production apps, creating indexes is the way to go.
-
     if (loadMore && lastVisible) {
         q = query(q, startAfter(lastVisible));
     }
@@ -148,7 +144,6 @@ function TransactionsPageContent() {
         const documentSnapshots = await getDocs(q);
         let newTransactions = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Transaction[];
         
-        // Client-side filtering
         const clientFilteredTransactions = newTransactions.filter(t => {
           let matchesDate = true;
           if (dateRange?.from) {
@@ -160,8 +155,15 @@ function TransactionsPageContent() {
             matchesDate = matchesDate && t.date.toDate() <= toDate;
           }
 
+          const lowerCasedSearch = searchQuery.toLowerCase();
           const matchesSearch = searchQuery 
-            ? t.description?.toLowerCase().includes(searchQuery.toLowerCase())
+            ? (t.description?.toLowerCase().includes(lowerCasedSearch) || 
+              (t.transactionType === 'expense' && getCategory(safeCategories, t.categoryId)?.name.toLowerCase().includes(lowerCasedSearch)) ||
+              (t.transactionType === 'income' && getCategory(safeCategories, t.categoryId)?.name.toLowerCase().includes(lowerCasedSearch)) ||
+              getAccount(safeAccounts, t.accountId)?.name.toLowerCase().includes(lowerCasedSearch) ||
+              (t.transactionType === 'transfer' && getAccount(safeAccounts, t.fromAccountId)?.name.toLowerCase().includes(lowerCasedSearch)) ||
+              (t.transactionType === 'transfer' && getAccount(safeAccounts, t.toAccountId)?.name.toLowerCase().includes(lowerCasedSearch))
+            )
             : true;
             
           return matchesDate && matchesSearch;
@@ -178,15 +180,16 @@ function TransactionsPageContent() {
         setIsLoading(false);
         setIsLoadingMore(false);
     }
-  }, [user, firestore, dateRange, accountId, categoryId, searchQuery, lastVisible, hasMore, toast]);
+  }, [user, firestore, dateRange, accountId, categoryId, searchQuery, sortOrder, hasMore, lastVisible, toast, safeAccounts, safeCategories]);
 
 
   React.useEffect(() => {
+    // We don't want to fetch if the dependent data isn't ready
     if (user && firestore && accounts && categories) {
       fetchTransactions(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, firestore, accounts, categories, dateRange, accountId, categoryId, searchQuery]);
+  }, [user, firestore, accounts, categories, dateRange, accountId, categoryId, searchQuery, sortOrder]);
 
 
   const groupedTransactions = React.useMemo(() => {
@@ -201,12 +204,21 @@ function TransactionsPageContent() {
       return acc;
     }, {} as Record<string, Transaction[]>);
   }, [transactions]);
+  
+  const sortedDateKeys = React.useMemo(() => {
+    const keys = Object.keys(groupedTransactions);
+    if (sortOrder === 'asc') {
+        return keys.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    }
+    return keys.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+  }, [groupedTransactions, sortOrder]);
 
   const handleFiltersReset = () => {
     setDateRange(undefined);
     setAccountId("all");
     setCategoryId("all");
     setSearchQuery("");
+    setSortOrder("desc");
   }
   
   const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: mainCurrency, minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -277,7 +289,7 @@ function TransactionsPageContent() {
                             </TableCell>
                         </TableRow>
                     </TableBody>
-                ) : Object.keys(groupedTransactions).length === 0 ? (
+                ) : sortedDateKeys.length === 0 ? (
                   <TableBody>
                     <TableRow>
                       <TableCell colSpan={7} className="text-center h-24">
@@ -286,7 +298,8 @@ function TransactionsPageContent() {
                     </TableRow>
                   </TableBody>
                 ) : (
-                  Object.entries(groupedTransactions).map(([date, transactionsInGroup]) => {
+                  sortedDateKeys.map((date) => {
+                    const transactionsInGroup = groupedTransactions[date];
                     const dailyTotal = transactionsInGroup.reduce((sum, t) => {
                       if (t.transactionType === 'expense') {
                          const amount = t.amount || 0;
@@ -382,12 +395,13 @@ function TransactionsPageContent() {
                     <div className="text-center h-24 flex items-center justify-center text-muted-foreground">
                        <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
                     </div>
-              ) : Object.keys(groupedTransactions).length === 0 ? (
+              ) : sortedDateKeys.length === 0 ? (
                  <div className="text-center h-24 flex items-center justify-center text-muted-foreground">
                     No transactions found for the selected filters.
                   </div>
               ) : (
-                Object.entries(groupedTransactions).map(([date, transactionsInGroup]) => {
+                sortedDateKeys.map((date) => {
+                  const transactionsInGroup = groupedTransactions[date];
                   const dailyTotal = transactionsInGroup.reduce((sum, t) => {
                       if (t.transactionType === 'expense') {
                          const amount = t.amount || 0;
