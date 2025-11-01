@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { collection, query, orderBy, doc, limit, startAfter, getDocs, where, Timestamp, type Query, type DocumentData } from "firebase/firestore"
-import { useFirestore, useUser, useMemoFirebase, useCollection, useDoc } from "@/firebase"
+import { collection, query, orderBy, doc, limit, startAfter, getDocs, where, Timestamp, type Query, type DocumentData, collectionGroup } from "firebase/firestore"
+import { useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase"
 import AppLayout from "@/components/layout"
 import {
   ArrowRightLeft,
@@ -122,31 +122,71 @@ function TransactionsPageContent() {
         setLastVisible(null);
         setHasMore(true);
     }
+    
+    let baseQuery = query(collection(firestore, `users/${user.uid}/transactions`));
 
-    let q: Query<DocumentData> = query(collection(firestore, `users/${user.uid}/transactions`));
-
-    // Server-side filtering only for fields with indexes
+    // Server-side filtering
+    const queries: Query<DocumentData>[] = [];
     if (accountId !== 'all') {
-      q = query(q, where("accountId", "==", accountId));
+        // Create 3 separate queries for transfers and regular transactions
+        queries.push(query(baseQuery, where("accountId", "==", accountId)));
+        queries.push(query(baseQuery, where("fromAccountId", "==", accountId)));
+        queries.push(query(baseQuery, where("toAccountId", "==", accountId)));
+    } else {
+        queries.push(baseQuery);
     }
+
     if (categoryId !== 'all') {
-       q = query(q, where("categoryId", "==", categoryId));
+        // Apply category filter to all queries that can have categories
+        for (let i = 0; i < queries.length; i++) {
+           if (queries[i] === baseQuery || (accountId !== 'all' && i === 0)) {
+               queries[i] = query(queries[i], where("categoryId", "==", categoryId));
+           }
+        }
     }
     
     // Server-side sorting
-    q = query(q, orderBy("date", sortOrder));
-
-    if (loadMore && lastVisible) {
-        q = query(q, startAfter(lastVisible));
+    for (let i = 0; i < queries.length; i++) {
+       queries[i] = query(queries[i], orderBy("date", sortOrder));
     }
 
-    q = query(q, limit(PAGE_SIZE));
+    if (loadMore && lastVisible) {
+        for (let i = 0; i < queries.length; i++) {
+            queries[i] = query(queries[i], startAfter(lastVisible));
+        }
+    }
+
+    for (let i = 0; i < queries.length; i++) {
+      queries[i] = query(queries[i], limit(PAGE_SIZE));
+    }
 
     try {
-        const documentSnapshots = await getDocs(q);
-        let newTransactions = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Transaction[];
+        const queryPromises = queries.map(q => getDocs(q));
+        const querySnapshots = await Promise.all(queryPromises);
 
-        // Client-side filtering for date range and search query
+        const newTransactionsMap = new Map<string, Transaction>();
+        let latestDoc: DocumentData | null = null;
+        let totalDocs = 0;
+
+        querySnapshots.forEach(snapshot => {
+            snapshot.docs.forEach(doc => {
+                if (!newTransactionsMap.has(doc.id)) {
+                    newTransactionsMap.set(doc.id, { id: doc.id, ...doc.data() } as Transaction);
+                }
+            });
+            totalDocs += snapshot.docs.length;
+            
+            const currentLastDoc = snapshot.docs[snapshot.docs.length - 1];
+            if (currentLastDoc) {
+                if (!latestDoc || (sortOrder === 'desc' && currentLastDoc.data().date > latestDoc.data().date) || (sortOrder === 'asc' && currentLastDoc.data().date < latestDoc.data().date)) {
+                    latestDoc = currentLastDoc;
+                }
+            }
+        });
+        
+        let newTransactions = Array.from(newTransactionsMap.values());
+        
+        // Client-side filtering for search query and date range (as they don't have indexes)
         const clientFilteredTransactions = newTransactions.filter(t => {
           let matchesDate = true;
           if (dateRange?.from) {
@@ -161,21 +201,25 @@ function TransactionsPageContent() {
           const lowerCasedSearch = searchQuery.toLowerCase();
           const matchesSearch = searchQuery 
             ? (t.description?.toLowerCase().includes(lowerCasedSearch) || 
-              (t.transactionType === 'expense' && getCategory(safeCategories, t.categoryId)?.name.toLowerCase().includes(lowerCasedSearch)) ||
-              (t.transactionType === 'income' && getCategory(safeCategories, t.categoryId)?.name.toLowerCase().includes(lowerCasedSearch)) ||
+              getCategory(safeCategories, t.categoryId)?.name.toLowerCase().includes(lowerCasedSearch) ||
               getAccount(safeAccounts, t.accountId)?.name.toLowerCase().includes(lowerCasedSearch) ||
-              (t.transactionType === 'transfer' && getAccount(safeAccounts, t.fromAccountId)?.name.toLowerCase().includes(lowerCasedSearch)) ||
-              (t.transactionType === 'transfer' && getAccount(safeAccounts, t.toAccountId)?.name.toLowerCase().includes(lowerCasedSearch))
+              getAccount(safeAccounts, t.fromAccountId)?.name.toLowerCase().includes(lowerCasedSearch) ||
+              getAccount(safeAccounts, t.toAccountId)?.name.toLowerCase().includes(lowerCasedSearch)
             )
             : true;
             
           return matchesDate && matchesSearch;
+        }).sort((a, b) => {
+            const dateA = a.date.toMillis();
+            const dateB = b.date.toMillis();
+            return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
         });
 
-        const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1] || null;
-        setLastVisible(newLastVisible);
+        setLastVisible(latestDoc);
         setTransactions(prev => loadMore ? [...prev, ...clientFilteredTransactions] : clientFilteredTransactions);
-        setHasMore(documentSnapshots.docs.length === PAGE_SIZE);
+        // A simplification: if the total docs from all queries is less than the page size for each, assume no more.
+        setHasMore(totalDocs >= (queries.length * PAGE_SIZE / 2));
+        
     } catch (error) {
         console.error("Error fetching transactions: ", error);
         toast({ title: "Error", description: "Could not fetch transactions. Check console for details.", variant: "destructive" });
