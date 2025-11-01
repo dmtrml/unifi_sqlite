@@ -125,15 +125,17 @@ function TransactionsPageContent() {
 
     let q: Query<DocumentData> = query(collection(firestore, `users/${user.uid}/transactions`));
 
+    // Server-side filtering only for fields with indexes
     if (accountId !== 'all') {
       q = query(q, where("accountId", "==", accountId));
     }
     if (categoryId !== 'all') {
-      q = query(q, where("categoryId", "==", categoryId));
+       q = query(q, where("categoryId", "==", categoryId));
     }
-
-    q = query(q, orderBy("date", sortOrder));
     
+    // Server-side sorting
+    q = query(q, orderBy("date", sortOrder));
+
     if (loadMore && lastVisible) {
         q = query(q, startAfter(lastVisible));
     }
@@ -143,7 +145,8 @@ function TransactionsPageContent() {
     try {
         const documentSnapshots = await getDocs(q);
         let newTransactions = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Transaction[];
-        
+
+        // Client-side filtering for date range and search query
         const clientFilteredTransactions = newTransactions.filter(t => {
           let matchesDate = true;
           if (dateRange?.from) {
@@ -265,6 +268,8 @@ function TransactionsPageContent() {
               onCategoryChange={setCategoryId}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
+              sortOrder={sortOrder}
+              onSortOrderChange={setSortOrder}
               onReset={handleFiltersReset}
             />
             {/* Desktop Table */}
