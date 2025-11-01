@@ -35,6 +35,8 @@ interface TransactionFiltersProps {
   onCategoryChange: (categoryId: string) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  sortOrder: 'desc' | 'asc';
+  onSortOrderChange: (order: 'desc' | 'asc') => void;
   onReset: () => void;
 }
 
@@ -49,6 +51,8 @@ export function TransactionFilters({
   onCategoryChange,
   searchQuery,
   onSearchChange,
+  sortOrder,
+  onSortOrderChange,
   onReset,
 }: TransactionFiltersProps) {
 
@@ -182,6 +186,16 @@ export function TransactionFilters({
                 {category.name}
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        
+        <Select value={sortOrder} onValueChange={(value) => onSortOrderChange(value as 'desc' | 'asc')}>
+          <SelectTrigger className="w-full md:w-[180px]">
+            <SelectValue placeholder="Sort by date" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="desc">Newest first</SelectItem>
+            <SelectItem value="asc">Oldest first</SelectItem>
           </SelectContent>
         </Select>
         
