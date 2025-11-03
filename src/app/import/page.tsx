@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import * as React from "react"
@@ -76,7 +77,7 @@ function ImportPageContent() {
     () => (user ? doc(firestore, "users", user.uid) : null),
     [user, firestore]
   )
-  const { data: userData } = useDoc<User>(userDocRef);
+  const { data: userData } = useDoc<User>(userData);
 
   const categoriesQuery = useMemoFirebase(() => 
     user ? query(collection(firestore, "users", user.uid, "categories")) : null, 
@@ -330,7 +331,7 @@ function ImportPageContent() {
                                 }
                                 
                                 const accountInfo = getOrCreateAccount(accountName, currency, localAccounts, batch, finalResult);
-                                let categoryId: string | undefined = undefined;
+                                let categoryId: string | null = null;
                                 if (mappedRow.categoryName) {
                                    categoryId = getOrCreateCategory(mappedRow.categoryName, transactionType, localCategories, batch, finalResult);
                                 }
@@ -338,7 +339,9 @@ function ImportPageContent() {
                                 const finalAmount = transactionType === 'expense' ? -Math.abs(amount) : Math.abs(amount);
                                 
                                 transactionData = {
-                                    userId: user.uid, date, amount: Math.abs(amount),
+                                    userId: user.uid,
+                                    date,
+                                    amount: Math.abs(amount),
                                     description: mappedRow.comment || 'Imported Transaction',
                                     transactionType: transactionType,
                                     accountId: accountInfo.id, 
@@ -628,3 +631,5 @@ export default function ImportPage() {
         </AppLayout>
     )
 }
+
+    
