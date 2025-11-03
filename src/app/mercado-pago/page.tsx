@@ -110,10 +110,14 @@ function MercadoPagoPageContent() {
     setError(null);
     const result = await getMercadoPagoTransactions(accessToken, offset);
 
+    // Всегда сохраняем сырые данные, если они есть
+    if (result.rawData) {
+        setRawApiResponses(prev => [...prev, result.rawData]);
+    }
+    
     if (result.success) {
       setTransactions(prev => (offset > 0 ? [...prev, ...result.data] : result.data));
       setNextOffset(result.nextOffset);
-      setRawApiResponses(prev => [...prev, result.rawData]);
       if (step === 1) setStep(2);
     } else {
       setError(result.error);
@@ -253,6 +257,12 @@ function MercadoPagoPageContent() {
               <CardDescription>Проверьте транзакции и выберите счет для импорта.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+                {error && (
+                  <Alert variant="destructive" className="mt-4">
+                      <AlertTitle>Ошибка</AlertTitle>
+                      <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
                 <div className="flex items-center gap-4">
                     <p>Импортировать в счет:</p>
                     <Select onValueChange={setSelectedAccountId} value={selectedAccountId || ""}>

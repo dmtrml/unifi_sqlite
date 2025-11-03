@@ -69,6 +69,7 @@ export async function getMercadoPagoTransactions(
     const parsed = MercadoPagoResponseSchema.safeParse(rawData);
     if (!parsed.success) {
       console.error('Validation Error:', parsed.error.flatten());
+      // Возвращаем ошибку, но также и сырые данные для отладки
       return { success: false, error: 'Invalid data received from Mercado Pago.', rawData };
     }
     
