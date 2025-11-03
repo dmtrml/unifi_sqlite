@@ -40,15 +40,13 @@ export async function getMercadoPagoTransactions(
 
   try {
     const allTransactions: z.infer<typeof MercadoPagoTransactionSchema>[] = [];
-    const allRawResults: any[] = [];
     let offset = 0;
-    let page = 0;
+    let keepFetching = true;
 
     const begin = opts?.beginDate ?? undefined;
     const end = opts?.endDate ?? undefined;
 
-    // Шаг 1: Начинаем бесконечный цикл, который будет прерван изнутри.
-    while (true) {
+    while (keepFetching) {
       const params = new URLSearchParams({
         sort: 'date_created',
         criteria: 'desc',
@@ -62,7 +60,6 @@ export async function getMercadoPagoTransactions(
         params.set('end_date', end);
       }
       
-      // Шаг 2: Отправляем запрос к API для получения очередной "страницы" данных.
       const response = await fetch(`${MERCADO_PAGO_API_URL}?${params.toString()}`, {
         method: 'GET',
         headers: {
@@ -92,27 +89,15 @@ export async function getMercadoPagoTransactions(
       const { results } = parsed.data;
 
       allTransactions.push(...results);
-      allRawResults.push(...results);
 
-      // Шаг 3: Проверяем условие выхода. Если API вернуло меньше записей, чем мы просили,
-      // значит, это была последняя страница. Прерываем цикл.
       if (results.length < PAGE_LIMIT) {
-        break; 
+        keepFetching = false;
+      } else {
+        offset += results.length;
       }
-      
-      // Шаг 4: Готовимся к следующему запросу, увеличивая смещение.
-      offset += results.length;
 
-      // Шаг 5: Добавляем небольшую задержку, чтобы не перегружать API запросами.
-      // Это делает наш скрипт более надежным и "вежливым".
+      // Небольшая задержка, чтобы не перегружать API
       await new Promise(resolve => setTimeout(resolve, 300));
-
-
-      // Шаг 6: Защита от бесконечного цикла на случай непредвиденного поведения API.
-      if (++page > 1000) {
-        console.warn('Reached page limit of 1000. Exiting loop.');
-        break;
-      }
     }
 
     const simplifiedTransactions = allTransactions.map((tx) => {
@@ -129,7 +114,7 @@ export async function getMercadoPagoTransactions(
       };
     });
 
-    return { success: true, data: simplifiedTransactions, rawData: { results: allRawResults } };
+    return { success: true, data: simplifiedTransactions, rawData: { results: allTransactions } };
   } catch (error) {
     console.error('Failed to fetch Mercado Pago transactions:', error);
     if (error instanceof Error) {
