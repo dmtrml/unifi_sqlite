@@ -37,11 +37,8 @@ import {
 } from "@/components/ui/select"
 import type { Account, Category } from "@/lib/types"
 
-/**
- * Определяет упрощенную структуру транзакции, которую мы будем использовать в приложении.
- */
 export const SimplifiedTransactionSchema = z.object({
-  id: z.string(), // ID должен быть строкой
+  id: z.string(),
   date: z.string(),
   description: z.string(),
   amount: z.number(),
@@ -53,7 +50,6 @@ export const SimplifiedTransactionSchema = z.object({
 
 export type SimplifiedTransaction = z.infer<typeof SimplifiedTransactionSchema>;
 
-
 interface ImportResult {
     successCount: number;
     errorCount: number;
@@ -63,12 +59,14 @@ function MercadoPagoPageContent() {
   const [step, setStep] = React.useState(1);
   const [accessToken, setAccessToken] = React.useState("");
   const [transactions, setTransactions] = React.useState<SimplifiedTransaction[]>([]);
-  const [rawApiResponse, setRawApiResponse] = React.useState<any>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [isImporting, setIsImporting] = React.useState(false);
   const [importResult, setImportResult] = React.useState<ImportResult | null>(null);
   const [selectedAccountId, setSelectedAccountId] = React.useState<string | null>(null);
+
+  const [nextOffset, setNextOffset] = React.useState<number | null>(0);
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
 
   const { user } = useUser();
   const firestore = useFirestore();
@@ -95,26 +93,29 @@ function MercadoPagoPageContent() {
     setIsImporting(false);
     setImportResult(null);
     setSelectedAccountId(null);
-    setRawApiResponse(null);
+    setNextOffset(0);
+    setIsLoadingMore(false);
   };
 
-  const handleFetchTransactions = async () => {
-    setIsLoading(true);
-    setError(null);
-    setRawApiResponse(null);
-    const result = await getMercadoPagoTransactions(accessToken);
-
-    if (result.rawData) {
-      setRawApiResponse(result.rawData);
+  const handleFetchTransactions = async (offset = 0) => {
+    if(offset > 0) {
+      setIsLoadingMore(true);
+    } else {
+      setIsLoading(true);
     }
+    setError(null);
+    const result = await getMercadoPagoTransactions(accessToken, offset);
 
     if (result.success) {
-      setTransactions(result.data);
-      setStep(2);
+      setTransactions(prev => (offset > 0 ? [...prev, ...result.data] : result.data));
+      setNextOffset(result.nextOffset);
+      if (step === 1) setStep(2);
     } else {
       setError(result.error);
     }
+    
     setIsLoading(false);
+    setIsLoadingMore(false);
   };
 
   const getOrCreateCategory = (
@@ -127,7 +128,6 @@ function MercadoPagoPageContent() {
       if (category) {
           return category.id;
       }
-      // Для простоты, создадим категорию, если ее нет
       const newCategoryData = {
           name: name,
           userId: user!.uid,
@@ -188,7 +188,6 @@ function MercadoPagoPageContent() {
             await batch.commit();
         }
 
-        // Обновляем баланс счета после всех батчей
         const accountRef = doc(firestore, `users/${user.uid}/accounts/${selectedAccountId}`);
         const accountToUpdate = accounts.find(a => a.id === selectedAccountId);
         if (accountToUpdate) {
@@ -234,7 +233,7 @@ function MercadoPagoPageContent() {
               )}
             </CardContent>
             <CardFooter>
-              <Button onClick={handleFetchTransactions} disabled={isLoading || !accessToken}>
+              <Button onClick={() => handleFetchTransactions(0)} disabled={isLoading || !accessToken}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Получить транзакции
               </Button>
@@ -288,6 +287,14 @@ function MercadoPagoPageContent() {
                         </TableBody>
                     </Table>
                 </div>
+                 {nextOffset !== null && (
+                  <div className="flex justify-center">
+                      <Button onClick={() => handleFetchTransactions(nextOffset)} disabled={isLoadingMore}>
+                          {isLoadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Загрузить еще
+                      </Button>
+                  </div>
+                )}
             </CardContent>
             <CardFooter className="justify-end gap-2">
                 <Button variant="outline" onClick={resetState}>Назад</Button>
@@ -344,18 +351,6 @@ function MercadoPagoPageContent() {
         <div className="flex items-center">
           <h1 className="text-lg font-semibold md:text-2xl">Интеграция с Mercado Pago</h1>
         </div>
-        {rawApiResponse && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Ответ от API Mercado Pago</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <pre className="p-4 bg-muted rounded-md overflow-auto text-sm max-h-96">
-                {JSON.stringify(rawApiResponse, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
-        )}
         {renderStepContent()}
       </main>
     </AppLayout>

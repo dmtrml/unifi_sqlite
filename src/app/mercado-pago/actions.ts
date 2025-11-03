@@ -28,9 +28,9 @@ const MercadoPagoResponseSchema = z.object({
 
 export async function getMercadoPagoTransactions(
   accessToken: string,
-  opts?: { beginDate?: string; endDate?: string } // ISO строки, напр. "2025-10-01T00:00:00Z"
+  offset: number = 0
 ): Promise<
-  | { success: true; data: any[]; rawData: any }
+  | { success: true; data: any[]; nextOffset: number | null; rawData: any }
   | { success: false; error: string; rawData?: any }
 > {
   if (!accessToken) return { success: false, error: 'Access Token not provided.' };
@@ -39,68 +39,42 @@ export async function getMercadoPagoTransactions(
   const PAGE_LIMIT = 50;
 
   try {
-    const allTransactions: z.infer<typeof MercadoPagoTransactionSchema>[] = [];
-    let offset = 0;
-    let keepFetching = true;
+    const params = new URLSearchParams({
+      sort: 'date_created',
+      criteria: 'desc',
+      limit: String(PAGE_LIMIT),
+      offset: String(offset),
+    });
 
-    const begin = opts?.beginDate ?? undefined;
-    const end = opts?.endDate ?? undefined;
+    const response = await fetch(`${MERCADO_PAGO_API_URL}?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    });
+    
+    const rawData = await response.json();
 
-    while (keepFetching) {
-      const params = new URLSearchParams({
-        sort: 'date_created',
-        criteria: 'desc',
-        limit: String(PAGE_LIMIT),
-        offset: String(offset),
-      });
-
-      if (begin && end) {
-        params.set('range', 'date_created');
-        params.set('begin_date', begin);
-        params.set('end_date', end);
-      }
-      
-      const response = await fetch(`${MERCADO_PAGO_API_URL}?${params.toString()}`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        cache: 'no-store',
-      });
-      
-      const rawData = await response.json();
-
-      if (!response.ok) {
-        console.error('Mercado Pago API Error:', rawData);
-        return {
-          success: false,
-          error: `Mercado Pago API Error: ${rawData.message || 'Could not fetch data.'}`,
-          rawData,
-        };
-      }
-
-      const parsed = MercadoPagoResponseSchema.safeParse(rawData);
-      if (!parsed.success) {
-        console.error('Validation Error:', parsed.error.flatten());
-        return { success: false, error: 'Invalid data received from Mercado Pago.', rawData };
-      }
-      
-      const { results } = parsed.data;
-
-      allTransactions.push(...results);
-
-      if (results.length < PAGE_LIMIT) {
-        keepFetching = false;
-      } else {
-        offset += results.length;
-      }
-
-      // Небольшая задержка, чтобы не перегружать API
-      await new Promise(resolve => setTimeout(resolve, 300));
+    if (!response.ok) {
+      console.error('Mercado Pago API Error:', rawData);
+      return {
+        success: false,
+        error: `Mercado Pago API Error: ${rawData.message || 'Could not fetch data.'}`,
+        rawData,
+      };
     }
 
-    const simplifiedTransactions = allTransactions.map((tx) => {
+    const parsed = MercadoPagoResponseSchema.safeParse(rawData);
+    if (!parsed.success) {
+      console.error('Validation Error:', parsed.error.flatten());
+      return { success: false, error: 'Invalid data received from Mercado Pago.', rawData };
+    }
+    
+    const { results, paging } = parsed.data;
+
+    const simplifiedTransactions = results.map((tx) => {
       const isIncome = tx.card === null || tx.card === undefined;
       return {
         id: String(tx.id),
@@ -113,8 +87,11 @@ export async function getMercadoPagoTransactions(
         payer: tx.payer?.email || 'Unknown',
       };
     });
+    
+    const hasMore = (paging.offset + results.length) < paging.total;
+    const nextOffset = hasMore ? paging.offset + results.length : null;
 
-    return { success: true, data: simplifiedTransactions, rawData: { results: allTransactions } };
+    return { success: true, data: simplifiedTransactions, nextOffset, rawData };
   } catch (error) {
     console.error('Failed to fetch Mercado Pago transactions:', error);
     if (error instanceof Error) {
