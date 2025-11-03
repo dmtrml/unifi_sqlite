@@ -2,6 +2,12 @@
 
 import { z } from 'zod';
 
+const MercadoPagoPagingSchema = z.object({
+  total: z.number(),
+  limit: z.number(),
+  offset: z.number(),
+});
+
 const MercadoPagoTransactionSchema = z.object({
   id: z.number(),
   date_approved: z.string().nullable(),
@@ -20,6 +26,7 @@ const MercadoPagoTransactionSchema = z.object({
 });
 
 const MercadoPagoResponseSchema = z.object({
+  paging: MercadoPagoPagingSchema,
   results: z.array(MercadoPagoTransactionSchema),
 });
 
@@ -30,32 +37,45 @@ export async function getMercadoPagoTransactions(accessToken: string): Promise<{
   }
 
   const MERCADO_PAGO_API_URL = 'https://api.mercadopago.com/v1/payments/search';
+  const PAGE_LIMIT = 50;
 
   try {
-    const response = await fetch(`${MERCADO_PAGO_API_URL}?sort=date_created&criteria=desc`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      cache: 'no-store',
-    });
-    
-    const rawData = await response.json();
+    let allTransactions: z.infer<typeof MercadoPagoTransactionSchema>[] = [];
+    let offset = 0;
+    let total = 0;
 
-    if (!response.ok) {
-      console.error('Mercado Pago API Error:', rawData);
-      return { success: false, error: `Mercado Pago API Error: ${rawData.message || 'Could not fetch data.'}`, rawData };
-    }
-    
-    const parsedResponse = MercadoPagoResponseSchema.safeParse(rawData);
+    do {
+      const response = await fetch(`${MERCADO_PAGO_API_URL}?sort=date_created&criteria=desc&limit=${PAGE_LIMIT}&offset=${offset}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      });
+      
+      const rawData = await response.json();
 
-    if (!parsedResponse.success) {
-        console.error('Validation Error:', parsedResponse.error.flatten());
-        return { success: false, error: 'Invalid data received from Mercado Pago.', rawData };
-    }
+      if (!response.ok) {
+        console.error('Mercado Pago API Error:', rawData);
+        return { success: false, error: `Mercado Pago API Error: ${rawData.message || 'Could not fetch data.'}`, rawData };
+      }
+      
+      const parsedResponse = MercadoPagoResponseSchema.safeParse(rawData);
 
-    const simplifiedTransactions = parsedResponse.data.results.map((tx) => {
+      if (!parsedResponse.success) {
+          console.error('Validation Error:', parsedResponse.error.flatten());
+          return { success: false, error: 'Invalid data received from Mercado Pago.', rawData };
+      }
+      
+      allTransactions = allTransactions.concat(parsedResponse.data.results);
+      total = parsedResponse.data.paging.total;
+      offset += PAGE_LIMIT;
+
+    } while (offset < total);
+
+
+    const simplifiedTransactions = allTransactions.map((tx) => {
       const isIncome = tx.card === null || tx.card === undefined;
       return {
         id: String(tx.id),
@@ -69,7 +89,7 @@ export async function getMercadoPagoTransactions(accessToken: string): Promise<{
       }
     });
 
-    return { success: true, data: simplifiedTransactions, rawData };
+    return { success: true, data: simplifiedTransactions, rawData: { results: allTransactions } };
 
   } catch (error) {
     console.error('Failed to fetch Mercado Pago transactions:', error);
