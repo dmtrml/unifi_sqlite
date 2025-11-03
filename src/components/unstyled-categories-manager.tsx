@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import * as React from "react"
@@ -43,17 +44,17 @@ export function UnstyledCategoriesManager({ categories }: UnstyledCategoriesMana
   const firestore = useFirestore()
   const { user } = useUser()
 
-  const [categoryStyles, setCategoryStyles] = React.useState<Record<string, { icon: string; color: string }>>({})
+  const [categoryStyles, setCategoryStyles] = React.useState<Record<string, { icon: string }>>({})
 
   React.useEffect(() => {
     const initialStyles = categories.reduce((acc, category) => {
-      acc[category.id] = { icon: category.icon, color: category.color }
+      acc[category.id] = { icon: category.icon }
       return acc
-    }, {} as Record<string, { icon: string; color: string }>)
+    }, {} as Record<string, { icon: string }>)
     setCategoryStyles(initialStyles)
   }, [categories])
 
-  const handleStyleChange = (categoryId: string, field: 'icon' | 'color', value: string) => {
+  const handleStyleChange = (categoryId: string, field: 'icon', value: string) => {
     setCategoryStyles(prev => ({
       ...prev,
       [categoryId]: { ...prev[categoryId], [field]: value }
@@ -72,7 +73,6 @@ export function UnstyledCategoriesManager({ categories }: UnstyledCategoriesMana
     const categoryRef = doc(firestore, `users/${user.uid}/categories/${categoryId}`)
     updateDocumentNonBlocking(categoryRef, {
       icon: styles.icon,
-      color: styles.color,
     })
 
     toast({
@@ -96,7 +96,11 @@ export function UnstyledCategoriesManager({ categories }: UnstyledCategoriesMana
       <CardContent className="space-y-4">
         {categories.map((category) => (
           <div key={category.id} className="flex items-center justify-between gap-2 md:gap-4 p-3 border rounded-lg">
-            <div className="font-medium">{category.name}</div>
+            <div className="flex items-center gap-3">
+              <div className="h-5 w-5 rounded-full" style={{ backgroundColor: category.color }} />
+              <span className="font-medium">{category.name}</span>
+            </div>
+
             <div className="flex items-center gap-2">
               <Select
                 value={categoryStyles[category.id]?.icon || category.icon}
@@ -118,26 +122,6 @@ export function UnstyledCategoriesManager({ categories }: UnstyledCategoriesMana
                         </SelectItem>
                       )
                     })}
-                  </ScrollArea>
-                </SelectContent>
-              </Select>
-              <Select
-                value={categoryStyles[category.id]?.color || category.color}
-                onValueChange={(value) => handleStyleChange(category.id, 'color', value)}
-              >
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue placeholder="Select color" />
-                </SelectTrigger>
-                <SelectContent>
-                  <ScrollArea className="h-60">
-                    {colorOptions.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                          <div className="flex items-center gap-2">
-                              <div className="h-4 w-4 rounded-full" style={{ backgroundColor: opt.value }} />
-                              {opt.label}
-                          </div>
-                      </SelectItem>
-                    ))}
                   </ScrollArea>
                 </SelectContent>
               </Select>

@@ -215,17 +215,26 @@ function ImportPageContent() {
       return { id: newAccountRef.id, currency: newAccountCurrency };
   };
 
-  const getOrCreateCategory = (name: string, type: 'expense' | 'income', localCategories: Category[], batch: any, result: ImportResult): string => {
+  const getOrCreateCategory = (
+    name: string, 
+    type: 'expense' | 'income', 
+    localCategories: Category[], 
+    batch: any, 
+    result: ImportResult,
+    availableColors: string[]
+  ): string => {
     let category = localCategories.find(c => c.name.toLowerCase() === name.toLowerCase());
     if (category) {
       return category.id;
     }
 
+    const newColor = availableColors.pop() || "hsl(var(--muted-foreground))";
+
     const newCategoryData = {
       name: name,
       userId: user!.uid,
       icon: "MoreHorizontal",
-      color: "hsl(var(--muted-foreground))",
+      color: newColor,
       type: type,
     };
     const newCategoryRef = doc(collection(firestore!, `users/${user!.uid}/categories`));
@@ -242,12 +251,17 @@ function ImportPageContent() {
     setIsImporting(true);
     setStep(3);
     
-    // Prepare a shuffled list of unique, available colors for new accounts
-    const existingColors = new Set(accounts.map(a => a.color));
-    const availableColors = colorOptions
+    const existingAccountColors = new Set(accounts.map(a => a.color));
+    const availableAccountColors = colorOptions
       .map(c => c.value)
-      .filter(c => !existingColors.has(c))
-      .sort(() => 0.5 - Math.random()); // Shuffle
+      .filter(c => !existingAccountColors.has(c))
+      .sort(() => 0.5 - Math.random());
+
+    const existingCategoryColors = new Set(categories.map(c => c.color));
+    const availableCategoryColors = colorOptions
+      .map(c => c.value)
+      .filter(c => !existingCategoryColors.has(c))
+      .sort(() => 0.5 - Math.random());
 
     const localAccounts = [...accounts];
     const localCategories = [...categories];
@@ -312,8 +326,8 @@ function ImportPageContent() {
                                     finalResult.errorCount++; continue;
                                 }
 
-                                const fromAccountInfo = getOrCreateAccount(mappedRow.outcomeAccountName, mappedRow.outcomeCurrency, localAccounts, batch, finalResult, availableColors);
-                                const toAccountInfo = getOrCreateAccount(mappedRow.incomeAccountName, mappedRow.incomeCurrency, localAccounts, batch, finalResult, availableColors);
+                                const fromAccountInfo = getOrCreateAccount(mappedRow.outcomeAccountName, mappedRow.outcomeCurrency, localAccounts, batch, finalResult, availableAccountColors);
+                                const toAccountInfo = getOrCreateAccount(mappedRow.incomeAccountName, mappedRow.incomeCurrency, localAccounts, batch, finalResult, availableAccountColors);
                                 
                                 const isMultiCurrency = fromAccountInfo.currency !== toAccountInfo.currency;
                                 
@@ -341,10 +355,10 @@ function ImportPageContent() {
                                    finalResult.errorCount++; continue;
                                 }
                                 
-                                const accountInfo = getOrCreateAccount(accountName, currency, localAccounts, batch, finalResult, availableColors);
+                                const accountInfo = getOrCreateAccount(accountName, currency, localAccounts, batch, finalResult, availableAccountColors);
                                 let categoryId: string | null = null;
                                 if (mappedRow.categoryName) {
-                                   categoryId = getOrCreateCategory(mappedRow.categoryName, transactionType, localCategories, batch, finalResult);
+                                   categoryId = getOrCreateCategory(mappedRow.categoryName, transactionType, localCategories, batch, finalResult, availableCategoryColors);
                                 }
                                 
                                 const finalAmount = transactionType === 'expense' ? -Math.abs(amount) : Math.abs(amount);
