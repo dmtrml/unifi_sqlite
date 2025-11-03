@@ -3,6 +3,7 @@
 import * as React from "react"
 import { collection, writeBatch, doc } from "firebase/firestore"
 import { Loader2, Check, Info, Import } from "lucide-react"
+import { z } from 'zod';
 
 import AppLayout from "@/components/layout"
 import { Button } from "@/components/ui/button"
@@ -18,7 +19,7 @@ import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useFirestore, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { getMercadoPagoTransactions, type SimplifiedTransaction } from "./actions"
+import { getMercadoPagoTransactions } from "./actions"
 import {
   Table,
   TableBody,
@@ -35,6 +36,22 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { Account, Category } from "@/lib/types"
+
+/**
+ * Определяет упрощенную структуру транзакции, которую мы будем использовать в приложении.
+ */
+export const SimplifiedTransactionSchema = z.object({
+  id: z.number(),
+  date: z.string(),
+  description: z.string(),
+  amount: z.number(),
+  currency: z.string(),
+  type: z.enum(['income', 'expense']),
+  status: z.string(),
+  payer: z.string(),
+});
+
+export type SimplifiedTransaction = z.infer<typeof SimplifiedTransactionSchema>;
 
 interface ImportResult {
     successCount: number;

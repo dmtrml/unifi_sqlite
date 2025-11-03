@@ -1,6 +1,7 @@
 'use server';
 
 import { z } from 'zod';
+import type { SimplifiedTransaction } from './page';
 
 /**
  * Определяет структуру ответа от API Mercado Pago для одной транзакции.
@@ -25,22 +26,6 @@ const MercadoPagoTransactionSchema = z.object({
 const MercadoPagoResponseSchema = z.object({
   results: z.array(MercadoPagoTransactionSchema),
 });
-
-/**
- * Определяет упрощенную структуру транзакции, которую мы будем использовать в приложении.
- */
-export const SimplifiedTransactionSchema = z.object({
-  id: z.number(),
-  date: z.string(),
-  description: z.string(),
-  amount: z.number(),
-  currency: z.string(),
-  type: z.enum(['income', 'expense']),
-  status: z.string(),
-  payer: z.string(),
-});
-
-export type SimplifiedTransaction = z.infer<typeof SimplifiedTransactionSchema>;
 
 /**
  * Серверная функция для получения и обработки транзакций из Mercado Pago.
