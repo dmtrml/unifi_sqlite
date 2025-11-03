@@ -41,7 +41,7 @@ export async function getMercadoPagoTransactions(accessToken: string): Promise<{
 
   try {
     let allTransactions: z.infer<typeof MercadoPagoTransactionSchema>[] = [];
-    let allRawResults: z.infer<typeof MercadoPagoTransactionSchema>[] = [];
+    let allRawResults: any[] = [];
     let offset = 0;
     let total = 0;
 
@@ -70,7 +70,7 @@ export async function getMercadoPagoTransactions(accessToken: string): Promise<{
       }
       
       allTransactions = allTransactions.concat(parsedResponse.data.results);
-      allRawResults = allRawResults.concat(parsedResponse.data.results); // Accumulate raw results
+      allRawResults.push(...parsedResponse.data.results);
       total = parsedResponse.data.paging.total;
       offset += PAGE_LIMIT;
 
