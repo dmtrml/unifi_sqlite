@@ -41,6 +41,7 @@ export async function getMercadoPagoTransactions(accessToken: string): Promise<{
 
   try {
     let allTransactions: z.infer<typeof MercadoPagoTransactionSchema>[] = [];
+    let allRawResults: z.infer<typeof MercadoPagoTransactionSchema>[] = [];
     let offset = 0;
     let total = 0;
 
@@ -69,6 +70,7 @@ export async function getMercadoPagoTransactions(accessToken: string): Promise<{
       }
       
       allTransactions = allTransactions.concat(parsedResponse.data.results);
+      allRawResults = allRawResults.concat(parsedResponse.data.results); // Accumulate raw results
       total = parsedResponse.data.paging.total;
       offset += PAGE_LIMIT;
 
@@ -89,7 +91,7 @@ export async function getMercadoPagoTransactions(accessToken: string): Promise<{
       }
     });
 
-    return { success: true, data: simplifiedTransactions, rawData: { results: allTransactions } };
+    return { success: true, data: simplifiedTransactions, rawData: { results: allRawResults } };
 
   } catch (error) {
     console.error('Failed to fetch Mercado Pago transactions:', error);
