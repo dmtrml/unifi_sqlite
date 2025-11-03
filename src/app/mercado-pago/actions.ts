@@ -20,7 +20,7 @@ const MercadoPagoResponseSchema = z.object({
   results: z.array(MercadoPagoTransactionSchema),
 });
 
-export async function getMercadoPagoTransactions(accessToken: string): Promise<{ success: true; data: SimplifiedTransaction[] } | { success: false; error: string }> {
+export async function getMercadoPagoTransactions(accessToken: string): Promise<{ success: true; data: SimplifiedTransaction[]; rawData: any; } | { success: false; error: string; rawData?: any; }> {
   
   if (!accessToken) {
     return { success: false, error: 'Access Token not provided.' };
@@ -38,21 +38,19 @@ export async function getMercadoPagoTransactions(accessToken: string): Promise<{
       cache: 'no-store',
     });
 
+    const rawData = await response.json();
+
     if (!response.ok) {
       const errorData = await response.json();
       console.error('Mercado Pago API Error:', errorData);
-      return { success: false, error: `Mercado Pago API Error: ${errorData.message || 'Could not fetch data.'}` };
+      return { success: false, error: `Mercado Pago API Error: ${errorData.message || 'Could not fetch data.'}`, rawData };
     }
-
-    const rawData = await response.json();
-    // Выводим сырые данные в консоль ДО валидации
-    console.error('Raw Data from Mercado Pago:', JSON.stringify(rawData, null, 2));
     
     const parsedResponse = MercadoPagoResponseSchema.safeParse(rawData);
 
     if (!parsedResponse.success) {
         console.error('Validation Error:', parsedResponse.error.flatten());
-        return { success: false, error: 'Invalid data received from Mercado Pago.' };
+        return { success: false, error: 'Invalid data received from Mercado Pago.', rawData };
     }
 
     const simplifiedTransactions = parsedResponse.data.results.map((tx) => ({
@@ -66,7 +64,7 @@ export async function getMercadoPagoTransactions(accessToken: string): Promise<{
       payer: tx.payer?.email || 'Unknown',
     }));
 
-    return { success: true, data: simplifiedTransactions };
+    return { success: true, data: simplifiedTransactions, rawData };
 
   } catch (error) {
     console.error('Failed to fetch Mercado Pago transactions:', error);

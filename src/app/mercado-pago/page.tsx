@@ -63,6 +63,7 @@ function MercadoPagoPageContent() {
   const [step, setStep] = React.useState(1);
   const [accessToken, setAccessToken] = React.useState("");
   const [transactions, setTransactions] = React.useState<SimplifiedTransaction[]>([]);
+  const [rawApiResponse, setRawApiResponse] = React.useState<any>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [isImporting, setIsImporting] = React.useState(false);
@@ -94,12 +95,19 @@ function MercadoPagoPageContent() {
     setIsImporting(false);
     setImportResult(null);
     setSelectedAccountId(null);
+    setRawApiResponse(null);
   };
 
   const handleFetchTransactions = async () => {
     setIsLoading(true);
     setError(null);
+    setRawApiResponse(null);
     const result = await getMercadoPagoTransactions(accessToken);
+
+    if (result.rawData) {
+      setRawApiResponse(result.rawData);
+    }
+
     if (result.success) {
       setTransactions(result.data);
       setStep(2);
@@ -336,6 +344,18 @@ function MercadoPagoPageContent() {
         <div className="flex items-center">
           <h1 className="text-lg font-semibold md:text-2xl">Интеграция с Mercado Pago</h1>
         </div>
+        {rawApiResponse && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Ответ от API Mercado Pago</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <pre className="p-4 bg-muted rounded-md overflow-auto text-sm max-h-96">
+                {JSON.stringify(rawApiResponse, null, 2)}
+              </pre>
+            </CardContent>
+          </Card>
+        )}
         {renderStepContent()}
       </main>
     </AppLayout>
