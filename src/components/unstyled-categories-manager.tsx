@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -78,6 +79,10 @@ export function UnstyledCategoriesManager({ categories }: UnstyledCategoriesMana
       title: "Category Styled",
       description: "The category has been successfully updated.",
     })
+  }
+  
+  if (categories.length === 0) {
+    return null;
   }
 
   return (
