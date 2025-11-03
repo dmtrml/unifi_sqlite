@@ -36,6 +36,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useUser } from "@/firebase"
 import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import type { Account, AccountType, Currency } from "@/lib/types"
+import { colorOptions } from "@/lib/colors"
+import { ScrollArea } from "./ui/scroll-area"
 
 const accountTypes: AccountType[] = ["Cash", "Card", "Bank Account", "Deposit", "Loan"];
 const currencies: Currency[] = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS", "RUB"];
@@ -216,11 +218,16 @@ export function EditAccountDialog({ account, children }: EditAccountDialogProps)
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="hsl(var(--chart-1))">Teal</SelectItem>
-                        <SelectItem value="hsl(var(--chart-2))">Blue</SelectItem>
-                        <SelectItem value="hsl(var(--chart-3))">Green</SelectItem>
-                        <SelectItem value="hsl(var(--chart-4))">Purple</SelectItem>
-                        <SelectItem value="hsl(var(--chart-5))">Indigo</SelectItem>
+                         <ScrollArea className="h-60">
+                          {colorOptions.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                <div className="flex items-center gap-2">
+                                  <div className="h-4 w-4 rounded-full" style={{ backgroundColor: opt.value }} />
+                                  {opt.label}
+                                </div>
+                              </SelectItem>
+                          ))}
+                        </ScrollArea>
                       </SelectContent>
                     </Select>
                     <FormMessage />

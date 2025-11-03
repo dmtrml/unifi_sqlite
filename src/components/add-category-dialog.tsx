@@ -37,6 +37,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useUser } from "@/firebase"
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import * as Icons from "lucide-react"
+import { colorOptions } from "@/lib/colors"
+import { ScrollArea } from "./ui/scroll-area"
 
 const expenseIconNames = [
   "Home", "ShoppingCart", "UtensilsCrossed", "HeartPulse", "Car", 
@@ -67,7 +69,7 @@ export function AddCategoryDialog() {
     resolver: zodResolver(categoryFormSchema),
     defaultValues: {
       name: "",
-      color: "hsl(var(--chart-1))",
+      color: "hsl(var(--custom-color-1))",
       icon: "MoreHorizontal",
       type: "expense"
     },
@@ -168,11 +170,16 @@ export function AddCategoryDialog() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="hsl(var(--chart-1))">Teal</SelectItem>
-                        <SelectItem value="hsl(var(--chart-2))">Blue</SelectItem>
-                        <SelectItem value="hsl(var(--chart-3))">Green</SelectItem>
-                        <SelectItem value="hsl(var(--chart-4))">Purple</SelectItem>
-                        <SelectItem value="hsl(var(--chart-5))">Indigo</SelectItem>
+                        <ScrollArea className="h-60">
+                          {colorOptions.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                <div className="flex items-center gap-2">
+                                  <div className="h-4 w-4 rounded-full" style={{ backgroundColor: opt.value }} />
+                                  {opt.label}
+                                </div>
+                              </SelectItem>
+                          ))}
+                        </ScrollArea>
                       </SelectContent>
                     </Select>
                     <FormMessage />

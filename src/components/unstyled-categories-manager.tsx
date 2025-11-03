@@ -23,20 +23,14 @@ import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useUser } from "@/firebase"
 import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import type { Category } from "@/lib/types"
+import { colorOptions } from "@/lib/colors"
+import { ScrollArea } from "./ui/scroll-area"
 
 const iconNames = [
   "Home", "ShoppingCart", "UtensilsCrossed", "HeartPulse", "Car", 
   "Ticket", "Lightbulb", "ShoppingBag", "Gift", "Book", "Film", 
   "Briefcase", "Plane", "Wrench", "TrendingUp", "CircleDollarSign", 
   "Award", "MoreHorizontal"
-];
-
-const colorOptions = [
-    { value: "hsl(var(--chart-1))", label: "Teal" },
-    { value: "hsl(var(--chart-2))", label: "Blue" },
-    { value: "hsl(var(--chart-3))", label: "Green" },
-    { value: "hsl(var(--chart-4))", label: "Purple" },
-    { value: "hsl(var(--chart-5))", label: "Indigo" },
 ];
 
 interface UnstyledCategoriesManagerProps {
@@ -107,17 +101,19 @@ export function UnstyledCategoriesManager({ categories }: UnstyledCategoriesMana
                   <SelectValue placeholder="Select icon" />
                 </SelectTrigger>
                 <SelectContent>
-                  {iconNames.map(iconName => {
-                    const IconComponent = (Icons as any)[iconName];
-                    return (
-                      <SelectItem key={iconName} value={iconName}>
-                        <div className="flex items-center gap-2">
-                          {IconComponent && <IconComponent className="h-4 w-4" />}
-                          <span>{iconName}</span>
-                        </div>
-                      </SelectItem>
-                    )
-                  })}
+                  <ScrollArea className="h-60">
+                    {iconNames.map(iconName => {
+                      const IconComponent = (Icons as any)[iconName];
+                      return (
+                        <SelectItem key={iconName} value={iconName}>
+                          <div className="flex items-center gap-2">
+                            {IconComponent && <IconComponent className="h-4 w-4" />}
+                            <span>{iconName}</span>
+                          </div>
+                        </SelectItem>
+                      )
+                    })}
+                  </ScrollArea>
                 </SelectContent>
               </Select>
               <Select
@@ -128,14 +124,16 @@ export function UnstyledCategoriesManager({ categories }: UnstyledCategoriesMana
                   <SelectValue placeholder="Select color" />
                 </SelectTrigger>
                 <SelectContent>
-                  {colorOptions.map(opt => (
-                     <SelectItem key={opt.value} value={opt.value}>
-                        <div className="flex items-center gap-2">
-                            <div className="h-4 w-4 rounded-full" style={{ backgroundColor: opt.value }} />
-                            {opt.label}
-                        </div>
-                     </SelectItem>
-                  ))}
+                  <ScrollArea className="h-60">
+                    {colorOptions.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                          <div className="flex items-center gap-2">
+                              <div className="h-4 w-4 rounded-full" style={{ backgroundColor: opt.value }} />
+                              {opt.label}
+                          </div>
+                      </SelectItem>
+                    ))}
+                  </ScrollArea>
                 </SelectContent>
               </Select>
               <Button size="sm" onClick={() => handleSave(category.id)}>Save</Button>

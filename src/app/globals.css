@@ -29,6 +29,38 @@
     --chart-4: 240 50% 50%;
     --chart-5: 210 80% 60%;
     --radius: 0.5rem;
+
+    /* Custom Color Palette */
+    --custom-color-1: 0 72% 51%; /* Red */
+    --custom-color-2: 15 85% 55%; /* Orange */
+    --custom-color-3: 35 92% 54%; /* Amber */
+    --custom-color-4: 45 93% 53%; /* Yellow */
+    --custom-color-5: 60 85% 45%; /* Lime */
+    --custom-color-6: 80 70% 45%; /* Avocado */
+    --custom-color-7: 120 60% 45%; /* Green */
+    --custom-color-8: 140 70% 40%; /* Emerald */
+    --custom-color-9: 160 80% 40%; /* Teal */
+    --custom-color-10: 180 82% 35%; /* Cyan */
+    --custom-color-11: 195 90% 45%; /* Sky */
+    --custom-color-12: 210 85% 55%; /* Blue */
+    --custom-color-13: 225 80% 55%; /* Indigo */
+    --custom-color-14: 240 70% 60%; /* Violet */
+    --custom-color-15: 260 80% 65%; /* Purple */
+    --custom-color-16: 285 75% 60%; /* Magenta */
+    --custom-color-17: 310 80% 60%; /* Fuchsia */
+    --custom-color-18: 335 85% 60%; /* Pink */
+    --custom-color-19: 355 80% 65%; /* Rose */
+    --custom-color-20: 10 30% 50%; /* Brown */
+    --custom-color-21: 20 15% 55%; /* Warm Gray */
+    --custom-color-22: 210 15% 50%; /* Cool Gray */
+    --custom-color-23: 0 80% 70%; /* Salmon */
+    --custom-color-24: 25 85% 70%; /* Peach */
+    --custom-color-25: 50 100% 75%;/* Banana */
+    --custom-color-26: 90 70% 70%; /* Mint */
+    --custom-color-27: 170 70% 75%; /* Aqua */
+    --custom-color-28: 200 90% 75%; /* Baby Blue */
+    --custom-color-29: 250 80% 80%; /* Lavender */
+    --custom-color-30: 340 90% 80%; /* Baby Pink */
   }
   .dark {
     --background: 240 10% 3.9%;
@@ -55,6 +87,38 @@
     --chart-3: 180 50% 60%;
     --chart-4: 240 50% 60%;
     --chart-5: 210 80% 70%;
+
+    /* Custom Color Palette */
+    --custom-color-1: 0 72% 61%; /* Red */
+    --custom-color-2: 15 85% 65%; /* Orange */
+    --custom-color-3: 35 92% 64%; /* Amber */
+    --custom-color-4: 45 93% 63%; /* Yellow */
+    --custom-color-5: 60 85% 55%; /* Lime */
+    --custom-color-6: 80 70% 55%; /* Avocado */
+    --custom-color-7: 120 60% 55%; /* Green */
+    --custom-color-8: 140 70% 50%; /* Emerald */
+    --custom-color-9: 160 80% 50%; /* Teal */
+    --custom-color-10: 180 82% 45%; /* Cyan */
+    --custom-color-11: 195 90% 55%; /* Sky */
+    --custom-color-12: 210 85% 65%; /* Blue */
+    --custom-color-13: 225 80% 65%; /* Indigo */
+    --custom-color-14: 240 70% 70%; /* Violet */
+    --custom-color-15: 260 80% 75%; /* Purple */
+    --custom-color-16: 285 75% 70%; /* Magenta */
+    --custom-color-17: 310 80% 70%; /* Fuchsia */
+    --custom-color-18: 335 85% 70%; /* Pink */
+    --custom-color-19: 355 80% 75%; /* Rose */
+    --custom-color-20: 10 30% 60%; /* Brown */
+    --custom-color-21: 20 15% 65%; /* Warm Gray */
+    --custom-color-22: 210 15% 60%; /* Cool Gray */
+    --custom-color-23: 0 80% 75%; /* Salmon */
+    --custom-color-24: 25 85% 75%; /* Peach */
+    --custom-color-25: 50 100% 80%;/* Banana */
+    --custom-color-26: 90 70% 75%; /* Mint */
+    --custom-color-27: 170 70% 80%; /* Aqua */
+    --custom-color-28: 200 90% 80%; /* Baby Blue */
+    --custom-color-29: 250 80% 85%; /* Lavender */
+    --custom-color-30: 340 90% 85%; /* Baby Pink */
   }
 }
 
