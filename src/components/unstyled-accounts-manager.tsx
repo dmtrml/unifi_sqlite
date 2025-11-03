@@ -23,8 +23,6 @@ import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useUser } from "@/firebase"
 import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import type { Account, AccountType } from "@/lib/types"
-import { colorOptions } from "@/lib/colors"
-import { ScrollArea } from "./ui/scroll-area"
 
 const accountTypes: AccountType[] = ["Cash", "Card", "Bank Account", "Deposit", "Loan"];
 
@@ -46,17 +44,17 @@ export function UnstyledAccountsManager({ accounts }: UnstyledAccountsManagerPro
   const firestore = useFirestore()
   const { user } = useUser()
 
-  const [accountStyles, setAccountStyles] = React.useState<Record<string, { type: AccountType; color: string }>>({})
+  const [accountStyles, setAccountStyles] = React.useState<Record<string, { type: AccountType }>>({})
 
   React.useEffect(() => {
     const initialStyles = accounts.reduce((acc, account) => {
-      acc[account.id] = { type: account.type, color: account.color }
+      acc[account.id] = { type: account.type }
       return acc
-    }, {} as Record<string, { type: AccountType; color: string }>)
+    }, {} as Record<string, { type: AccountType }>)
     setAccountStyles(initialStyles)
   }, [accounts])
 
-  const handleStyleChange = (accountId: string, field: 'type' | 'color', value: string) => {
+  const handleStyleChange = (accountId: string, field: 'type', value: string) => {
     setAccountStyles(prev => ({
       ...prev,
       [accountId]: { ...prev[accountId], [field]: value as AccountType }
@@ -73,12 +71,16 @@ export function UnstyledAccountsManager({ accounts }: UnstyledAccountsManagerPro
     if (!styles) return
 
     const icon = accountIconMap[styles.type] || "Landmark";
+    const accountToUpdate = accounts.find(a => a.id === accountId);
+    if (!accountToUpdate) return;
+
 
     const accountRef = doc(firestore, `users/${user.uid}/accounts/${accountId}`)
     updateDocumentNonBlocking(accountRef, {
       type: styles.type,
       icon: icon,
-      color: styles.color,
+      // We keep the color that was assigned during import
+      color: accountToUpdate.color,
     })
 
     toast({
@@ -96,19 +98,22 @@ export function UnstyledAccountsManager({ accounts }: UnstyledAccountsManagerPro
       <CardHeader>
         <CardTitle>Style New Accounts</CardTitle>
         <CardDescription>
-          New accounts were created during your last import. Customize their appearance below.
+          New accounts were created during your last import. Please specify their type.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {accounts.map((account) => (
           <div key={account.id} className="flex items-center justify-between gap-2 md:gap-4 p-3 border rounded-lg">
-            <div className="font-medium">{account.name}</div>
+            <div className="flex items-center gap-3">
+               <div className="h-5 w-5 rounded-full" style={{ backgroundColor: account.color }} />
+               <span className="font-medium">{account.name}</span>
+            </div>
             <div className="flex items-center gap-2">
               <Select
                 value={accountStyles[account.id]?.type || account.type}
                 onValueChange={(value) => handleStyleChange(account.id, 'type', value)}
               >
-                <SelectTrigger className="w-[150px]">
+                <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -123,26 +128,6 @@ export function UnstyledAccountsManager({ accounts }: UnstyledAccountsManagerPro
                       </SelectItem>
                     )
                   })}
-                </SelectContent>
-              </Select>
-              <Select
-                value={accountStyles[account.id]?.color || account.color}
-                onValueChange={(value) => handleStyleChange(account.id, 'color', value)}
-              >
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue placeholder="Select color" />
-                </SelectTrigger>
-                <SelectContent>
-                  <ScrollArea className="h-60">
-                    {colorOptions.map(opt => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          <div className="flex items-center gap-2">
-                              <div className="h-4 w-4 rounded-full" style={{ backgroundColor: opt.value }} />
-                              {opt.label}
-                          </div>
-                        </SelectItem>
-                    ))}
-                  </ScrollArea>
                 </SelectContent>
               </Select>
               <Button size="sm" onClick={() => handleSave(account.id)}>Save</Button>

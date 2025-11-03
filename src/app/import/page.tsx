@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import * as React from "react"
@@ -37,6 +38,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import type { Account, Category, Currency, User, Transaction } from "@/lib/types"
 import { useFirestore, useUser, useCollection, useMemoFirebase, useDoc } from "@/firebase"
+import { colorOptions } from "@/lib/colors"
 
 const transactionFields = [
     { value: "date", label: "date" },
@@ -182,7 +184,8 @@ function ImportPageContent() {
     currency: string | undefined,
     localAccounts: (Account & { ref?: DocumentReference })[],
     batch: any,
-    result: ImportResult
+    result: ImportResult,
+    availableColors: string[]
   ): { id: string, currency: Currency } => {
       let account = localAccounts.find(a => a.name.toLowerCase() === name.toLowerCase());
       if (account) {
@@ -190,12 +193,14 @@ function ImportPageContent() {
       }
       
       const newAccountCurrency = (currency?.toUpperCase() as Currency) || mainCurrency;
+      const newColor = availableColors.pop() || "hsl(var(--muted-foreground))"; // Pop a color from the shuffled list
+
       const newAccountData = {
           name: name,
           balance: 0, 
           userId: user!.uid,
-          icon: "Landmark",
-          color: "hsl(var(--muted-foreground))",
+          icon: "Landmark", // Default icon for unstyled accounts
+          color: newColor,
           type: 'Bank Account' as const,
           currency: newAccountCurrency,
       };
@@ -236,6 +241,13 @@ function ImportPageContent() {
 
     setIsImporting(true);
     setStep(3);
+    
+    // Prepare a shuffled list of unique, available colors for new accounts
+    const existingColors = new Set(accounts.map(a => a.color));
+    const availableColors = colorOptions
+      .map(c => c.value)
+      .filter(c => !existingColors.has(c))
+      .sort(() => 0.5 - Math.random()); // Shuffle
 
     const localAccounts = [...accounts];
     const localCategories = [...categories];
@@ -300,8 +312,8 @@ function ImportPageContent() {
                                     finalResult.errorCount++; continue;
                                 }
 
-                                const fromAccountInfo = getOrCreateAccount(mappedRow.outcomeAccountName, mappedRow.outcomeCurrency, localAccounts, batch, finalResult);
-                                const toAccountInfo = getOrCreateAccount(mappedRow.incomeAccountName, mappedRow.incomeCurrency, localAccounts, batch, finalResult);
+                                const fromAccountInfo = getOrCreateAccount(mappedRow.outcomeAccountName, mappedRow.outcomeCurrency, localAccounts, batch, finalResult, availableColors);
+                                const toAccountInfo = getOrCreateAccount(mappedRow.incomeAccountName, mappedRow.incomeCurrency, localAccounts, batch, finalResult, availableColors);
                                 
                                 const isMultiCurrency = fromAccountInfo.currency !== toAccountInfo.currency;
                                 
@@ -329,7 +341,7 @@ function ImportPageContent() {
                                    finalResult.errorCount++; continue;
                                 }
                                 
-                                const accountInfo = getOrCreateAccount(accountName, currency, localAccounts, batch, finalResult);
+                                const accountInfo = getOrCreateAccount(accountName, currency, localAccounts, batch, finalResult, availableColors);
                                 let categoryId: string | null = null;
                                 if (mappedRow.categoryName) {
                                    categoryId = getOrCreateCategory(mappedRow.categoryName, transactionType, localCategories, batch, finalResult);
