@@ -179,92 +179,93 @@ function ImportPageContent() {
   
   type MappedRow = Record<string, string>;
 
-  const getOrCreateAccount = (
-    name: string,
-    currency: string | undefined,
-    localAccounts: (Account & { ref?: DocumentReference })[],
-    batch: any,
-    result: ImportResult,
-    availableColors: string[]
-  ): { id: string, currency: Currency } => {
-      let account = localAccounts.find(a => a.name.toLowerCase() === name.toLowerCase());
-      if (account) {
-          return { id: account.id, currency: account.currency };
-      }
-      
-      const newAccountCurrency = (currency?.toUpperCase() as Currency) || mainCurrency;
-      const newColor = availableColors.pop() || "hsl(var(--muted-foreground))"; // Pop a color from the shuffled list
-
-      const newAccountData = {
-          name: name,
-          balance: 0, 
-          userId: user!.uid,
-          icon: "Landmark", // Default icon for unstyled accounts
-          color: newColor,
-          type: 'Bank Account' as const,
-          currency: newAccountCurrency,
-      };
-
-      const newAccountRef = doc(collection(firestore!, `users/${user!.uid}/accounts`));
-      batch.set(newAccountRef, newAccountData);
-      
-      const newLocalAccount = { ...newAccountData, id: newAccountRef.id, ref: newAccountRef };
-      localAccounts.push(newLocalAccount);
-      result.newAccounts++;
-      
-      return { id: newAccountRef.id, currency: newAccountCurrency };
-  };
-
-  const getOrCreateCategory = (
-    name: string, 
-    type: 'expense' | 'income', 
-    localCategories: Category[], 
-    batch: any, 
-    result: ImportResult,
-    availableColors: string[]
-  ): string => {
-    let category = localCategories.find(c => c.name.toLowerCase() === name.toLowerCase());
-    if (category) {
-      return category.id;
-    }
-
-    const newColor = availableColors.pop() || "hsl(var(--muted-foreground))";
-
-    const newCategoryData = {
-      name: name,
-      userId: user!.uid,
-      icon: "MoreHorizontal",
-      color: newColor,
-      type: type,
-    };
-    const newCategoryRef = doc(collection(firestore!, `users/${user!.uid}/categories`));
-    batch.set(newCategoryRef, newCategoryData);
-    localCategories.push({ ...newCategoryData, id: newCategoryRef.id });
-    result.newCategories++;
-    return newCategoryRef.id;
-  };
-
-
   const handleImport = async () => {
     if (!file || !user || !firestore || !accounts || !categories) return;
 
     setIsImporting(true);
     setStep(3);
     
-    const existingAccountColors = new Set(accounts.map(a => a.color));
-    const availableAccountColors = colorOptions
-      .map(c => c.value)
-      .filter(c => !existingAccountColors.has(c))
-      .sort(() => 0.5 - Math.random());
+    // Create shuffled color pools for this import session
+    const accountColorPool = [...colorOptions.map(c => c.value)].sort(() => 0.5 - Math.random());
+    const categoryColorPool = [...colorOptions.map(c => c.value)].sort(() => 0.5 - Math.random());
+    let accountColorIndex = 0;
+    let categoryColorIndex = 0;
 
-    const existingCategoryColors = new Set(categories.map(c => c.color));
-    const availableCategoryColors = colorOptions
-      .map(c => c.value)
-      .filter(c => !existingCategoryColors.has(c))
-      .sort(() => 0.5 - Math.random());
+    const getNextAccountColor = () => {
+      const color = accountColorPool[accountColorIndex % accountColorPool.length];
+      accountColorIndex++;
+      return color;
+    }
+
+    const getNextCategoryColor = () => {
+      const color = categoryColorPool[categoryColorIndex % categoryColorPool.length];
+      categoryColorIndex++;
+      return color;
+    }
 
     const localAccounts = [...accounts];
     const localCategories = [...categories];
+
+    const getOrCreateAccount = (
+      name: string,
+      currency: string | undefined,
+      localAccounts: (Account & { ref?: DocumentReference })[],
+      batch: any,
+      result: ImportResult,
+    ): { id: string, currency: Currency } => {
+        let account = localAccounts.find(a => a.name.toLowerCase() === name.toLowerCase());
+        if (account) {
+            return { id: account.id, currency: account.currency };
+        }
+        
+        const newAccountCurrency = (currency?.toUpperCase() as Currency) || mainCurrency;
+        
+        const newAccountData = {
+            name: name,
+            balance: 0, 
+            userId: user!.uid,
+            icon: "Landmark", // Default icon for unstyled accounts
+            color: getNextAccountColor(),
+            type: 'Bank Account' as const,
+            currency: newAccountCurrency,
+        };
+
+        const newAccountRef = doc(collection(firestore!, `users/${user!.uid}/accounts`));
+        batch.set(newAccountRef, newAccountData);
+        
+        const newLocalAccount = { ...newAccountData, id: newAccountRef.id, ref: newAccountRef };
+        localAccounts.push(newLocalAccount);
+        result.newAccounts++;
+        
+        return { id: newAccountRef.id, currency: newAccountCurrency };
+    };
+
+    const getOrCreateCategory = (
+      name: string, 
+      type: 'expense' | 'income', 
+      localCategories: Category[], 
+      batch: any, 
+      result: ImportResult,
+    ): string => {
+      let category = localCategories.find(c => c.name.toLowerCase() === name.toLowerCase());
+      if (category) {
+        return category.id;
+      }
+
+      const newCategoryData = {
+        name: name,
+        userId: user!.uid,
+        icon: "MoreHorizontal",
+        color: getNextCategoryColor(),
+        type: type,
+      };
+      const newCategoryRef = doc(collection(firestore!, `users/${user!.uid}/categories`));
+      batch.set(newCategoryRef, newCategoryData);
+      localCategories.push({ ...newCategoryData, id: newCategoryRef.id });
+      result.newCategories++;
+      return newCategoryRef.id;
+    };
+
 
     Papa.parse(file, {
         header: true,
@@ -326,8 +327,8 @@ function ImportPageContent() {
                                     finalResult.errorCount++; continue;
                                 }
 
-                                const fromAccountInfo = getOrCreateAccount(mappedRow.outcomeAccountName, mappedRow.outcomeCurrency, localAccounts, batch, finalResult, availableAccountColors);
-                                const toAccountInfo = getOrCreateAccount(mappedRow.incomeAccountName, mappedRow.incomeCurrency, localAccounts, batch, finalResult, availableAccountColors);
+                                const fromAccountInfo = getOrCreateAccount(mappedRow.outcomeAccountName, mappedRow.outcomeCurrency, localAccounts, batch, finalResult);
+                                const toAccountInfo = getOrCreateAccount(mappedRow.incomeAccountName, mappedRow.incomeCurrency, localAccounts, batch, finalResult);
                                 
                                 const isMultiCurrency = fromAccountInfo.currency !== toAccountInfo.currency;
                                 
@@ -355,10 +356,10 @@ function ImportPageContent() {
                                    finalResult.errorCount++; continue;
                                 }
                                 
-                                const accountInfo = getOrCreateAccount(accountName, currency, localAccounts, batch, finalResult, availableAccountColors);
+                                const accountInfo = getOrCreateAccount(accountName, currency, localAccounts, batch, finalResult);
                                 let categoryId: string | null = null;
                                 if (mappedRow.categoryName) {
-                                   categoryId = getOrCreateCategory(mappedRow.categoryName, transactionType, localCategories, batch, finalResult, availableCategoryColors);
+                                   categoryId = getOrCreateCategory(mappedRow.categoryName, transactionType, localCategories, batch, finalResult);
                                 }
                                 
                                 const finalAmount = transactionType === 'expense' ? -Math.abs(amount) : Math.abs(amount);
