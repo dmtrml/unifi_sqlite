@@ -47,6 +47,7 @@ export async function getMercadoPagoTransactions(
     const begin = opts?.beginDate ?? undefined;
     const end = opts?.endDate ?? undefined;
 
+    // Шаг 1: Начинаем бесконечный цикл, который будет прерван изнутри.
     while (true) {
       const params = new URLSearchParams({
         sort: 'date_created',
@@ -60,7 +61,8 @@ export async function getMercadoPagoTransactions(
         params.set('begin_date', begin);
         params.set('end_date', end);
       }
-
+      
+      // Шаг 2: Отправляем запрос к API для получения очередной "страницы" данных.
       const response = await fetch(`${MERCADO_PAGO_API_URL}?${params.toString()}`, {
         method: 'GET',
         headers: {
@@ -92,12 +94,21 @@ export async function getMercadoPagoTransactions(
       allTransactions.push(...results);
       allRawResults.push(...results);
 
+      // Шаг 3: Проверяем условие выхода. Если API вернуло меньше записей, чем мы просили,
+      // значит, это была последняя страница. Прерываем цикл.
       if (results.length < PAGE_LIMIT) {
         break; 
       }
       
+      // Шаг 4: Готовимся к следующему запросу, увеличивая смещение.
       offset += results.length;
 
+      // Шаг 5: Добавляем небольшую задержку, чтобы не перегружать API запросами.
+      // Это делает наш скрипт более надежным и "вежливым".
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+
+      // Шаг 6: Защита от бесконечного цикла на случай непредвиденного поведения API.
       if (++page > 1000) {
         console.warn('Reached page limit of 1000. Exiting loop.');
         break;
