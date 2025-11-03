@@ -41,7 +41,7 @@ import type { Account, Category } from "@/lib/types"
  * Определяет упрощенную структуру транзакции, которую мы будем использовать в приложении.
  */
 export const SimplifiedTransactionSchema = z.object({
-  id: z.number(),
+  id: z.string(), // ID должен быть строкой
   date: z.string(),
   description: z.string(),
   amount: z.number(),
@@ -52,6 +52,7 @@ export const SimplifiedTransactionSchema = z.object({
 });
 
 export type SimplifiedTransaction = z.infer<typeof SimplifiedTransactionSchema>;
+
 
 interface ImportResult {
     successCount: number;

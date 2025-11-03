@@ -8,7 +8,7 @@ import type { SimplifiedTransaction } from './page';
  * Мы включаем только те поля, которые нам действительно нужны.
  */
 const MercadoPagoTransactionSchema = z.object({
-  id: z.number(),
+  id: z.string(), // ИСПРАВЛЕНО: ID приходит как строка
   date_created: z.string(),
   date_approved: z.string().nullable(),
   description: z.string().nullable(),
