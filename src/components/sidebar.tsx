@@ -12,6 +12,7 @@ import {
   Wallet,
   Settings,
   Upload,
+  Banknote,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -26,6 +27,7 @@ const navItems = [
     { href: "/recurring", label: "Recurring", icon: Repeat },
     { href: "/reports", label: "Reports", icon: LineChart },
     { href: "/import", label: "Import", icon: Upload },
+    { href: "/mercado-pago", label: "Mercado Pago", icon: Banknote },
     { href: "/settings", label: "Settings", icon: Settings },
 ]
 

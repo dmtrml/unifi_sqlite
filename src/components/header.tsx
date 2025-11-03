@@ -20,6 +20,7 @@ import {
   Shapes,
   Settings,
   Upload,
+  Banknote,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -59,6 +60,7 @@ const navItems = [
     { href: "/recurring", label: "Recurring", icon: Repeat },
     { href: "/reports", label: "Reports", icon: LineChart },
     { href: "/import", label: "Import", icon: Upload },
+    { href: "/mercado-pago", label: "Mercado Pago", icon: Banknote },
     { href: "/settings", label: "Settings", icon: Settings },
 ]
 
