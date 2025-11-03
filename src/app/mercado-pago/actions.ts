@@ -45,6 +45,7 @@ export async function getMercadoPagoTransactions(accessToken: string): Promise<{
     }
 
     const rawData = await response.json();
+    // Выводим сырые данные в консоль ДО валидации
     console.error('Raw Data from Mercado Pago:', JSON.stringify(rawData, null, 2));
     
     const parsedResponse = MercadoPagoResponseSchema.safeParse(rawData);
