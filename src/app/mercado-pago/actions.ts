@@ -28,7 +28,7 @@ const MercadoPagoResponseSchema = z.object({
 
 export async function getMercadoPagoTransactions(
   accessToken: string,
-  opts?: { beginDate?: string; endDate?: string } // ISO strings, e.g., "2025-10-01T00:00:00Z"
+  opts?: { beginDate?: string; endDate?: string } // ISO строки, напр. "2025-10-01T00:00:00Z"
 ): Promise<
   | { success: true; data: any[]; rawData: any }
   | { success: false; error: string; rawData?: any }
@@ -41,16 +41,13 @@ export async function getMercadoPagoTransactions(
   try {
     const allTransactions: z.infer<typeof MercadoPagoTransactionSchema>[] = [];
     const allRawResults: any[] = [];
-    let offset = 50;
+    let offset = 0;
     let page = 0;
 
     const begin = opts?.beginDate ?? undefined;
     const end = opts?.endDate ?? undefined;
 
-    // 1. Начинаем бесконечный цикл. Он будет продолжаться, пока мы его принудительно не остановим.
     while (true) {
-      // 2. Формируем параметры для запроса. `offset` указывает, сколько записей пропустить.
-      // На первой итерации offset = 50 (пропускаем первые 50), на второй 100, и так далее.
       const params = new URLSearchParams({
         sort: 'date_created',
         criteria: 'desc',
@@ -64,7 +61,6 @@ export async function getMercadoPagoTransactions(
         params.set('end_date', end);
       }
 
-      // 3. Отправляем запрос к API Mercado Pago с текущими параметрами.
       const response = await fetch(`${MERCADO_PAGO_API_URL}?${params.toString()}`, {
         method: 'GET',
         headers: {
@@ -73,7 +69,7 @@ export async function getMercadoPagoTransactions(
         },
         cache: 'no-store',
       });
-
+      
       const rawData = await response.json();
 
       if (!response.ok) {
@@ -90,25 +86,18 @@ export async function getMercadoPagoTransactions(
         console.error('Validation Error:', parsed.error.flatten());
         return { success: false, error: 'Invalid data received from Mercado Pago.', rawData };
       }
-
+      
       const { results } = parsed.data;
 
-      // 4. Добавляем полученные транзакции в наши общие массивы.
       allTransactions.push(...results);
       allRawResults.push(...results);
 
-      // 5. Ключевое условие для выхода из цикла: если API вернуло меньше транзакций,
-      // чем мы запрашивали (PAGE_LIMIT), это значит, что мы достигли последней страницы.
       if (results.length < PAGE_LIMIT) {
-        break; // Выходим из цикла.
+        break; 
       }
-
-      // 6. Если мы здесь, значит, есть еще страницы. Увеличиваем смещение на количество
-      // полученных записей, чтобы в следующей итерации запросить следующую "порцию".
+      
       offset += results.length;
 
-      // 7. Дополнительная защита: если мы сделали больше 1000 запросов, выходим,
-      // чтобы избежать бесконечного цикла в случае ошибки в логике или ответе API.
       if (++page > 1000) {
         console.warn('Reached page limit of 1000. Exiting loop.');
         break;
