@@ -50,7 +50,7 @@ export async function getMercadoPagoTransactions(accessToken: string): Promise<{
     const parsedResponse = MercadoPagoResponseSchema.safeParse(rawData);
 
     if (!parsedResponse.success) {
-        console.error('Validation Error:', parsedResponse.error);
+        console.error('Validation Error:', parsedResponse.error.flatten());
         return { success: false, error: 'Invalid data received from Mercado Pago.' };
     }
 
