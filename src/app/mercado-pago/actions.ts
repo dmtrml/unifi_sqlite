@@ -65,17 +65,11 @@ export async function getMercadoPagoTransactions(
         rawData,
       };
     }
-
-    const parsed = MercadoPagoResponseSchema.safeParse(rawData);
-    if (!parsed.success) {
-      console.error('Validation Error:', parsed.error.flatten());
-      // Возвращаем ошибку, но также и сырые данные для отладки
-      return { success: false, error: 'Invalid data received from Mercado Pago.', rawData };
-    }
     
-    const { results, paging } = parsed.data;
+    const results = rawData.results || [];
+    const paging = rawData.paging || { offset: 0, total: 0 };
 
-    const simplifiedTransactions = results.map((tx) => {
+    const simplifiedTransactions = results.map((tx: any) => {
       const isIncome = tx.card === null || tx.card === undefined;
       return {
         id: String(tx.id),
