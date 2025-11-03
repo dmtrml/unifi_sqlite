@@ -35,52 +35,53 @@ export function DeleteDataDialog() {
 
   const handleDelete = async () => {
     if (!user || !firestore || !deletionOption) {
-        toast({ title: "Error", description: "An unexpected error occurred.", variant: "destructive" });
-        return;
+      toast({ title: "Error", description: "An unexpected error occurred.", variant: "destructive" });
+      return;
     }
 
     setIsDeleting(true);
 
     const collectionsToDelete: string[] = [];
     if (deletionOption === "transactions") {
-        collectionsToDelete.push("transactions");
+      collectionsToDelete.push("transactions");
     } else if (deletionOption === "all") {
-        collectionsToDelete.push("transactions", "accounts", "categories", "budgets", "recurringTransactions");
+      collectionsToDelete.push("transactions", "accounts", "categories", "budgets", "recurringTransactions");
     }
 
     try {
-        const batch = writeBatch(firestore);
-        
-        for (const collectionName of collectionsToDelete) {
-            const collectionRef = collection(firestore, `users/${user.uid}/${collectionName}`);
-            const querySnapshot = await getDocs(collectionRef);
-            querySnapshot.forEach((doc) => {
-                batch.delete(doc.ref);
-            });
-        }
-        
-        await batch.commit();
+      for (const collectionName of collectionsToDelete) {
+        const collectionRef = collection(firestore, `users/${user.uid}/${collectionName}`);
+        const querySnapshot = await getDocs(collectionRef);
+        const BATCH_SIZE = 400; // Leave some room under the 500 limit
 
-        toast({
-            title: "Data Deleted",
-            description: "Your selected data has been permanently deleted.",
-        });
+        for (let i = 0; i < querySnapshot.docs.length; i += BATCH_SIZE) {
+          const batch = writeBatch(firestore);
+          const chunk = querySnapshot.docs.slice(i, i + BATCH_SIZE);
+          chunk.forEach((doc) => {
+            batch.delete(doc.ref);
+          });
+          await batch.commit();
+        }
+      }
+
+      toast({
+        title: "Data Deleted",
+        description: "Your selected data has been permanently deleted.",
+      });
 
     } catch (error) {
-        console.error("Error deleting data:", error);
-        toast({
-            title: "Error Deleting Data",
-            description: "An error occurred while deleting your data. Please try again.",
-            variant: "destructive",
-        });
+      console.error("Error deleting data:", error);
+      toast({
+        title: "Error Deleting Data",
+        description: "An error occurred while deleting your data. Please try again.",
+        variant: "destructive",
+      });
     } finally {
-        // Reset state and close dialog
-        setIsDeleting(false);
-        setOpen(false);
+      setIsDeleting(false);
+      setOpen(false);
     }
   }
   
-  // Reset state when dialog is closed
   React.useEffect(() => {
     if (!open) {
       setDeletionOption(null)
