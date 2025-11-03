@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { Account, Category } from "@/lib/types"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 export const SimplifiedTransactionSchema = z.object({
   id: z.string(),
@@ -64,6 +65,7 @@ function MercadoPagoPageContent() {
   const [isImporting, setIsImporting] = React.useState(false);
   const [importResult, setImportResult] = React.useState<ImportResult | null>(null);
   const [selectedAccountId, setSelectedAccountId] = React.useState<string | null>(null);
+  const [rawApiResponses, setRawApiResponses] = React.useState<any[]>([]);
 
   const [nextOffset, setNextOffset] = React.useState<number | null>(0);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
@@ -95,6 +97,7 @@ function MercadoPagoPageContent() {
     setSelectedAccountId(null);
     setNextOffset(0);
     setIsLoadingMore(false);
+    setRawApiResponses([]);
   };
 
   const handleFetchTransactions = async (offset = 0) => {
@@ -102,6 +105,7 @@ function MercadoPagoPageContent() {
       setIsLoadingMore(true);
     } else {
       setIsLoading(true);
+      setRawApiResponses([]);
     }
     setError(null);
     const result = await getMercadoPagoTransactions(accessToken, offset);
@@ -109,6 +113,7 @@ function MercadoPagoPageContent() {
     if (result.success) {
       setTransactions(prev => (offset > 0 ? [...prev, ...result.data] : result.data));
       setNextOffset(result.nextOffset);
+      setRawApiResponses(prev => [...prev, result.rawData]);
       if (step === 1) setStep(2);
     } else {
       setError(result.error);
@@ -294,6 +299,18 @@ function MercadoPagoPageContent() {
                           Загрузить еще
                       </Button>
                   </div>
+                )}
+                 {rawApiResponses.length > 0 && (
+                    <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="item-1">
+                            <AccordionTrigger>Показать сырые данные API</AccordionTrigger>
+                            <AccordionContent>
+                                <pre className="mt-2 w-full overflow-x-auto rounded-md bg-muted p-4 text-sm">
+                                    <code>{JSON.stringify(rawApiResponses, null, 2)}</code>
+                                </pre>
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
                 )}
             </CardContent>
             <CardFooter className="justify-end gap-2">
