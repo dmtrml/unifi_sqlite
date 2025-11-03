@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import * as React from "react"
@@ -77,7 +76,7 @@ function ImportPageContent() {
     () => (user ? doc(firestore, "users", user.uid) : null),
     [user, firestore]
   )
-  const { data: userData } = useDoc<User>(userData);
+  const { data: userData } = useDoc<User>(userDocRef);
 
   const categoriesQuery = useMemoFirebase(() => 
     user ? query(collection(firestore, "users", user.uid, "categories")) : null, 
