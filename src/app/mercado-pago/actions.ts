@@ -41,7 +41,7 @@ export async function getMercadoPagoTransactions(
   try {
     const allTransactions: z.infer<typeof MercadoPagoTransactionSchema>[] = [];
     const allRawResults: any[] = [];
-    let offset = 0;
+    let offset = 50;
     let page = 0;
 
     const begin = opts?.beginDate ?? undefined;
