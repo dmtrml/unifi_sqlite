@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import * as React from "react"
@@ -63,6 +64,37 @@ export type SimplifiedTransaction = z.infer<typeof SimplifiedTransactionSchema>;
 interface ImportResult {
     successCount: number;
     errorCount: number;
+}
+
+function getCategoryNameFromTransaction(tx: SimplifiedTransaction): string {
+    const desc = tx.description;
+
+    if (!desc || desc.trim() === "") {
+        if (tx.type === 'income' || tx.type === 'funding') return "Income";
+        if (tx.type === 'expense') return "Purchase";
+        return "Uncategorized";
+    }
+
+    const patterns = [
+        /^Compra en (.+?)( -|$)/,
+        /^Producto de (.+)/,
+        /^Payu\*ar\*(.+)/i,
+        /^Openai \*chatgpt subscr/i,
+    ];
+
+    for (const pattern of patterns) {
+        const match = desc.match(pattern);
+        if (match && match[1]) {
+            let name = match[1].trim();
+            if (name.toLowerCase() === 'uber') return 'Uber';
+            if (name.toLowerCase().startsWith('chatgpt')) return 'ChatGPT';
+            if (name.toLowerCase().includes('openai')) return 'OpenAI';
+            return name.charAt(0).toUpperCase() + name.slice(1);
+        }
+    }
+    
+    // If no pattern matches, return the description but try to clean it
+    return desc.split(' *')[0].split(' -')[0].trim();
 }
 
 function MercadoPagoPageContent() {
@@ -183,7 +215,8 @@ function MercadoPagoPageContent() {
 
                 if (!transactionType) continue;
 
-                const categoryId = getOrCreateCategory(tx.description, transactionType, localCategories, batch);
+                const categoryName = getCategoryNameFromTransaction(tx);
+                const categoryId = getOrCreateCategory(categoryName, transactionType, localCategories, batch);
                 
                 const transactionData = {
                     userId: user.uid,
@@ -319,8 +352,7 @@ function MercadoPagoPageContent() {
                                 <TableHead>Тип</TableHead>
                                 <TableHead className="text-right">Сумма</TableHead>
                                 <TableHead className="text-right">Скидка</TableHead>
-                                <TableHead className="text-right">Комиссии</TableHead>
-                                <TableHead className="text-right">Итог</TableHead>
+                                <TableHead className="text-right">Оплачено</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -335,11 +367,8 @@ function MercadoPagoPageContent() {
                                     <TableCell className="text-right text-green-600">
                                         -{new Intl.NumberFormat('ru-RU', { style: 'currency', currency: tx.currency }).format(tx.coupon_amount)}
                                     </TableCell>
-                                    <TableCell className="text-right text-destructive">
-                                        -{new Intl.NumberFormat('ru-RU', { style: 'currency', currency: tx.currency }).format(tx.fees)}
-                                    </TableCell>
                                     <TableCell className="text-right font-semibold">
-                                        {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: tx.currency }).format(tx.type === 'expense' ? tx.total_paid_amount : tx.net_amount)}
+                                        {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: tx.currency }).format(tx.total_paid_amount)}
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -421,3 +450,5 @@ function MercadoPagoPageContent() {
 }
 
 export default MercadoPagoPageContent;
+
+    
