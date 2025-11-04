@@ -71,11 +71,14 @@ export async function exchangeCodeForToken(code: string): Promise<{ success: boo
     return { success: false, error: 'User not authenticated.' };
   }
 
-  // !!! IMPORTANT: Replace with your actual Client ID and Client Secret
-  const CLIENT_ID = "YOUR_CLIENT_ID";
-  const CLIENT_SECRET = "YOUR_CLIENT_SECRET";
+  const CLIENT_ID = process.env.NEXT_PUBLIC_MERCADO_PAGO_CLIENT_ID;
+  const CLIENT_SECRET = process.env.MERCADO_PAGO_CLIENT_SECRET;
   const REDIRECT_URI = "http://localhost:9002/mercado-pago/callback";
 
+  if (!CLIENT_ID || !CLIENT_SECRET || CLIENT_ID === "YOUR_CLIENT_ID" || CLIENT_SECRET === "YOUR_CLIENT_SECRET") {
+    return { success: false, error: "Mercado Pago Client ID or Secret not configured in .env.local file." };
+  }
+  
   try {
     const response = await fetch('https://api.mercadopago.com/oauth/token', {
         method: 'POST',
@@ -98,7 +101,7 @@ export async function exchangeCodeForToken(code: string): Promise<{ success: boo
         return { success: false, error: `Mercado Pago API error: ${data.message || 'Failed to exchange token'}`, data };
     }
 
-    const { access_token, refresh_token, expires_in } = data;
+    const { access_token, refresh_token, expires_in, user_id: mercadoPagoUserId } = data;
 
     if (!access_token) {
         return { success: false, error: 'Access token not found in Mercado Pago response.', data };
@@ -111,6 +114,7 @@ export async function exchangeCodeForToken(code: string): Promise<{ success: boo
         mercadoPagoAccessToken: access_token,
         mercadoPagoRefreshToken: refresh_token,
         mercadoPagoTokenExpires: Date.now() + expires_in * 1000,
+        mercadoPagoUserId: mercadoPagoUserId
     });
 
     return { success: true, data };
@@ -194,7 +198,6 @@ export async function getMercadoPagoTransactions(): Promise<
             type = 'expense';
             break;
           case 'money_transfer':
-            // If the user's MP ID is the collector, it's income. Otherwise, it's an expense.
             if (tx.collector && tx.collector.id === userData?.mercadoPagoUserId) {
                  type = 'income';
             } else {

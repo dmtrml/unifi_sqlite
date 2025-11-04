@@ -236,6 +236,8 @@ function MercadoPagoPageContent() {
   }
   
   const isConnected = !!userData?.mercadoPagoAccessToken;
+  const authUrl = `https://auth.mercadopago.com/authorization?client_id=${process.env.NEXT_PUBLIC_MERCADO_PAGO_CLIENT_ID}&response_type=code&platform_id=mp&state=YOUR_STATE&redirect_uri=http://localhost:9002/mercado-pago/callback`;
+
 
   const renderStepContent = () => {
     switch (step) {
@@ -262,7 +264,7 @@ function MercadoPagoPageContent() {
                 </Button>
              ) : (
                 <Button asChild>
-                    <Link href="https://auth.mercadopago.com/authorization?client_id=YOUR_CLIENT_ID&response_type=code&platform_id=mp&state=YOUR_STATE&redirect_uri=http://localhost:9002/mercado-pago/callback">
+                    <Link href={authUrl}>
                         <LinkIcon className="mr-2 h-4 w-4" />
                         Подключить Mercado Pago
                     </Link>
