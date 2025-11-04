@@ -14,6 +14,7 @@ const MercadoPagoFeeDetailSchema = z.object({
     fee_payer: z.string(),
 }).optional();
 
+// Обновленная схема для более точного определения типа перевода
 const MercadoPagoTransactionSchema = z.object({
   id: z.number(),
   date_approved: z.string().nullable(),
@@ -35,6 +36,9 @@ const MercadoPagoTransactionSchema = z.object({
         unit: z.string().optional().nullable(),
     }).optional().nullable(),
   }).optional().nullable(),
+  // Добавляем поля для точной идентификации переводов
+  collector_id: z.number().optional().nullable(),
+  collector: z.object({ id: z.number() }).optional().nullable(),
 });
 
 const MercadoPagoResponseSchema = z.object({
@@ -94,9 +98,12 @@ export async function getMercadoPagoTransactions(
           type = 'expense';
           break;
         case 'money_transfer':
-          // Здесь нужна более сложная логика, но пока оставляем как 'transfer'
-          // В реальном приложении мы бы сравнили collector_id с ID пользователя
-          type = 'transfer';
+          // Применяем вашу логику: если есть collector_id, это доход. Иначе — расход.
+          if (tx.collector_id) {
+            type = 'income'; // Нам перевели деньги
+          } else {
+            type = 'expense'; // Мы перевели деньги
+          }
           break;
         case 'account_fund':
           type = 'funding';
