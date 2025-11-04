@@ -3,6 +3,8 @@
 
 import { z } from 'zod';
 import { headers } from "next/headers";
+import { doc, updateDoc } from 'firebase/firestore';
+import { getFirestore } from 'firebase-admin/firestore';
 import admin from "firebase-admin";
 
 const MercadoPagoFeeDetailSchema = z.object({
@@ -13,7 +15,6 @@ const MercadoPagoFeeDetailSchema = z.object({
 
 const MercadoPagoTransactionSchema = z.object({
   id: z.number(),
-  date_approved: z.string().nullable(),
   date_created: z.string(),
   description: z.string().nullable(),
   transaction_amount: z.number(),
@@ -32,7 +33,6 @@ const MercadoPagoTransactionSchema = z.object({
         unit: z.string().optional().nullable(),
     }).optional().nullable(),
   }).optional().nullable(),
-  collector_id: z.number().optional().nullable(),
   collector: z.object({ id: z.number() }).optional().nullable(),
 });
 
@@ -64,10 +64,59 @@ function getFirebaseAdminApp() {
 
 
 export async function exchangeCodeForToken(code: string): Promise<{ success: boolean, data?: any, error?: string }> {
-  // This is a placeholder. In the next step, we'll implement the actual API call.
-  console.log("Exchanging code:", code);
-  await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network request
-  return { success: true, data: { message: "Token exchange successful (simulated)." } };
+  const headersList = headers();
+  const userId = headersList.get('X-Uid');
+
+  if (!userId) {
+    return { success: false, error: 'User not authenticated.' };
+  }
+
+  // !!! IMPORTANT: Replace with your actual Client ID and Client Secret
+  const CLIENT_ID = "YOUR_CLIENT_ID";
+  const CLIENT_SECRET = "YOUR_CLIENT_SECRET";
+  const REDIRECT_URI = "http://localhost:9002/mercado-pago/callback";
+
+  try {
+    const response = await fetch('https://api.mercadopago.com/oauth/token', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${CLIENT_SECRET}`,
+        },
+        body: JSON.stringify({
+            grant_type: 'authorization_code',
+            client_id: CLIENT_ID,
+            client_secret: CLIENT_SECRET,
+            code: code,
+            redirect_uri: REDIRECT_URI,
+        }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        return { success: false, error: `Mercado Pago API error: ${data.message || 'Failed to exchange token'}`, data };
+    }
+
+    const { access_token, refresh_token, expires_in } = data;
+
+    if (!access_token) {
+        return { success: false, error: 'Access token not found in Mercado Pago response.', data };
+    }
+    
+    const adminApp = getFirebaseAdminApp();
+    const userDocRef = adminApp.firestore().doc(`users/${userId}`);
+
+    await userDocRef.update({
+        mercadoPagoAccessToken: access_token,
+        mercadoPagoRefreshToken: refresh_token,
+        mercadoPagoTokenExpires: Date.now() + expires_in * 1000,
+    });
+
+    return { success: true, data };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'An unknown error occurred.' };
+  }
 }
 
 
@@ -88,7 +137,10 @@ export async function getMercadoPagoTransactions(): Promise<
 
   const accessToken = userData?.mercadoPagoAccessToken;
 
-  if (!accessToken) return { success: false, error: 'Mercado Pago account not connected.' };
+  if (!accessToken) {
+    return { success: false, error: 'Mercado Pago account not connected.' };
+  }
+  
 
   const MERCADO_PAGO_API_URL = 'https://api.mercadopago.com/v1/payments/search';
   const PAGE_LIMIT = 50;
@@ -142,10 +194,11 @@ export async function getMercadoPagoTransactions(): Promise<
             type = 'expense';
             break;
           case 'money_transfer':
-            if (tx.collector_id) {
-              type = 'income'; 
+            // If the user's MP ID is the collector, it's income. Otherwise, it's an expense.
+            if (tx.collector && tx.collector.id === userData?.mercadoPagoUserId) {
+                 type = 'income';
             } else {
-              type = 'expense';
+                 type = 'expense';
             }
             break;
           case 'account_fund':

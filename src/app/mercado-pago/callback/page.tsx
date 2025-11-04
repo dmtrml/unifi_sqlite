@@ -29,35 +29,35 @@ export default function MercadoPagoCallbackPage() {
   };
 
   React.useEffect(() => {
-    const code = searchParams.get('code');
-    const error = searchParams.get('error');
-
     const processAuthorization = async () => {
+      const code = searchParams.get('code');
+      const error = searchParams.get('error');
+
       if (error) {
-        addLog({ step: "Authorization", message: `Ошибка авторизации: ${searchParams.get('error_description') || error}` }, 'error');
+        addLog({ step: "Authorization", message: `Authorization error: ${searchParams.get('error_description') || error}` }, 'error');
         setErrorState("Authorization failed.");
         setIsComplete(true);
         return;
       }
 
       if (!code) {
-        addLog({ step: "Authorization Code", message: "Код авторизации не найден в URL." }, 'error');
+        addLog({ step: "Authorization Code", message: "Authorization code not found in URL." }, 'error');
         setErrorState("Authorization code missing.");
         setIsComplete(true);
         return;
       }
       
-      addLog({ step: "Authorization Code", message: `Код получен: ${code}` }, 'success');
+      addLog({ step: "Authorization Code", message: `Code received: ${code}` }, 'success');
 
       // Step 2: Exchange code for token
-      addLog({ step: "Token Exchange", message: "Отправка кода на сервер для обмена на токен..." }, 'pending');
+      addLog({ step: "Token Exchange", message: "Sending code to server to exchange for token..." }, 'pending');
       
       const result = await exchangeCodeForToken(code);
 
       if (result.success) {
         addLog({ 
           step: "Token Exchange", 
-          message: "Токен успешно получен и сохранен!", 
+          message: "Token successfully received and saved!", 
           data: result.data 
         }, 'success');
         setIsComplete(true);
@@ -65,7 +65,7 @@ export default function MercadoPagoCallbackPage() {
       } else {
         addLog({ 
           step: "Token Exchange", 
-          message: `Ошибка обмена токена: ${result.error}`, 
+          message: `Token exchange failed: ${result.error}`, 
           data: result.data 
         }, 'error');
         setErrorState(result.error || "An unknown error occurred during token exchange.");
@@ -73,7 +73,11 @@ export default function MercadoPagoCallbackPage() {
       }
     };
 
-    processAuthorization();
+    // Run only once
+    if (logs.length === 0) {
+      processAuthorization();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, router]);
 
   const renderLogIcon = (status: LogEntry['status']) => {
@@ -89,7 +93,7 @@ export default function MercadoPagoCallbackPage() {
       <main className="flex flex-1 flex-col items-center justify-center gap-4 p-4 lg:gap-6 lg:p-6">
         <Card className="w-full max-w-2xl">
           <CardHeader>
-            <CardTitle>Подключение к Mercado Pago</CardTitle>
+            <CardTitle>Connecting to Mercado Pago</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-4">
@@ -111,12 +115,12 @@ export default function MercadoPagoCallbackPage() {
             {isComplete && (
               <div className="mt-6 text-center">
                 {errorState ? (
-                  <p className="text-destructive">Произошла ошибка. Попробуйте снова.</p>
+                  <p className="text-destructive">An error occurred. Please try again.</p>
                 ) : (
-                  <p className="text-green-600">Отлично! Вы будете перенаправлены через 3 секунды...</p>
+                  <p className="text-green-600">Success! You will be redirected in 3 seconds...</p>
                 )}
                 <Button asChild className="mt-4">
-                  <Link href="/mercado-pago">Вернуться на страницу импорта</Link>
+                  <Link href="/mercado-pago">Back to Import Page</Link>
                 </Button>
               </div>
             )}
