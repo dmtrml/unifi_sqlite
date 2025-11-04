@@ -14,21 +14,28 @@ const MercadoPagoFeeDetailSchema = z.object({
     fee_payer: z.string(),
 }).optional();
 
+// Обновленная схема транзакции
 const MercadoPagoTransactionSchema = z.object({
   id: z.number(),
   date_approved: z.string().nullable(),
   date_created: z.string(),
   description: z.string().nullable(),
   transaction_amount: z.number(),
+  coupon_amount: z.number().default(0),
   status: z.string(),
   currency_id: z.string(),
   payer: z.object({ email: z.string().nullable() }).nullable(),
   operation_type: z.string(),
   transaction_details: z.object({ 
-    net_received_amount: z.number().optional() 
+    net_received_amount: z.number().optional(),
+    total_paid_amount: z.number().optional(), // Добавлено поле
   }).optional(),
   fee_details: z.array(MercadoPagoFeeDetailSchema).optional(),
-  card: z.object({}).nullable().optional(),
+  point_of_interaction: z.object({
+    business_info: z.object({
+        unit: z.string().optional().nullable(),
+    }).optional().nullable(),
+  }).optional().nullable(),
 });
 
 const MercadoPagoResponseSchema = z.object({
@@ -83,8 +90,11 @@ export async function getMercadoPagoTransactions(
     const simplifiedTransactions = results.map((tx: any) => {
       let type: 'income' | 'expense' | 'transfer' | 'funding' | 'unknown' = 'unknown';
       if (tx.operation_type === 'regular_payment') {
-          type = tx.card ? 'expense' : 'income';
+          // Определяем как расход, т.к. это оплата
+          type = 'expense';
       } else if (tx.operation_type === 'money_transfer') {
+          // Если мы получатель - это доход, если отправитель - расход
+          // Для простоты пока считаем переводы нейтральными, но можно будет уточнить
           type = 'transfer';
       } else if (tx.operation_type === 'account_fund') {
           type = 'funding';
@@ -97,6 +107,8 @@ export async function getMercadoPagoTransactions(
         date: tx.date_approved || tx.date_created,
         description: tx.description || 'No description',
         gross_amount: tx.transaction_amount,
+        coupon_amount: tx.coupon_amount || 0,
+        total_paid_amount: tx.transaction_details?.total_paid_amount || tx.transaction_amount,
         fees: fees,
         net_amount: tx.transaction_details?.net_received_amount ?? tx.transaction_amount - fees,
         currency: tx.currency_id,

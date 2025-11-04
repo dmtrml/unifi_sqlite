@@ -46,6 +46,8 @@ export const SimplifiedTransactionSchema = z.object({
   date: z.string(),
   description: z.string(),
   gross_amount: z.number(),
+  coupon_amount: z.number().default(0),
+  total_paid_amount: z.number(),
   fees: z.number(),
   net_amount: z.number(),
   currency: z.string(),
@@ -183,7 +185,7 @@ function MercadoPagoPageContent() {
                 const transactionData = {
                     userId: user.uid,
                     date: new Date(tx.date),
-                    amount: tx.gross_amount,
+                    amount: tx.type === 'expense' ? tx.total_paid_amount : tx.net_amount,
                     description: `${tx.description} (MP)`,
                     transactionType: tx.type as 'income' | 'expense',
                     accountId: selectedAccountId,
@@ -200,7 +202,7 @@ function MercadoPagoPageContent() {
                 batch.set(newTransactionRef, transactionData);
                 finalResult.successCount++;
 
-                totalAmountToUpdate += (tx.type === 'income' ? tx.net_amount : -tx.gross_amount);
+                totalAmountToUpdate += (tx.type === 'income' ? tx.net_amount : -tx.total_paid_amount);
             }
             await batch.commit();
         }
@@ -312,10 +314,10 @@ function MercadoPagoPageContent() {
                                 <TableHead>Дата</TableHead>
                                 <TableHead>Описание</TableHead>
                                 <TableHead>Тип</TableHead>
-                                <TableHead>Статус</TableHead>
                                 <TableHead className="text-right">Сумма</TableHead>
+                                <TableHead className="text-right">Скидка</TableHead>
                                 <TableHead className="text-right">Комиссии</TableHead>
-                                <TableHead className="text-right">Итого</TableHead>
+                                <TableHead className="text-right">Итог</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -324,15 +326,17 @@ function MercadoPagoPageContent() {
                                     <TableCell>{new Date(tx.date).toLocaleDateString()}</TableCell>
                                     <TableCell>{tx.description}</TableCell>
                                     <TableCell>{getOperationTypeBadge(tx.type, tx.operation_type)}</TableCell>
-                                    <TableCell>{tx.status}</TableCell>
                                     <TableCell className="text-right">
                                         {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: tx.currency }).format(tx.gross_amount)}
+                                    </TableCell>
+                                    <TableCell className="text-right text-green-600">
+                                        -{new Intl.NumberFormat('ru-RU', { style: 'currency', currency: tx.currency }).format(tx.coupon_amount)}
                                     </TableCell>
                                     <TableCell className="text-right text-destructive">
                                         -{new Intl.NumberFormat('ru-RU', { style: 'currency', currency: tx.currency }).format(tx.fees)}
                                     </TableCell>
                                     <TableCell className="text-right font-semibold">
-                                        {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: tx.currency }).format(tx.net_amount)}
+                                        {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: tx.currency }).format(tx.type === 'expense' ? tx.total_paid_amount : tx.net_amount)}
                                     </TableCell>
                                 </TableRow>
                             ))}
