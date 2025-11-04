@@ -1,8 +1,9 @@
+
 "use client"
 
 import * as React from "react"
 import { collection, writeBatch, doc } from "firebase/firestore"
-import { Loader2, Check, Info, Import, BadgeHelp } from "lucide-react"
+import { Loader2, Check, Import, BadgeHelp } from "lucide-react"
 import { z } from 'zod';
 
 import AppLayout from "@/components/layout"
@@ -75,9 +76,6 @@ function MercadoPagoPageContent() {
   const [selectedAccountId, setSelectedAccountId] = React.useState<string | null>(null);
   const [rawApiResponses, setRawApiResponses] = React.useState<any[]>([]);
 
-  const [nextOffset, setNextOffset] = React.useState<number | null>(0);
-  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
-
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -103,36 +101,28 @@ function MercadoPagoPageContent() {
     setIsImporting(false);
     setImportResult(null);
     setSelectedAccountId(null);
-    setNextOffset(0);
-    setIsLoadingMore(false);
     setRawApiResponses([]);
   };
 
-  const handleFetchTransactions = async (offset = 0) => {
-    if(offset > 0) {
-      setIsLoadingMore(true);
-    } else {
-      setIsLoading(true);
-      setRawApiResponses([]);
-      setTransactions([]);
-    }
+  const handleFetchTransactions = async () => {
+    setIsLoading(true);
+    setRawApiResponses([]);
+    setTransactions([]);
     setError(null);
-    const result = await getMercadoPagoTransactions(accessToken, offset);
+    const result = await getMercadoPagoTransactions(accessToken);
 
     if (result.rawData) {
-        setRawApiResponses(prev => [...prev, result.rawData]);
+        setRawApiResponses(result.rawData);
     }
     
     if (result.success) {
-      setTransactions(prev => (offset > 0 ? [...prev, ...result.data] : result.data));
-      setNextOffset(result.nextOffset);
+      setTransactions(result.data);
       if (step === 1 && result.data.length > 0) setStep(2);
     } else {
       setError(result.error);
     }
     
     setIsLoading(false);
-    setIsLoadingMore(false);
   };
 
   const getOrCreateCategory = (
@@ -284,7 +274,7 @@ function MercadoPagoPageContent() {
               )}
             </CardContent>
             <CardFooter>
-              <Button onClick={() => handleFetchTransactions(0)} disabled={isLoading || !accessToken}>
+              <Button onClick={() => handleFetchTransactions()} disabled={isLoading || !accessToken}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Получить транзакции
               </Button>
@@ -356,14 +346,6 @@ function MercadoPagoPageContent() {
                         </TableBody>
                     </Table>
                 </div>
-                 {nextOffset !== null && (
-                  <div className="flex justify-center">
-                      <Button onClick={() => handleFetchTransactions(nextOffset)} disabled={isLoadingMore}>
-                          {isLoadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          Загрузить еще
-                      </Button>
-                  </div>
-                )}
                  {rawApiResponses.length > 0 && (
                     <Accordion type="single" collapsible className="w-full">
                         <AccordionItem value="item-1">
