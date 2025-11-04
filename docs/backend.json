@@ -203,6 +203,18 @@
           "type": "string",
           "description": "The user's main currency for reporting.",
           "enum": ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS", "RUB"]
+        },
+        "mercadoPagoAccessToken": {
+          "type": "string",
+          "description": "The user's Mercado Pago access token."
+        },
+        "mercadoPagoRefreshToken": {
+          "type": "string",
+          "description": "The user's Mercado Pago refresh token."
+        },
+        "mercadoPagoTokenExpires": {
+          "type": "number",
+          "description": "The expiration timestamp of the Mercado Pago access token."
         }
       },
       "required": [
