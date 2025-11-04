@@ -169,7 +169,7 @@ function MercadoPagoPageContent() {
     const BATCH_SIZE = 450;
     const finalResult: ImportResult = { successCount: 0, errorCount: 0 };
     
-    const approvedTransactions = transactions.filter(t => t.status === 'approved' && (t.type === 'income' || t.type === 'expense'));
+    const approvedTransactions = transactions.filter(t => t.status === 'approved' && (t.type === 'income' || t.type === 'expense' || t.type === 'funding'));
 
     try {
         let totalAmountToUpdate = 0;
@@ -180,18 +180,31 @@ function MercadoPagoPageContent() {
             const chunk = approvedTransactions.slice(i, i + BATCH_SIZE);
 
             for (const tx of chunk) {
-                const categoryId = getOrCreateCategory(tx.description, tx.type as 'income' | 'expense', localCategories, batch);
+                let transactionType: 'income' | 'expense' | null = null;
+                let amount = 0;
+                
+                if (tx.type === 'expense') {
+                    transactionType = 'expense';
+                    amount = tx.total_paid_amount;
+                } else if (tx.type === 'funding' || tx.type === 'income') {
+                    transactionType = 'income';
+                    amount = tx.net_amount;
+                }
+
+                if (!transactionType) continue;
+
+                const categoryId = getOrCreateCategory(tx.description, transactionType, localCategories, batch);
                 
                 const transactionData = {
                     userId: user.uid,
                     date: new Date(tx.date),
-                    amount: tx.type === 'expense' ? tx.total_paid_amount : tx.net_amount,
+                    amount: amount,
                     description: `${tx.description} (MP)`,
-                    transactionType: tx.type as 'income' | 'expense',
+                    transactionType: transactionType,
                     accountId: selectedAccountId,
                     categoryId: categoryId,
-                    incomeType: tx.type === 'income' ? 'active' : null,
-                    expenseType: tx.type === 'expense' ? 'optional' : null,
+                    incomeType: transactionType === 'income' ? 'active' : null,
+                    expenseType: transactionType === 'expense' ? 'optional' : null,
                     fromAccountId: null,
                     toAccountId: null,
                     amountSent: null,
@@ -202,7 +215,7 @@ function MercadoPagoPageContent() {
                 batch.set(newTransactionRef, transactionData);
                 finalResult.successCount++;
 
-                totalAmountToUpdate += (tx.type === 'income' ? tx.net_amount : -tx.total_paid_amount);
+                totalAmountToUpdate += (transactionType === 'income' ? amount : -amount);
             }
             await batch.commit();
         }

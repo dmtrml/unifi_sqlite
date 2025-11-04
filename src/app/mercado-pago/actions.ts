@@ -14,7 +14,6 @@ const MercadoPagoFeeDetailSchema = z.object({
     fee_payer: z.string(),
 }).optional();
 
-// Обновленная схема транзакции
 const MercadoPagoTransactionSchema = z.object({
   id: z.number(),
   date_approved: z.string().nullable(),
@@ -28,7 +27,7 @@ const MercadoPagoTransactionSchema = z.object({
   operation_type: z.string(),
   transaction_details: z.object({ 
     net_received_amount: z.number().optional(),
-    total_paid_amount: z.number().optional(), // Добавлено поле
+    total_paid_amount: z.number().optional(),
   }).optional(),
   fee_details: z.array(MercadoPagoFeeDetailSchema).optional(),
   point_of_interaction: z.object({
@@ -89,15 +88,21 @@ export async function getMercadoPagoTransactions(
     
     const simplifiedTransactions = results.map((tx: any) => {
       let type: 'income' | 'expense' | 'transfer' | 'funding' | 'unknown' = 'unknown';
-      if (tx.operation_type === 'regular_payment') {
-          // Определяем как расход, т.к. это оплата
+
+      switch (tx.operation_type) {
+        case 'regular_payment':
           type = 'expense';
-      } else if (tx.operation_type === 'money_transfer') {
-          // Если мы получатель - это доход, если отправитель - расход
-          // Для простоты пока считаем переводы нейтральными, но можно будет уточнить
+          break;
+        case 'money_transfer':
+          // Здесь нужна более сложная логика, но пока оставляем как 'transfer'
+          // В реальном приложении мы бы сравнили collector_id с ID пользователя
           type = 'transfer';
-      } else if (tx.operation_type === 'account_fund') {
+          break;
+        case 'account_fund':
           type = 'funding';
+          break;
+        default:
+          type = 'unknown';
       }
 
       const fees = tx.fee_details?.reduce((acc: number, fee: any) => acc + fee.amount, 0) || 0;
