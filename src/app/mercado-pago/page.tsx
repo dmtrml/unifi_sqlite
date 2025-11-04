@@ -4,8 +4,9 @@
 
 import * as React from "react"
 import { collection, writeBatch, doc } from "firebase/firestore"
-import { Loader2, Check, Import, BadgeHelp } from "lucide-react"
+import { Loader2, Check, Import, BadgeHelp, LinkIcon } from "lucide-react"
 import { z } from 'zod';
+import Link from "next/link"
 
 import AppLayout from "@/components/layout"
 import { Button } from "@/components/ui/button"
@@ -17,10 +18,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { useFirestore, useUser, useCollection, useMemoFirebase } from "@/firebase"
+import { useFirestore, useUser, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { getMercadoPagoTransactions } from "./actions"
 import {
   Table,
@@ -37,7 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { Account, Category } from "@/lib/types"
+import type { Account, Category, User } from "@/lib/types"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -66,40 +66,8 @@ interface ImportResult {
     errorCount: number;
 }
 
-function getCategoryNameFromTransaction(tx: SimplifiedTransaction): string {
-    const desc = tx.description;
-
-    if (!desc || desc.trim() === "") {
-        if (tx.type === 'income' || tx.type === 'funding') return "Income";
-        if (tx.type === 'expense') return "Purchase";
-        return "Uncategorized";
-    }
-
-    const patterns = [
-        /^Compra en (.+?)( -|$)/,
-        /^Producto de (.+)/,
-        /^Payu\*ar\*(.+)/i,
-        /^Openai \*chatgpt subscr/i,
-    ];
-
-    for (const pattern of patterns) {
-        const match = desc.match(pattern);
-        if (match && match[1]) {
-            let name = match[1].trim();
-            if (name.toLowerCase() === 'uber') return 'Uber';
-            if (name.toLowerCase().startsWith('chatgpt')) return 'ChatGPT';
-            if (name.toLowerCase().includes('openai')) return 'OpenAI';
-            return name.charAt(0).toUpperCase() + name.slice(1);
-        }
-    }
-    
-    // If no pattern matches, return the description but try to clean it
-    return desc.split(' *')[0].split(' -')[0].trim();
-}
-
 function MercadoPagoPageContent() {
   const [step, setStep] = React.useState(1);
-  const [accessToken, setAccessToken] = React.useState("");
   const [transactions, setTransactions] = React.useState<SimplifiedTransaction[]>([]);
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -111,6 +79,9 @@ function MercadoPagoPageContent() {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  
+  const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [user, firestore]);
+  const { data: userData } = useDoc<User>(userDocRef);
 
   const accountsQuery = useMemoFirebase(() =>
     user ? collection(firestore, "users", user.uid, "accounts") : null,
@@ -126,7 +97,6 @@ function MercadoPagoPageContent() {
   
   const resetState = () => {
     setStep(1);
-    setAccessToken("");
     setTransactions([]);
     setError(null);
     setIsLoading(false);
@@ -141,7 +111,7 @@ function MercadoPagoPageContent() {
     setRawApiResponses([]);
     setTransactions([]);
     setError(null);
-    const result = await getMercadoPagoTransactions(accessToken);
+    const result = await getMercadoPagoTransactions();
 
     if (result.rawData) {
         setRawApiResponses(result.rawData);
@@ -149,7 +119,8 @@ function MercadoPagoPageContent() {
     
     if (result.success) {
       setTransactions(result.data);
-      if (step === 1 && result.data.length > 0) setStep(2);
+      if (result.data.length > 0) setStep(2);
+      else toast({ title: "Нет новых транзакций", description: "Не найдено транзакций для импорта."})
     } else {
       setError(result.error);
     }
@@ -197,8 +168,7 @@ function MercadoPagoPageContent() {
 
                 if (!transactionType) continue;
 
-                const categoryName = getCategoryNameFromTransaction(tx);
-                const categoryId = findCategory(categoryName, localCategories);
+                const categoryId = findCategory(tx.description, localCategories);
                 
                 const transactionData = {
                     userId: user.uid,
@@ -264,6 +234,8 @@ function MercadoPagoPageContent() {
         </TooltipProvider>
     }
   }
+  
+  const isConnected = !!userData?.mercadoPagoAccessToken;
 
   const renderStepContent = () => {
     switch (step) {
@@ -271,16 +243,10 @@ function MercadoPagoPageContent() {
         return (
           <Card>
             <CardHeader>
-              <CardTitle>Шаг 1: Подключение к Mercado Pago</CardTitle>
-              <CardDescription>Введите ваш Access Token для получения транзакций.</CardDescription>
+              <CardTitle>Шаг 1: Подключение и загрузка</CardTitle>
+              <CardDescription>Подключите свой аккаунт Mercado Pago для загрузки транзакций.</CardDescription>
             </CardHeader>
             <CardContent>
-              <Input
-                type="password"
-                placeholder="Access Token"
-                value={accessToken}
-                onChange={(e) => setAccessToken(e.target.value)}
-              />
               {error && (
                   <Alert variant="destructive" className="mt-4">
                       <AlertTitle>Ошибка</AlertTitle>
@@ -289,10 +255,19 @@ function MercadoPagoPageContent() {
               )}
             </CardContent>
             <CardFooter>
-              <Button onClick={() => handleFetchTransactions()} disabled={isLoading || !accessToken}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Получить транзакции
-              </Button>
+             {isConnected ? (
+                <Button onClick={handleFetchTransactions} disabled={isLoading}>
+                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Загрузить транзакции
+                </Button>
+             ) : (
+                <Button asChild>
+                    <Link href="https://auth.mercadopago.com/authorization?client_id=YOUR_CLIENT_ID&response_type=code&platform_id=mp&state=YOUR_STATE&redirect_uri=http://localhost:9002/mercado-pago/callback">
+                        <LinkIcon className="mr-2 h-4 w-4" />
+                        Подключить Mercado Pago
+                    </Link>
+                </Button>
+             )}
             </CardFooter>
           </Card>
         );
