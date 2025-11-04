@@ -40,7 +40,7 @@ import {
 import type { Account, Category, User } from "@/lib/types"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 export const SimplifiedTransactionSchema = z.object({
@@ -407,5 +407,7 @@ function MercadoPagoPageContent() {
 }
 
 export default MercadoPagoPageContent;
+
+    
 
     
