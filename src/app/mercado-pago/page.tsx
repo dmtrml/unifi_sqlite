@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { collection, writeBatch, doc } from "firebase/firestore"
-import { Loader2, Check, Info, Import } from "lucide-react"
+import { Loader2, Check, Info, Import, BadgeHelp } from "lucide-react"
 import { z } from 'zod';
 
 import AppLayout from "@/components/layout"
@@ -37,15 +37,21 @@ import {
 } from "@/components/ui/select"
 import type { Account, Category } from "@/lib/types"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 
 export const SimplifiedTransactionSchema = z.object({
   id: z.string(),
   date: z.string(),
   description: z.string(),
-  amount: z.number(),
+  gross_amount: z.number(),
+  fees: z.number(),
+  net_amount: z.number(),
   currency: z.string(),
-  type: z.enum(['income', 'expense']),
+  type: z.enum(['income', 'expense', 'transfer', 'funding', 'unknown']),
   status: z.string(),
+  operation_type: z.string(),
   payer: z.string(),
 });
 
@@ -106,11 +112,11 @@ function MercadoPagoPageContent() {
     } else {
       setIsLoading(true);
       setRawApiResponses([]);
+      setTransactions([]);
     }
     setError(null);
     const result = await getMercadoPagoTransactions(accessToken, offset);
 
-    // Всегда сохраняем сырые данные, если они есть
     if (result.rawData) {
         setRawApiResponses(prev => [...prev, result.rawData]);
     }
@@ -118,7 +124,7 @@ function MercadoPagoPageContent() {
     if (result.success) {
       setTransactions(prev => (offset > 0 ? [...prev, ...result.data] : result.data));
       setNextOffset(result.nextOffset);
-      if (step === 1) setStep(2);
+      if (step === 1 && result.data.length > 0) setStep(2);
     } else {
       setError(result.error);
     }
@@ -160,24 +166,26 @@ function MercadoPagoPageContent() {
     setStep(3);
     const BATCH_SIZE = 450;
     const finalResult: ImportResult = { successCount: 0, errorCount: 0 };
+    
+    const approvedTransactions = transactions.filter(t => t.status === 'approved' && (t.type === 'income' || t.type === 'expense'));
 
     try {
         let totalAmountToUpdate = 0;
         const localCategories = [...categories];
 
-        for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
+        for (let i = 0; i < approvedTransactions.length; i += BATCH_SIZE) {
             const batch = writeBatch(firestore);
-            const chunk = transactions.slice(i, i + BATCH_SIZE);
+            const chunk = approvedTransactions.slice(i, i + BATCH_SIZE);
 
             for (const tx of chunk) {
-                const categoryId = getOrCreateCategory(tx.description, tx.type, localCategories, batch);
+                const categoryId = getOrCreateCategory(tx.description, tx.type as 'income' | 'expense', localCategories, batch);
                 
                 const transactionData = {
                     userId: user.uid,
                     date: new Date(tx.date),
-                    amount: tx.amount,
-                    description: tx.description,
-                    transactionType: tx.type,
+                    amount: tx.gross_amount,
+                    description: `${tx.description} (MP)`,
+                    transactionType: tx.type as 'income' | 'expense',
                     accountId: selectedAccountId,
                     categoryId: categoryId,
                     incomeType: tx.type === 'income' ? 'active' : null,
@@ -192,7 +200,7 @@ function MercadoPagoPageContent() {
                 batch.set(newTransactionRef, transactionData);
                 finalResult.successCount++;
 
-                totalAmountToUpdate += (tx.type === 'income' ? tx.amount : -tx.amount);
+                totalAmountToUpdate += (tx.type === 'income' ? tx.net_amount : -tx.gross_amount);
             }
             await batch.commit();
         }
@@ -217,6 +225,25 @@ function MercadoPagoPageContent() {
         setIsImporting(false);
     }
   };
+  
+  const getOperationTypeBadge = (type: SimplifiedTransaction['type'], operationType: string) => {
+    switch (type) {
+        case 'income': return <Badge variant="default">Income</Badge>;
+        case 'expense': return <Badge variant="destructive">Expense</Badge>;
+        case 'transfer': return <Badge variant="secondary">Transfer</Badge>;
+        case 'funding': return <Badge style={{backgroundColor: 'hsl(var(--chart-3))', color: 'white'}}>Funding</Badge>;
+        default: return <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Badge variant="outline"><BadgeHelp className="h-4 w-4"/></Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>Unknown Operation: {operationType}</p>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    }
+  }
 
   const renderStepContent = () => {
     switch (step) {
@@ -254,7 +281,7 @@ function MercadoPagoPageContent() {
           <Card>
             <CardHeader>
               <CardTitle>Шаг 2: Проверка и импорт</CardTitle>
-              <CardDescription>Проверьте транзакции и выберите счет для импорта.</CardDescription>
+              <CardDescription>Проверьте транзакции и выберите счет для импорта. Будут импортированы только одобренные (approved) доходы и расходы.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 {error && (
@@ -284,8 +311,11 @@ function MercadoPagoPageContent() {
                             <TableRow>
                                 <TableHead>Дата</TableHead>
                                 <TableHead>Описание</TableHead>
+                                <TableHead>Тип</TableHead>
                                 <TableHead>Статус</TableHead>
                                 <TableHead className="text-right">Сумма</TableHead>
+                                <TableHead className="text-right">Комиссии</TableHead>
+                                <TableHead className="text-right">Итого</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -293,9 +323,16 @@ function MercadoPagoPageContent() {
                                 <TableRow key={tx.id}>
                                     <TableCell>{new Date(tx.date).toLocaleDateString()}</TableCell>
                                     <TableCell>{tx.description}</TableCell>
+                                    <TableCell>{getOperationTypeBadge(tx.type, tx.operation_type)}</TableCell>
                                     <TableCell>{tx.status}</TableCell>
                                     <TableCell className="text-right">
-                                        {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: tx.currency }).format(tx.amount)}
+                                        {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: tx.currency }).format(tx.gross_amount)}
+                                    </TableCell>
+                                    <TableCell className="text-right text-destructive">
+                                        -{new Intl.NumberFormat('ru-RU', { style: 'currency', currency: tx.currency }).format(tx.fees)}
+                                    </TableCell>
+                                    <TableCell className="text-right font-semibold">
+                                        {new Intl.NumberFormat('ru-RU', { style: 'currency', currency: tx.currency }).format(tx.net_amount)}
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -315,7 +352,7 @@ function MercadoPagoPageContent() {
                         <AccordionItem value="item-1">
                             <AccordionTrigger>Показать сырые данные API</AccordionTrigger>
                             <AccordionContent>
-                                <pre className="mt-2 w-full overflow-x-auto rounded-md bg-muted p-4 text-sm">
+                                <pre className="mt-2 w-full overflow-x-auto rounded-md bg-muted p-4 text-sm max-h-96">
                                     <code>{JSON.stringify(rawApiResponses, null, 2)}</code>
                                 </pre>
                             </AccordionContent>
@@ -327,7 +364,7 @@ function MercadoPagoPageContent() {
                 <Button variant="outline" onClick={resetState}>Назад</Button>
                 <Button onClick={handleImport} disabled={!selectedAccountId || isImporting}>
                     {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Import className="mr-2 h-4 w-4" />}
-                    Импортировать {transactions.length} транзакций
+                    Импортировать
                 </Button>
             </CardFooter>
           </Card>

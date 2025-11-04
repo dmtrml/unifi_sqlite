@@ -8,6 +8,12 @@ const MercadoPagoPagingSchema = z.object({
   offset: z.number(),
 });
 
+const MercadoPagoFeeDetailSchema = z.object({
+    type: z.string(),
+    amount: z.number(),
+    fee_payer: z.string(),
+}).optional();
+
 const MercadoPagoTransactionSchema = z.object({
   id: z.number(),
   date_approved: z.string().nullable(),
@@ -17,7 +23,11 @@ const MercadoPagoTransactionSchema = z.object({
   status: z.string(),
   currency_id: z.string(),
   payer: z.object({ email: z.string().nullable() }).nullable(),
-  transaction_details: z.object({ net_received_amount: z.number() }).optional(),
+  operation_type: z.string(),
+  transaction_details: z.object({ 
+    net_received_amount: z.number().optional() 
+  }).optional(),
+  fee_details: z.array(MercadoPagoFeeDetailSchema).optional(),
   card: z.object({}).nullable().optional(),
 });
 
@@ -25,6 +35,7 @@ const MercadoPagoResponseSchema = z.object({
   paging: MercadoPagoPagingSchema,
   results: z.array(MercadoPagoTransactionSchema),
 });
+
 
 export async function getMercadoPagoTransactions(
   accessToken: string,
@@ -68,17 +79,30 @@ export async function getMercadoPagoTransactions(
     
     const results = rawData.results || [];
     const paging = rawData.paging || { offset: 0, total: 0 };
-
+    
     const simplifiedTransactions = results.map((tx: any) => {
-      const isIncome = tx.card === null || tx.card === undefined;
+      let type: 'income' | 'expense' | 'transfer' | 'funding' | 'unknown' = 'unknown';
+      if (tx.operation_type === 'regular_payment') {
+          type = tx.card ? 'expense' : 'income';
+      } else if (tx.operation_type === 'money_transfer') {
+          type = 'transfer';
+      } else if (tx.operation_type === 'account_fund') {
+          type = 'funding';
+      }
+
+      const fees = tx.fee_details?.reduce((acc: number, fee: any) => acc + fee.amount, 0) || 0;
+
       return {
         id: String(tx.id),
         date: tx.date_approved || tx.date_created,
         description: tx.description || 'No description',
-        amount: tx.transaction_amount,
+        gross_amount: tx.transaction_amount,
+        fees: fees,
+        net_amount: tx.transaction_details?.net_received_amount ?? tx.transaction_amount - fees,
         currency: tx.currency_id,
-        type: (isIncome ? 'income' : 'expense') as const,
+        type: type,
         status: tx.status,
+        operation_type: tx.operation_type,
         payer: tx.payer?.email || 'Unknown',
       };
     });
