@@ -157,27 +157,9 @@ function MercadoPagoPageContent() {
     setIsLoading(false);
   };
 
-  const getOrCreateCategory = (
-      name: string,
-      type: 'expense' | 'income',
-      localCategories: Category[],
-      batch: any
-  ): string => {
-      let category = localCategories.find(c => c.name.toLowerCase() === name.toLowerCase());
-      if (category) {
-          return category.id;
-      }
-      const newCategoryData = {
-          name: name,
-          userId: user!.uid,
-          icon: "MoreHorizontal",
-          color: "hsl(var(--muted-foreground))",
-          type: type,
-      };
-      const newCategoryRef = doc(collection(firestore!, `users/${user!.uid}/categories`));
-      batch.set(newCategoryRef, newCategoryData);
-      localCategories.push({ ...newCategoryData, id: newCategoryRef.id });
-      return newCategoryRef.id;
+  const findCategory = (name: string, localCategories: Category[]): string | null => {
+    const category = localCategories.find(c => c.name.toLowerCase() === name.toLowerCase());
+    return category ? category.id : null;
   };
 
   const handleImport = async () => {
@@ -216,7 +198,7 @@ function MercadoPagoPageContent() {
                 if (!transactionType) continue;
 
                 const categoryName = getCategoryNameFromTransaction(tx);
-                const categoryId = getOrCreateCategory(categoryName, transactionType, localCategories, batch);
+                const categoryId = findCategory(categoryName, localCategories);
                 
                 const transactionData = {
                     userId: user.uid,
