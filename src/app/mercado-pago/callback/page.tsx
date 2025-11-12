@@ -9,6 +9,7 @@ import AppLayout from '@/components/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { useUser } from '@/firebase';
 
 type LogEntry = {
   step: string;
@@ -20,6 +21,7 @@ type LogEntry = {
 export default function MercadoPagoCallbackPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { user } = useUser();
   const [logs, setLogs] = React.useState<LogEntry[]>([]);
   const [isComplete, setIsComplete] = React.useState(false);
   const [errorState, setErrorState] = React.useState<string | null>(null);
@@ -46,13 +48,20 @@ export default function MercadoPagoCallbackPage() {
         setIsComplete(true);
         return;
       }
+
+      if (!user?.uid) {
+        addLog({ step: "Authentication", message: "User not authenticated." }, 'error');
+        setErrorState("Please sign in before connecting Mercado Pago.");
+        setIsComplete(true);
+        return;
+      }
       
       addLog({ step: "Authorization Code", message: `Code received: ${code}` }, 'success');
 
       // Step 2: Exchange code for token
       addLog({ step: "Token Exchange", message: "Sending code to server to exchange for token..." }, 'pending');
       
-      const result = await exchangeCodeForToken(code);
+      const result = await exchangeCodeForToken(code, user.uid);
 
       if (result.success) {
         addLog({ 
@@ -77,8 +86,7 @@ export default function MercadoPagoCallbackPage() {
     if (logs.length === 0) {
       processAuthorization();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, router]);
+  }, [searchParams, router, logs.length, user]);
 
   const renderLogIcon = (status: LogEntry['status']) => {
     switch (status) {

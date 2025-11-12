@@ -1,7 +1,11 @@
 "use client"
 import * as React from "react"
-import { collection, query, doc } from "firebase/firestore"
-import { useCollection, useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase"
+import { useUser } from "@/firebase"
+import { useAccounts } from "@/hooks/use-accounts"
+import { useBudgets } from "@/hooks/use-budgets"
+import { useCategories } from "@/hooks/use-categories"
+import { useTransactions } from "@/hooks/use-transactions"
+import { useUserProfile } from "@/hooks/use-user-profile"
 import { convertAmount } from "@/lib/currency"
 
 import {
@@ -12,7 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
-import type { Budget, Category, Transaction, Account, User } from "@/lib/types"
+import type { Category, Currency } from "@/lib/types"
 
 import { MonthlySpendingChart } from "./dashboard/monthly-spending-chart"
 import { SummaryCards } from "./dashboard/summary-cards"
@@ -43,39 +47,15 @@ function LoadingSkeleton() {
 
 export default function Dashboard() {
   const { user, isUserLoading } = useUser()
-  const firestore = useFirestore()
-  
-  // Memoize Firestore queries
-  const userDocRef = useMemoFirebase(
-    () => (user ? doc(firestore, "users", user.uid) : null),
-    [user, firestore]
-  )
-  const transactionsQuery = useMemoFirebase(() => 
-    user ? query(collection(firestore, "users", user.uid, "transactions")) : null, 
-    [user, firestore]
-  );
-  const categoriesQuery = useMemoFirebase(() => 
-    user ? query(collection(firestore, "users", user.uid, "categories")) : null, 
-    [user, firestore]
-  );
-  const accountsQuery = useMemoFirebase(() =>
-    user ? query(collection(firestore, "users", user.uid, "accounts")) : null,
-    [user, firestore]
-  );
-  const budgetsQuery = useMemoFirebase(() => 
-    user ? query(collection(firestore, "users", user.uid, "budgets")) : null, 
-    [user, firestore]
-  );
+  const { accounts, isLoading: accountsLoading } = useAccounts();
+  const { transactions, isLoading: transactionsLoading } = useTransactions();
+  const { categories, isLoading: categoriesLoading } = useCategories();
+  const { budgets, isLoading: budgetsLoading } = useBudgets();
+  const { profile, isLoading: profileLoading } = useUserProfile();
 
-  const { data: userData } = useDoc<User>(userDocRef);
-  const { data: transactions, isLoading: transactionsLoading } = useCollection<Transaction>(transactionsQuery);
-  const { data: categories, isLoading: categoriesLoading } = useCollection<Category>(categoriesQuery);
-  const { data: accounts, isLoading: accountsLoading } = useCollection<Account>(accountsQuery);
-  const { data: budgets, isLoading: budgetsLoading } = useCollection<Budget>(budgetsQuery);
+  const isLoading = isUserLoading || transactionsLoading || categoriesLoading || budgetsLoading || accountsLoading || profileLoading;
 
-  const isLoading = isUserLoading || transactionsLoading || categoriesLoading || budgetsLoading || accountsLoading;
-
-  const mainCurrency = userData?.mainCurrency || "USD";
+  const mainCurrency = (profile?.mainCurrency ?? "USD") as Currency;
 
   const { totalIncome, totalExpenses, totalBudget } = React.useMemo(() => {
     const safeTransactions = transactions || [];
@@ -90,14 +70,14 @@ export default function Dashboard() {
       .filter(t => t.transactionType === 'income')
       .reduce((acc, t) => {
         const fromCurrency = getAccountCurrency(t.accountId);
-        return acc + convertAmount(t.amount, fromCurrency, mainCurrency);
+        return acc + convertAmount(t.amount ?? 0, fromCurrency, mainCurrency);
       }, 0);
 
     const totalExpenses = safeTransactions
       .filter(t => t.transactionType === 'expense')
       .reduce((acc, t) => {
         const fromCurrency = getAccountCurrency(t.accountId);
-        return acc + convertAmount(t.amount, fromCurrency, mainCurrency);
+        return acc + convertAmount(t.amount ?? 0, fromCurrency, mainCurrency);
       }, 0);
 
     const totalBudget = safeBudgets.reduce((acc, b) => {
@@ -156,7 +136,7 @@ export default function Dashboard() {
               .filter(e => e.categoryId === budget.categoryId && e.transactionType === 'expense')
               .reduce((acc, e) => {
                   const fromCurrency = safeAccounts.find(a => a.id === e.accountId)?.currency || 'USD';
-                  return acc + convertAmount(e.amount, fromCurrency, mainCurrency)
+                  return acc + convertAmount(e.amount ?? 0, fromCurrency, mainCurrency)
                 }, 0)
             const budgetAmountInMainCurrency = convertAmount(budget.amount, budget.currency || mainCurrency, mainCurrency);
             const progress = budgetAmountInMainCurrency > 0 ? (spent / budgetAmountInMainCurrency) * 100 : 0;

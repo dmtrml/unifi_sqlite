@@ -6,8 +6,6 @@ import { CalendarIcon, Edit } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { format } from "date-fns"
-import { doc, runTransaction, DocumentReference, DocumentData } from "firebase/firestore"
-
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -39,11 +37,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useUser } from "@/firebase"
+import { useUser } from "@/firebase"
+import { useAccounts } from "@/hooks/use-accounts"
+import { notifyTransactionsChanged } from "@/lib/transactions-events"
 import type { Category, Account, Transaction, Currency } from "@/lib/types"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import { editTransactionFormSchema, type EditTransactionFormValues } from "@/lib/schemas"
+import { editTransactionFormSchema, type EditTransactionFormInput } from "@/lib/schemas"
 import { convertAmount } from "@/lib/currency"
+import { buildEditTransactionPayload } from "@/lib/transaction-payload"
 
 
 interface EditTransactionDialogProps {
@@ -54,11 +55,12 @@ interface EditTransactionDialogProps {
 
 export function EditTransactionDialog({ transaction: originalTransaction, categories, accounts }: EditTransactionDialogProps) {
   const [open, setOpen] = React.useState(false)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const { toast } = useToast()
-  const firestore = useFirestore()
   const { user } = useUser()
+  const { refresh: refreshAccounts } = useAccounts()
 
-  const form = useForm<EditTransactionFormValues>({
+  const form = useForm<EditTransactionFormInput>({
     resolver: zodResolver(editTransactionFormSchema),
   })
   
@@ -73,7 +75,7 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
 
   React.useEffect(() => {
     if (open) {
-      const defaultValues: EditTransactionFormValues = {
+      const defaultValues: EditTransactionFormInput = {
         ...originalTransaction,
         date: originalTransaction.date.toDate(),
         description: originalTransaction.description || "",
@@ -136,8 +138,8 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
   }, [categories, transactionType]);
 
 
-  async function onSubmit(data: EditTransactionFormValues) {
-    if (!user || !firestore) {
+  async function onSubmit(data: EditTransactionFormInput) {
+    if (!user) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -146,111 +148,40 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
       return
     }
 
-    const transactionRef = doc(firestore, `users/${user.uid}/transactions/${originalTransaction.id}`);
-    
+    const payload = buildEditTransactionPayload(data);
+
     try {
-        await runTransaction(firestore, async (dbTransaction) => {
-            const originalDoc = await dbTransaction.get(transactionRef);
-            if (!originalDoc.exists()) {
-                throw new Error("Original transaction not found!");
-            }
-            const originalData = originalDoc.data() as Transaction;
-            
-            const newData = {
-              ...data,
-              description: data.description || ""
-            }
+      setIsSubmitting(true)
+      const response = await fetch(`/api/transactions/${originalTransaction.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-uid": user.uid,
+        },
+        body: JSON.stringify(payload),
+      })
 
-            const balanceChanges: { [accountId: string]: number } = {};
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}))
+        throw new Error(result?.message || "Failed to update transaction.")
+      }
 
-            // Revert original transaction
-            const originalAmount = originalData.amount || 0;
-            const originalAmountSent = originalData.amountSent || originalAmount;
-            const originalAmountReceived = originalData.amountReceived || originalAmount;
+      refreshAccounts()
+      notifyTransactionsChanged()
 
-            if (originalData.transactionType === 'transfer') {
-              if (originalData.fromAccountId) balanceChanges[originalData.fromAccountId] = (balanceChanges[originalData.fromAccountId] || 0) + originalAmountSent;
-              if (originalData.toAccountId) balanceChanges[originalData.toAccountId] = (balanceChanges[originalData.toAccountId] || 0) - originalAmountReceived;
-            } else { 
-              if (originalData.accountId) {
-                const change = originalData.transactionType === 'expense' ? originalAmount : -originalAmount;
-                balanceChanges[originalData.accountId] = (balanceChanges[originalData.accountId] || 0) + change;
-              }
-            }
-
-            // Apply new transaction
-            const newAmount = newData.amount || 0;
-            const newAmountSent = newData.amountSent || newAmount;
-            const newAmountReceived = newData.amountReceived || newAmount;
-
-            if (newData.transactionType === 'transfer') {
-              if (newData.fromAccountId) balanceChanges[newData.fromAccountId] = (balanceChanges[newData.fromAccountId] || 0) - newAmountSent;
-              if (newData.toAccountId) balanceChanges[newData.toAccountId] = (balanceChanges[newData.toAccountId] || 0) + newAmountReceived;
-            } else {
-              if (newData.accountId) {
-                const change = newData.transactionType === 'expense' ? -newAmount : newAmount;
-                balanceChanges[newData.accountId] = (balanceChanges[newData.accountId] || 0) + change;
-              }
-            }
-            
-            for (const accountId in balanceChanges) {
-                if (balanceChanges[accountId] !== 0) {
-                    const accountRef = doc(firestore, `users/${user.uid}/accounts`, accountId);
-                    const accountDocSnap = await dbTransaction.get(accountRef);
-                    if (!accountDocSnap.exists()) throw new Error(`Account ${accountId} not found.`);
-                    const currentBalance = accountDocSnap.data().balance;
-                    dbTransaction.update(accountRef, { balance: currentBalance + balanceChanges[accountId] });
-                }
-            }
-            
-            let finalData: any;
-             if (newData.transactionType === 'transfer') {
-                const fromAccount = accounts.find(a => a.id === newData.fromAccountId);
-                const toAccount = accounts.find(a => a.id === newData.toAccountId);
-                const isMulti = fromAccount?.currency !== toAccount?.currency;
-                finalData = {
-                  userId: user.uid,
-                  date: newData.date,
-                  amount: !isMulti ? newData.amount : null,
-                  amountSent: isMulti ? newData.amountSent : null,
-                  amountReceived: isMulti ? newData.amountReceived : null,
-                  description: newData.description,
-                  transactionType: 'transfer',
-                  fromAccountId: newData.fromAccountId,
-                  toAccountId: newData.toAccountId,
-                  accountId: null, categoryId: null, expenseType: null, incomeType: null,
-                };
-            } else {
-                finalData = {
-                  userId: user.uid,
-                  date: newData.date,
-                  amount: newData.amount,
-                  description: newData.description,
-                  transactionType: newData.transactionType,
-                  accountId: newData.accountId,
-                  categoryId: newData.categoryId,
-                  ...(newData.transactionType === 'expense' 
-                      ? { expenseType: newData.expenseType, incomeType: null } 
-                      : { incomeType: newData.incomeType, expenseType: null }),
-                  fromAccountId: null, toAccountId: null,
-                  amountSent: null, amountReceived: null,
-                };
-            }
-            dbTransaction.update(transactionRef, finalData);
-        });
-
-        toast({
-            title: "Transaction Updated",
-            description: "Your transaction has been successfully updated.",
-        });
-        setOpen(false);
-    } catch (error: any) {
-        console.error("Transaction update failed: ", error);
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: error.message || "Failed to update transaction. Balances have not been changed.",
-        });
+      toast({
+        title: "Transaction Updated",
+        description: "Your transaction has been successfully updated.",
+      })
+      setOpen(false)
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update transaction.",
+      })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -282,7 +213,7 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
                       const currentValues = form.getValues();
                       form.reset({
                         ...currentValues,
-                        transactionType: value as 'expense' | 'income' | 'transfer',
+                        transactionType: value as EditTransactionFormInput['transactionType'],
                         // Reset dependent fields to avoid validation errors
                         accountId: undefined,
                         categoryId: undefined,
@@ -290,7 +221,7 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
                         toAccountId: undefined,
                         incomeType: currentValues.transactionType === 'income' ? currentValues.incomeType : undefined,
                         expenseType: currentValues.transactionType === 'expense' ? currentValues.expenseType : 'optional',
-                      });
+                      } as Partial<EditTransactionFormInput>);
                     }} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
@@ -550,7 +481,9 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
               )}
             />
             <DialogFooter>
-              <Button type="submit">Save Changes</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : "Save Changes"}
+              </Button>
             </DialogFooter>
           </form>
         </Form>
@@ -558,3 +491,4 @@ export function EditTransactionDialog({ transaction: originalTransaction, catego
     </Dialog>
   )
 }
+

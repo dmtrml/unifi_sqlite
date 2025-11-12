@@ -6,11 +6,11 @@ import { CalendarIcon, PlusCircle } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { format } from "date-fns"
-import { collection, serverTimestamp } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useUser } from "@/firebase"
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { useUser } from "@/firebase"
+import { mutate } from "swr"
+import { recurringApi, recurringKey } from "@/hooks/use-recurring-transactions"
 
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -57,8 +57,8 @@ interface AddRecurringTransactionDialogProps {
 
 export function AddRecurringTransactionDialog({ categories, accounts }: AddRecurringTransactionDialogProps) {
   const [open, setOpen] = React.useState(false)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const { toast } = useToast()
-  const firestore = useFirestore()
   const { user } = useUser()
 
   const form = useForm<RecurringTransactionFormValues>({
@@ -72,7 +72,7 @@ export function AddRecurringTransactionDialog({ categories, accounts }: AddRecur
   })
   
   async function onSubmit(data: RecurringTransactionFormValues) {
-     if (!user || !firestore) {
+     if (!user) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -81,21 +81,33 @@ export function AddRecurringTransactionDialog({ categories, accounts }: AddRecur
       return
     }
 
-    const recurringRef = collection(firestore, `users/${user.uid}/recurringTransactions`);
-    
-    addDocumentNonBlocking(recurringRef, {
-      ...data,
-      userId: user.uid,
-      createdAt: serverTimestamp(),
-    });
-
-    toast({
-      title: "Recurring Transaction Added",
-      description: `Successfully added: ${data.description}.`,
-    })
-
-    setOpen(false)
-    form.reset()
+    try {
+      setIsSubmitting(true)
+      await recurringApi.create(user.uid, {
+        accountId: data.accountId,
+        categoryId: data.categoryId,
+        description: data.description,
+        frequency: data.frequency,
+        amount: data.amount,
+        startDate: data.startDate?.getTime() ?? Date.now(),
+      })
+      mutate(recurringKey(user.uid))
+      toast({
+        title: "Recurring Transaction Added",
+        description: `Successfully added: ${data.description}.`,
+      })
+      setOpen(false)
+      form.reset()
+    } catch (error) {
+      console.error("Error creating recurring transaction", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to create recurring transaction.",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -258,7 +270,9 @@ export function AddRecurringTransactionDialog({ categories, accounts }: AddRecur
                 />
             </div>
             <DialogFooter>
-              <Button type="submit">Add Template</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : "Add Template"}
+              </Button>
             </DialogFooter>
           </form>
         </Form>

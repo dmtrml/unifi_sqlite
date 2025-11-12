@@ -40,7 +40,7 @@ function getFirebaseAdminApp() {
 
 
 export async function exportTransactions(): Promise<string> {
-    const headersList = headers();
+    const headersList = await headers();
     const userId = headersList.get('X-Uid');
 
     if (!userId) {

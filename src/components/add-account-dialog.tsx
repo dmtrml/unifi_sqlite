@@ -5,7 +5,6 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { PlusCircle } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-import { collection, serverTimestamp } from "firebase/firestore"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -34,8 +33,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useUser } from "@/firebase"
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { useUser } from "@/firebase"
+import { useAccounts } from "@/hooks/use-accounts"
 import type { AccountType, Currency } from "@/lib/types"
 import { colorOptions } from "@/lib/colors"
 import { ScrollArea } from "./ui/scroll-area"
@@ -63,9 +62,10 @@ type AccountFormValues = z.infer<typeof accountFormSchema>
 
 export function AddAccountDialog() {
   const [open, setOpen] = React.useState(false)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const { toast } = useToast()
-  const firestore = useFirestore()
   const { user } = useUser()
+  const { refresh } = useAccounts()
 
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema),
@@ -79,7 +79,7 @@ export function AddAccountDialog() {
   })
 
   async function onSubmit(data: AccountFormValues) {
-    if (!user || !firestore) {
+    if (!user) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -88,23 +88,45 @@ export function AddAccountDialog() {
       return
     }
 
-    const accountRef = collection(firestore, `users/${user.uid}/accounts`);
     const icon = accountIconMap[data.type as AccountType] || "MoreHorizontal";
-    
-    addDocumentNonBlocking(accountRef, {
-      ...data,
-      icon,
-      userId: user.uid,
-      createdAt: serverTimestamp(),
-    });
 
-    toast({
-      title: "Account Added",
-      description: `Successfully added account: ${data.name}.`,
-    })
+    try {
+      setIsSubmitting(true)
+      const response = await fetch("/api/accounts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-uid": user.uid,
+        },
+        body: JSON.stringify({
+          ...data,
+          icon,
+        }),
+      })
 
-    setOpen(false)
-    form.reset()
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.message || "Failed to add account.")
+      }
+
+      refresh()
+
+      toast({
+        title: "Account Added",
+        description: `Successfully added account: ${data.name}.`,
+      })
+
+      setOpen(false)
+      form.reset()
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error?.message || "Failed to add account.",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -230,7 +252,9 @@ export function AddAccountDialog() {
               />
             </div>
             <DialogFooter>
-              <Button type="submit">Add Account</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Adding..." : "Add Account"}
+              </Button>
             </DialogFooter>
           </form>
         </Form>

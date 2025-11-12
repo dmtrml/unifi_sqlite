@@ -15,7 +15,7 @@ export function CategoryDoughnutChart({ transactions, categories }: CategoryDoug
     return expenseCategories.map(category => {
       const value = transactions
         .filter(t => t.transactionType === 'expense' && t.categoryId === category.id)
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + (t.amount ?? 0), 0);
       return {
         name: category.name,
         value: value,

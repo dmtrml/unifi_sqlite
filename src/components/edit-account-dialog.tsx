@@ -4,7 +4,6 @@ import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-import { doc } from "firebase/firestore"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -33,8 +32,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useUser } from "@/firebase"
-import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { useUser } from "@/firebase"
+import { useAccounts } from "@/hooks/use-accounts"
 import type { Account, AccountType, Currency } from "@/lib/types"
 import { colorOptions } from "@/lib/colors"
 import { ScrollArea } from "./ui/scroll-area"
@@ -67,9 +66,10 @@ interface EditAccountDialogProps {
 
 export function EditAccountDialog({ account, children }: EditAccountDialogProps) {
   const [open, setOpen] = React.useState(false)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const { toast } = useToast()
-  const firestore = useFirestore()
   const { user } = useUser()
+  const { refresh } = useAccounts()
 
   const form = useForm<EditAccountFormValues>({
     resolver: zodResolver(editAccountFormSchema),
@@ -91,7 +91,7 @@ export function EditAccountDialog({ account, children }: EditAccountDialogProps)
   }, [open, account, form]);
 
   async function onSubmit(data: EditAccountFormValues) {
-    if (!user || !firestore) {
+    if (!user) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -100,20 +100,43 @@ export function EditAccountDialog({ account, children }: EditAccountDialogProps)
       return
     }
 
-    const accountRef = doc(firestore, `users/${user.uid}/accounts/${account.id}`);
     const icon = accountIconMap[data.type as AccountType] || "MoreHorizontal";
-    
-    updateDocumentNonBlocking(accountRef, {
-      ...data,
-      icon,
-    });
+    try {
+      setIsSubmitting(true)
+      const response = await fetch(`/api/accounts/${account.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-uid": user.uid,
+        },
+        body: JSON.stringify({
+          ...data,
+          icon,
+        }),
+      })
 
-    toast({
-      title: "Account Updated",
-      description: "Your account has been successfully updated.",
-    })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.message || "Failed to update account.")
+      }
 
-    setOpen(false)
+      refresh()
+
+      toast({
+        title: "Account Updated",
+        description: "Your account has been successfully updated.",
+      })
+
+      setOpen(false)
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error?.message || "Failed to update account.",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -236,7 +259,9 @@ export function EditAccountDialog({ account, children }: EditAccountDialogProps)
               />
             </div>
             <DialogFooter>
-              <Button type="submit">Save Changes</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : "Save Changes"}
+              </Button>
             </DialogFooter>
           </form>
         </Form>

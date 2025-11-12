@@ -1,8 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { collection, query, doc } from "firebase/firestore"
-import { useCollection, useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase"
+import { useUser } from "@/firebase"
+import { useAccounts } from "@/hooks/use-accounts"
+import { useCategories } from "@/hooks/use-categories"
+import { useTransactions } from "@/hooks/use-transactions"
+import { useUserProfile } from "@/hooks/use-user-profile"
 import AppLayout from "@/components/layout"
 import {
   Card,
@@ -11,11 +14,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import type { Category, Transaction, User, Account } from "@/lib/types"
 import { IncomeExpenseChart } from "@/components/reports/IncomeExpenseChart"
 import { CategoryBreakdownChart } from "@/components/reports/CategoryBreakdownChart"
 import { CategorySpendingChart } from "@/components/dashboard/category-spending-chart"
 import { Skeleton } from "@/components/ui/skeleton"
+import type { Currency } from "@/lib/types"
 
 function LoadingSkeleton() {
   return (
@@ -31,32 +34,13 @@ function LoadingSkeleton() {
 
 function ReportsPageContent() {
   const { user, isUserLoading } = useUser()
-  const firestore = useFirestore()
+  const { accounts, isLoading: accountsLoading } = useAccounts();
+  const { categories, isLoading: categoriesLoading } = useCategories();
+  const { profile, isLoading: profileLoading } = useUserProfile();
+  const { transactions, isLoading: transactionsLoading } = useTransactions();
 
-  const userDocRef = useMemoFirebase(
-    () => (user ? doc(firestore, "users", user.uid) : null),
-    [user, firestore]
-  )
-  const transactionsQuery = useMemoFirebase(() => 
-    user ? query(collection(firestore, "users", user.uid, "transactions")) : null, 
-    [user, firestore]
-  );
-  const categoriesQuery = useMemoFirebase(() => 
-    user ? query(collection(firestore, "users", user.uid, "categories")) : null, 
-    [user, firestore]
-  );
-  const accountsQuery = useMemoFirebase(() =>
-    user ? query(collection(firestore, "users", user.uid, "accounts")) : null,
-    [user, firestore]
-  );
-  
-  const { data: userData } = useDoc<User>(userDocRef);
-  const { data: transactions, isLoading: transactionsLoading } = useCollection<Transaction>(transactionsQuery);
-  const { data: categories, isLoading: categoriesLoading } = useCollection<Category>(categoriesQuery);
-  const { data: accounts, isLoading: accountsLoading } = useCollection<Account>(accountsQuery);
-
-  const isLoading = isUserLoading || transactionsLoading || categoriesLoading || accountsLoading;
-  const mainCurrency = userData?.mainCurrency || "USD";
+  const isLoading = isUserLoading || transactionsLoading || categoriesLoading || accountsLoading || profileLoading;
+  const mainCurrency = (profile?.mainCurrency ?? "USD") as Currency;
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">

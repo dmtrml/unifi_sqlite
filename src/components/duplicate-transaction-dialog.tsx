@@ -6,7 +6,9 @@ import { CalendarIcon, Copy } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { format } from "date-fns"
-import { doc, runTransaction, collection, serverTimestamp } from "firebase/firestore"
+import { useAccounts } from "@/hooks/use-accounts"
+import { notifyTransactionsChanged } from "@/lib/transactions-events"
+import { buildTransactionPayload } from "@/lib/transaction-payload"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -39,10 +41,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useUser } from "@/firebase"
+import { useUser } from "@/firebase"
 import type { Category, Account, Transaction } from "@/lib/types"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import { transactionFormSchema, type TransactionFormValues } from "@/lib/schemas"
+import { transactionFormSchema, type TransactionFormInput } from "@/lib/schemas"
 
 interface DuplicateTransactionDialogProps {
   transaction: Transaction;
@@ -52,11 +54,12 @@ interface DuplicateTransactionDialogProps {
 
 export function DuplicateTransactionDialog({ transaction: originalTransaction, categories, accounts }: DuplicateTransactionDialogProps) {
   const [open, setOpen] = React.useState(false)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const { toast } = useToast()
-  const firestore = useFirestore()
   const { user } = useUser()
+  const { refresh: refreshAccounts } = useAccounts()
 
-  const form = useForm<TransactionFormValues>({
+  const form = useForm<TransactionFormInput>({
     resolver: zodResolver(transactionFormSchema),
   })
   
@@ -64,7 +67,7 @@ export function DuplicateTransactionDialog({ transaction: originalTransaction, c
 
   React.useEffect(() => {
     if (open) {
-      const defaultValues: Partial<TransactionFormValues> = {
+      const defaultValues: Partial<TransactionFormInput> = {
         ...originalTransaction,
         date: new Date(), // Set to today's date
         description: originalTransaction.description || "",
@@ -76,7 +79,7 @@ export function DuplicateTransactionDialog({ transaction: originalTransaction, c
         defaultValues.incomeType = originalTransaction.incomeType || "active";
       }
       
-      form.reset(defaultValues as TransactionFormValues);
+      form.reset(defaultValues);
     }
   }, [open, originalTransaction, form]);
 
@@ -92,95 +95,51 @@ export function DuplicateTransactionDialog({ transaction: originalTransaction, c
   }, [categories, transactionType]);
 
 
-  async function onSubmit(data: TransactionFormValues) {
-    if (!user || !firestore) {
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "You must be logged in to add a transaction.",
-        })
-        return;
+  async function onSubmit(data: TransactionFormInput) {
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "You must be logged in to add a transaction.",
+      })
+      return;
     }
     
-    const transactionsRef = collection(firestore, `users/${user.uid}/transactions`);
+    const payload = buildTransactionPayload(data);
 
     try {
-        await runTransaction(firestore, async (transaction) => {
-             const { isRecurring, ...transactionData } = data;
-             
-             const finalTransactionData = {
-                ...transactionData,
-                description: transactionData.description || ""
-             };
+      setIsSubmitting(true)
+      const response = await fetch("/api/transactions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-uid": user.uid,
+        },
+        body: JSON.stringify(payload),
+      })
 
-            if (finalTransactionData.transactionType === 'transfer') {
-                 const fromAccountRef = doc(firestore, `users/${user.uid}/accounts`, finalTransactionData.fromAccountId);
-                 const toAccountRef = doc(firestore, `users/${user.uid}/accounts`, finalTransactionData.toAccountId);
-                 const fromAccountDoc = await transaction.get(fromAccountRef);
-                 const toAccountDoc = await transaction.get(toAccountRef);
-                 if (!fromAccountDoc.exists() || !toAccountDoc.exists()) throw new Error("Account not found for transfer.");
-                 
-                 transaction.update(fromAccountRef, { balance: fromAccountDoc.data().balance - finalTransactionData.amount });
-                 transaction.update(toAccountRef, { balance: toAccountDoc.data().balance + finalTransactionData.amount });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}))
+        throw new Error(result?.message || "Failed to duplicate transaction.")
+      }
 
-                 transaction.set(doc(transactionsRef), {
-                    userId: user.uid,
-                    createdAt: serverTimestamp(),
-                    date: finalTransactionData.date,
-                    amount: finalTransactionData.amount,
-                    description: finalTransactionData.description,
-                    transactionType: 'transfer',
-                    fromAccountId: finalTransactionData.fromAccountId,
-                    toAccountId: finalTransactionData.toAccountId,
-                    accountId: null, categoryId: null, incomeType: null, expenseType: null,
-                });
+      refreshAccounts()
+      notifyTransactionsChanged()
 
-            } else { // Expense or Income
-                const accountRef = doc(firestore, `users/${user.uid}/accounts`, finalTransactionData.accountId);
-                const accountDoc = await transaction.get(accountRef);
-                if (!accountDoc.exists()) {
-                    throw "Account not found!";
-                }
-
-                const currentBalance = accountDoc.data().balance;
-                const newBalance = finalTransactionData.transactionType === 'expense'
-                    ? currentBalance - finalTransactionData.amount
-                    : currentBalance + finalTransactionData.amount;
-
-                transaction.update(accountRef, { balance: newBalance });
-
-                transaction.set(doc(transactionsRef), {
-                    userId: user.uid,
-                    createdAt: serverTimestamp(),
-                    date: finalTransactionData.date,
-                    amount: finalTransactionData.amount,
-                    description: finalTransactionData.description,
-                    transactionType: finalTransactionData.transactionType,
-                    accountId: finalTransactionData.accountId,
-                    categoryId: finalTransactionData.categoryId,
-                    ...(finalTransactionData.transactionType === 'expense' 
-                        ? { expenseType: finalTransactionData.expenseType, incomeType: null } 
-                        : { incomeType: finalTransactionData.incomeType, expenseType: null }),
-                    fromAccountId: null, toAccountId: null,
-                });
-            }
-        });
-        
-         toast({
-            title: "Transaction Duplicated",
-            description: `Successfully created a new transaction.`,
-        });
-        setOpen(false);
-
+      toast({
+        title: "Transaction Duplicated",
+        description: "Successfully created a new transaction.",
+      })
+      setOpen(false);
     } catch (error) {
-        console.error("Transaction failed: ", error);
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Failed to duplicate transaction.",
-        });
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to duplicate transaction.",
+      })
+    } finally {
+      setIsSubmitting(false)
     }
-
   }
 
   return (
@@ -211,14 +170,14 @@ export function DuplicateTransactionDialog({ transaction: originalTransaction, c
                       const currentValues = form.getValues();
                       form.reset({
                         ...currentValues,
-                        transactionType: value as 'expense' | 'income' | 'transfer',
+                        transactionType: value as TransactionFormInput['transactionType'],
                         accountId: undefined,
                         categoryId: undefined,
                         fromAccountId: undefined,
                         toAccountId: undefined,
                         incomeType: currentValues.transactionType === 'income' ? currentValues.incomeType : undefined,
                         expenseType: currentValues.transactionType === 'expense' ? currentValues.expenseType : 'optional',
-                      });
+                      } as Partial<TransactionFormInput>);
                     }} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
@@ -430,7 +389,9 @@ export function DuplicateTransactionDialog({ transaction: originalTransaction, c
               )}
             />
             <DialogFooter>
-              <Button type="submit">Create Transaction</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Creating..." : "Create Transaction"}
+              </Button>
             </DialogFooter>
           </form>
         </Form>
@@ -438,3 +399,7 @@ export function DuplicateTransactionDialog({ transaction: originalTransaction, c
     </Dialog>
   )
 }
+
+
+
+

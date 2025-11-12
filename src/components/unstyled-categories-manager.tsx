@@ -3,7 +3,6 @@
 "use client"
 
 import * as React from "react"
-import { doc } from "firebase/firestore"
 import * as Icons from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -22,8 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useUser } from "@/firebase"
-import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { useUser } from "@/firebase"
+import { useCategories } from "@/hooks/use-categories"
 import type { Category } from "@/lib/types"
 import { colorOptions } from "@/lib/colors"
 import { ScrollArea } from "./ui/scroll-area"
@@ -41,8 +40,9 @@ interface UnstyledCategoriesManagerProps {
 
 export function UnstyledCategoriesManager({ categories }: UnstyledCategoriesManagerProps) {
   const { toast } = useToast()
-  const firestore = useFirestore()
   const { user } = useUser()
+  const { refresh } = useCategories()
+  const [savingId, setSavingId] = React.useState<string | null>(null)
 
   const [categoryStyles, setCategoryStyles] = React.useState<Record<string, { icon: string }>>({})
 
@@ -61,8 +61,8 @@ export function UnstyledCategoriesManager({ categories }: UnstyledCategoriesMana
     }))
   }
 
-  const handleSave = (categoryId: string) => {
-    if (!user || !firestore) {
+  const handleSave = async (categoryId: string) => {
+    if (!user) {
       toast({ title: "Error", description: "You must be logged in.", variant: "destructive" })
       return
     }
@@ -70,15 +70,37 @@ export function UnstyledCategoriesManager({ categories }: UnstyledCategoriesMana
     const styles = categoryStyles[categoryId]
     if (!styles) return
 
-    const categoryRef = doc(firestore, `users/${user.uid}/categories/${categoryId}`)
-    updateDocumentNonBlocking(categoryRef, {
-      icon: styles.icon,
-    })
+    try {
+      setSavingId(categoryId)
+      const response = await fetch(`/api/categories/${categoryId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-uid": user.uid,
+        },
+        body: JSON.stringify({ icon: styles.icon }),
+      })
 
-    toast({
-      title: "Category Styled",
-      description: "The category has been successfully updated.",
-    })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.message || "Failed to update category.")
+      }
+
+      refresh()
+
+      toast({
+        title: "Category Styled",
+        description: "The category has been successfully updated.",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to update category.",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingId(null)
+    }
   }
   
   if (categories.length === 0) {
@@ -125,7 +147,13 @@ export function UnstyledCategoriesManager({ categories }: UnstyledCategoriesMana
                   </ScrollArea>
                 </SelectContent>
               </Select>
-              <Button size="sm" onClick={() => handleSave(category.id)}>Save</Button>
+              <Button
+                size="sm"
+                onClick={() => handleSave(category.id)}
+                disabled={savingId === category.id}
+              >
+                {savingId === category.id ? "Saving..." : "Save"}
+              </Button>
             </div>
           </div>
         ))}

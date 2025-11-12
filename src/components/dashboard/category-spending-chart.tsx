@@ -57,7 +57,7 @@ export function CategorySpendingChart({ transactions, categories, accounts, main
       .filter(t => t.transactionType === 'expense')
       .reduce((sum, t) => {
           const fromCurrency = getAccountCurrency(t.accountId);
-          return sum + convertAmount(t.amount, fromCurrency, mainCurrency);
+        return sum + convertAmount(t.amount ?? 0, fromCurrency, mainCurrency);
       }, 0)
   }, [transactions, getAccountCurrency, mainCurrency]);
 
@@ -69,7 +69,7 @@ export function CategorySpendingChart({ transactions, categories, accounts, main
         .filter(expense => expense.categoryId === category.id && expense.transactionType === 'expense')
         .reduce((sum, expense) => {
             const fromCurrency = getAccountCurrency(expense.accountId);
-            return sum + convertAmount(expense.amount, fromCurrency, mainCurrency);
+            return sum + convertAmount(expense.amount ?? 0, fromCurrency, mainCurrency);
         }, 0)
       return {
         category: category.name,

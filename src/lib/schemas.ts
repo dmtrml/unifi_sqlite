@@ -83,5 +83,7 @@ export const recurringTransactionFormSchema = z.object({
 });
 
 export type TransactionFormValues = z.infer<typeof transactionFormSchema>;
+export type TransactionFormInput = z.input<typeof transactionFormSchema>;
 export type EditTransactionFormValues = z.infer<typeof editTransactionFormSchema>;
+export type EditTransactionFormInput = z.input<typeof editTransactionFormSchema>;
 export type RecurringTransactionFormValues = z.infer<typeof recurringTransactionFormSchema>;

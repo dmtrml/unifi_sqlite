@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { collection, getDocs, writeBatch } from "firebase/firestore"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -17,7 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useUser } from "@/firebase"
+import { useUser } from "@/firebase"
 
 type DeletionOption = "transactions" | "all"
 
@@ -28,40 +27,30 @@ export function DeleteDataDialog() {
   const [isDeleting, setIsDeleting] = React.useState(false);
   const { toast } = useToast()
   const { user } = useUser()
-  const firestore = useFirestore()
 
   const CONFIRMATION_KEYWORD = "DELETE"
   const isDeleteButtonDisabled = deletionOption === null || confirmationText !== CONFIRMATION_KEYWORD || isDeleting
 
   const handleDelete = async () => {
-    if (!user || !firestore || !deletionOption) {
+    if (!user || !deletionOption) {
       toast({ title: "Error", description: "An unexpected error occurred.", variant: "destructive" });
       return;
     }
 
     setIsDeleting(true);
-
-    const collectionsToDelete: string[] = [];
-    if (deletionOption === "transactions") {
-      collectionsToDelete.push("transactions");
-    } else if (deletionOption === "all") {
-      collectionsToDelete.push("transactions", "accounts", "categories", "budgets", "recurringTransactions");
-    }
-
     try {
-      for (const collectionName of collectionsToDelete) {
-        const collectionRef = collection(firestore, `users/${user.uid}/${collectionName}`);
-        const querySnapshot = await getDocs(collectionRef);
-        const BATCH_SIZE = 400; // Leave some room under the 500 limit
+      const response = await fetch("/api/data", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-uid": user.uid,
+        },
+        body: JSON.stringify({ scope: deletionOption }),
+      });
 
-        for (let i = 0; i < querySnapshot.docs.length; i += BATCH_SIZE) {
-          const batch = writeBatch(firestore);
-          const chunk = querySnapshot.docs.slice(i, i + BATCH_SIZE);
-          chunk.forEach((doc) => {
-            batch.delete(doc.ref);
-          });
-          await batch.commit();
-        }
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.message ?? "Failed to delete data.");
       }
 
       toast({

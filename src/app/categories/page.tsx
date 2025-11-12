@@ -1,9 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { collection, query } from "firebase/firestore"
-import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase"
+import { useUser } from "@/firebase"
 import AppLayout from "@/components/layout"
+import { useCategories } from "@/hooks/use-categories"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -28,7 +28,6 @@ import {
 import type { Category } from "@/lib/types"
 import * as Icons from "lucide-react"
 import { MoreHorizontal } from "lucide-react"
-import { AddCategoryDialog } from "@/components/add-category-dialog"
 import { EditCategoryDialog } from "@/components/edit-category-dialog"
 import { DeleteCategoryDialog } from "@/components/delete-category-dialog"
 import { UnstyledCategoriesManager } from "@/components/unstyled-categories-manager"
@@ -87,13 +86,7 @@ function CategoryTable({ title, categories }: { title: string, categories: Categ
 
 function CategoriesPageContent() {
   const { user } = useUser()
-  const firestore = useFirestore()
-
-  const categoriesQuery = useMemoFirebase(() =>
-    user ? query(collection(firestore, "users", user.uid, "categories")) : null,
-    [user, firestore]
-  );
-  const { data: categories } = useCollection<Category>(categoriesQuery);
+  const { categories } = useCategories()
   
   const [styledCategories, unstyledCategories] = React.useMemo(() => {
     const allCategories = categories || [];
@@ -110,7 +103,6 @@ function CategoriesPageContent() {
       <div className="flex items-center">
         <h1 className="text-lg font-semibold md:text-2xl">Categories</h1>
         <div className="ml-auto">
-          <AddCategoryDialog />
         </div>
       </div>
       <div className="flex flex-col gap-6">

@@ -4,8 +4,11 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { doc, setDoc, collection, query, orderBy } from "firebase/firestore"
-import { useDoc, useFirestore, useUser, useMemoFirebase, useCollection } from "@/firebase"
+import { useUser } from "@/firebase"
+import { useCategories } from "@/hooks/use-categories"
+import { useAccounts } from "@/hooks/use-accounts"
+import { useTransactions } from "@/hooks/use-transactions"
+import { useUserProfile } from "@/hooks/use-user-profile"
 import AppLayout from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,7 +21,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
-import type { User, Currency, Transaction, Category, Account } from "@/lib/types"
+import type { Currency, Transaction, Category, Account } from "@/lib/types"
 import {
   Select,
   SelectContent,
@@ -34,46 +37,27 @@ const currencies: Currency[] = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD",
 
 function SettingsPageContent() {
   const { user } = useUser()
-  const firestore = useFirestore()
   const { toast } = useToast()
+  const { profile, saveProfile, isLoading: profileLoading } = useUserProfile()
 
-  const userDocRef = useMemoFirebase(
-    () => (user ? doc(firestore, "users", user.uid) : null),
-    [user, firestore]
-  )
-  const { data: userData } = useDoc<User>(userDocRef)
-
-  const transactionsQuery = useMemoFirebase(() => 
-    user ? query(collection(firestore, "users", user.uid, "transactions"), orderBy("date", "desc")) : null, 
-    [user, firestore]
-  );
-  const categoriesQuery = useMemoFirebase(() => 
-    user ? query(collection(firestore, "users", user.uid, "categories")) : null, 
-    [user, firestore]
-  );
-  const accountsQuery = useMemoFirebase(() =>
-    user ? query(collection(firestore, "users", user.uid, "accounts")) : null,
-    [user, firestore]
-  );
-
-  const { data: transactions } = useCollection<Transaction>(transactionsQuery);
-  const { data: categories } = useCollection<Category>(categoriesQuery);
-  const { data: accounts } = useCollection<Account>(accountsQuery);
+  const { transactions } = useTransactions({ sort: "desc" });
+  const { categories } = useCategories();
+  const { accounts } = useAccounts();
 
   const [isDarkTheme, setIsDarkTheme] = React.useState(false)
   const [mainCurrency, setMainCurrency] = React.useState<Currency>("USD")
 
   React.useEffect(() => {
-    if (userData) {
-      setIsDarkTheme(userData.theme === 'dark')
-      if (userData.mainCurrency) {
-        setMainCurrency(userData.mainCurrency)
+    if (profile) {
+      setIsDarkTheme(profile.theme === 'dark')
+      if (profile.mainCurrency) {
+        setMainCurrency(profile.mainCurrency)
       }
     }
-  }, [userData])
+  }, [profile])
 
   const handleSaveSettings = async () => {
-    if (!user || !firestore) {
+    if (!user) {
       toast({ title: "Error", description: "You must be logged in.", variant: "destructive" });
       return
     }
@@ -81,15 +65,11 @@ function SettingsPageContent() {
     const newTheme = isDarkTheme ? 'dark' : 'light'
     
     try {
-      const userRef = doc(firestore, "users", user.uid)
-      const dataToSave: Partial<User> = {
+      await saveProfile({
         theme: newTheme,
-        mainCurrency: mainCurrency,
-        id: user.uid,
-        email: user.email,
-      };
-
-      await setDoc(userRef, dataToSave, { merge: true })
+        mainCurrency,
+        email: user.email ?? profile?.email,
+      })
       toast({
         title: "Settings Saved",
         description: "Your settings have been successfully updated.",
@@ -251,7 +231,9 @@ function SettingsPageContent() {
         </CardContent>
       </Card>
        <div className="flex justify-end">
-          <Button onClick={handleSaveSettings}>Save Settings</Button>
+          <Button onClick={handleSaveSettings} disabled={profileLoading}>
+            {profileLoading ? "Loading..." : "Save Settings"}
+          </Button>
         </div>
 
       <Card>

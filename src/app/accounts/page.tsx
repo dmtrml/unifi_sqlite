@@ -1,10 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { collection, query } from "firebase/firestore"
-import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase"
-import AppLayout from "@/components/layout"
 import { useRouter } from "next/navigation"
+import AppLayout from "@/components/layout"
+import { useAccounts } from "@/hooks/use-accounts"
 
 import {
   Card,
@@ -27,10 +26,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { AddAccountDialog } from "@/components/add-account-dialog"
 import { EditAccountDialog } from "@/components/edit-account-dialog"
 import { DeleteAccountDialog } from "@/components/delete-account-dialog"
-import type { Account } from "@/lib/types"
 import * as Icons from "lucide-react"
 import { MoreHorizontal } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -39,15 +36,8 @@ import { UnstyledAccountsManager } from "@/components/unstyled-accounts-manager"
 
 
 function AccountsPageContent() {
-  const { user } = useUser()
-  const firestore = useFirestore()
   const router = useRouter();
-
-  const accountsQuery = useMemoFirebase(() =>
-    user ? query(collection(firestore, "users", user.uid, "accounts")) : null,
-    [user, firestore]
-  );
-  const { data: accounts } = useCollection<Account>(accountsQuery);
+  const { accounts = [] } = useAccounts();
 
   const [styledAccounts, unstyledAccounts] = React.useMemo(() => {
     const allAccounts = accounts || [];
@@ -76,9 +66,6 @@ function AccountsPageContent() {
               <CardDescription>
                 Manage your financial accounts. Click on an account to see details.
               </CardDescription>
-            </div>
-            <div className="ml-auto">
-                <AddAccountDialog />
             </div>
           </CardHeader>
           <CardContent>

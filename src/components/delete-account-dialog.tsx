@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { doc } from "firebase/firestore"
 import { Trash2 } from "lucide-react"
 
 import {
@@ -16,8 +15,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useUser } from "@/firebase"
-import { deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { useUser } from "@/firebase"
+import { useAccounts } from "@/hooks/use-accounts"
 
 interface DeleteAccountDialogProps {
   accountId: string;
@@ -26,11 +25,12 @@ interface DeleteAccountDialogProps {
 
 export function DeleteAccountDialog({ accountId, children }: DeleteAccountDialogProps) {
   const { toast } = useToast()
-  const firestore = useFirestore()
   const { user } = useUser()
+  const { refresh } = useAccounts()
+  const [isDeleting, setIsDeleting] = React.useState(false)
 
   const handleDelete = async () => {
-    if (!user || !firestore) {
+    if (!user) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -39,13 +39,35 @@ export function DeleteAccountDialog({ accountId, children }: DeleteAccountDialog
       return
     }
 
-    const accountRef = doc(firestore, `users/${user.uid}/accounts/${accountId}`);
-    deleteDocumentNonBlocking(accountRef);
+    try {
+      setIsDeleting(true)
+      const response = await fetch(`/api/accounts/${accountId}`, {
+        method: "DELETE",
+        headers: {
+          "x-uid": user.uid,
+        },
+      })
 
-    toast({
-      title: "Account Deleted",
-      description: "The account has been successfully deleted.",
-    })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.message || "Failed to delete account.")
+      }
+
+      refresh()
+
+      toast({
+        title: "Account Deleted",
+        description: "The account has been successfully deleted.",
+      })
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error?.message || "Failed to delete account.",
+      })
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (
@@ -63,7 +85,9 @@ export function DeleteAccountDialog({ accountId, children }: DeleteAccountDialog
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete}>Continue</AlertDialogAction>
+          <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
+            {isDeleting ? "Deleting..." : "Continue"}
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

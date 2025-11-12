@@ -5,7 +5,6 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { Edit } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-import { doc } from "firebase/firestore"
 import * as Icons from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -35,8 +34,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useUser } from "@/firebase"
-import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { useUser } from "@/firebase"
+import { useCategories } from "@/hooks/use-categories"
 import type { Category } from "@/lib/types"
 import { DropdownMenuItem } from "./ui/dropdown-menu"
 import { colorOptions } from "@/lib/colors"
@@ -67,9 +66,10 @@ interface EditCategoryDialogProps {
 
 export function EditCategoryDialog({ category }: EditCategoryDialogProps) {
   const [open, setOpen] = React.useState(false)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const { toast } = useToast()
-  const firestore = useFirestore()
   const { user } = useUser()
+  const { refresh } = useCategories()
 
   const form = useForm<EditCategoryFormValues>({
     resolver: zodResolver(editCategoryFormSchema),
@@ -82,7 +82,7 @@ export function EditCategoryDialog({ category }: EditCategoryDialogProps) {
   const categoryType = form.watch("type");
 
   async function onSubmit(data: EditCategoryFormValues) {
-    if (!user || !firestore) {
+    if (!user) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -91,15 +91,39 @@ export function EditCategoryDialog({ category }: EditCategoryDialogProps) {
       return
     }
 
-    const categoryRef = doc(firestore, `users/${user.uid}/categories/${category.id}`);
-    updateDocumentNonBlocking(categoryRef, data);
+    try {
+      setIsSubmitting(true)
+      const response = await fetch(`/api/categories/${category.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-uid": user.uid,
+        },
+        body: JSON.stringify(data),
+      })
 
-    toast({
-      title: "Category Updated",
-      description: "Your category has been successfully updated.",
-    })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.message || "Failed to update category.")
+      }
 
-    setOpen(false)
+      refresh()
+
+      toast({
+        title: "Category Updated",
+        description: "Your category has been successfully updated.",
+      })
+
+      setOpen(false)
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error?.message || "Failed to update category.",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const iconNames = categoryType === 'expense' ? expenseIconNames : incomeIconNames;
@@ -217,7 +241,9 @@ export function EditCategoryDialog({ category }: EditCategoryDialogProps) {
               />
             </div>
             <DialogFooter>
-              <Button type="submit">Save Changes</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : "Save Changes"}
+              </Button>
             </DialogFooter>
           </form>
         </Form>

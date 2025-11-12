@@ -49,7 +49,7 @@ export function MonthlySpendingChart({ transactions, accounts, mainCurrency }: M
       if (getYear(transactionDate) === currentYear && transaction.transactionType === 'expense') {
         const monthName = format(transactionDate, 'MMMM');
         const fromCurrency = getAccountCurrency(transaction.accountId);
-        const convertedAmount = convertAmount(transaction.amount, fromCurrency, mainCurrency);
+        const convertedAmount = convertAmount(transaction.amount ?? 0, fromCurrency, mainCurrency);
         monthlySpending[monthName] += convertedAmount;
       }
     });

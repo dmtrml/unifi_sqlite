@@ -1,8 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { collection, query, orderBy, doc, limit, startAfter, getDocs, where, Timestamp, type Query, type DocumentData, collectionGroup } from "firebase/firestore"
-import { useFirestore, useUser, useMemoFirebase, useDoc, useCollection } from "@/firebase"
+import { doc } from "firebase/firestore"
+import { useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase"
+import { useCategories } from "@/hooks/use-categories"
+import { useAccounts } from "@/hooks/use-accounts"
+import { useTransactions } from "@/hooks/use-transactions"
 import AppLayout from "@/components/layout"
 import {
   ArrowRightLeft,
@@ -76,12 +79,6 @@ function TransactionsPageContent() {
   const firestore = useFirestore()
   const { toast } = useToast()
 
-  const [transactions, setTransactions] = React.useState<Transaction[]>([]);
-  const [lastVisible, setLastVisible] = React.useState<DocumentData | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
-  const [hasMore, setHasMore] = React.useState(true);
-
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
   const [accountId, setAccountId] = React.useState<string>("all");
   const [categoryId, setCategoryId] = React.useState<string>("all");
@@ -95,153 +92,55 @@ function TransactionsPageContent() {
   const { data: userData } = useDoc<User>(userDocRef);
   const mainCurrency = userData?.mainCurrency || "USD";
 
-  const categoriesQuery = useMemoFirebase(() => 
-    user ? query(collection(firestore, "users", user.uid, "categories")) : null, 
-    [user, firestore]
-  );
-  const { data: categories } = useCollection<Category>(categoriesQuery);
-
-  const accountsQuery = useMemoFirebase(() =>
-    user ? query(collection(firestore, "users", user.uid, "accounts")) : null,
-    [user, firestore]
-  );
-  const { data: accounts } = useCollection<Account>(accountsQuery);
-  
+  const { categories } = useCategories();
+  const { accounts } = useAccounts();
   const safeCategories = categories || [];
   const safeAccounts = accounts || [];
-  
-  const fetchTransactions = React.useCallback(async (loadMore = false) => {
-    if (!user || !firestore) return;
 
-    if (loadMore) {
-        if (!hasMore) return;
-        setIsLoadingMore(true);
-    } else {
-        setIsLoading(true);
-        setTransactions([]);
-        setLastVisible(null);
-        setHasMore(true);
-    }
-    
-    let baseQuery = query(collection(firestore, `users/${user.uid}/transactions`));
-
-    // Server-side filtering
-    const queries: Query<DocumentData>[] = [];
-    if (accountId !== 'all') {
-        // Create 3 separate queries for transfers and regular transactions
-        queries.push(query(baseQuery, where("accountId", "==", accountId)));
-        queries.push(query(baseQuery, where("fromAccountId", "==", accountId)));
-        queries.push(query(baseQuery, where("toAccountId", "==", accountId)));
-    } else {
-        queries.push(baseQuery);
-    }
-
-    if (categoryId !== 'all') {
-        // Apply category filter to all queries that can have categories
-        for (let i = 0; i < queries.length; i++) {
-           if (queries[i] === baseQuery || (accountId !== 'all' && i === 0)) {
-               queries[i] = query(queries[i], where("categoryId", "==", categoryId));
-           }
-        }
-    }
-    
-    // Server-side sorting
-    for (let i = 0; i < queries.length; i++) {
-       queries[i] = query(queries[i], orderBy("date", sortOrder));
-    }
-
-    if (loadMore && lastVisible) {
-        for (let i = 0; i < queries.length; i++) {
-            queries[i] = query(queries[i], startAfter(lastVisible));
-        }
-    }
-
-    for (let i = 0; i < queries.length; i++) {
-      queries[i] = query(queries[i], limit(PAGE_SIZE));
-    }
-
-    try {
-        const queryPromises = queries.map(q => getDocs(q));
-        const querySnapshots = await Promise.all(queryPromises);
-
-        const newTransactionsMap = new Map<string, Transaction>();
-        let latestDoc: DocumentData | null = null;
-        let totalDocs = 0;
-
-        querySnapshots.forEach(snapshot => {
-            snapshot.docs.forEach(doc => {
-                if (!newTransactionsMap.has(doc.id)) {
-                    newTransactionsMap.set(doc.id, { id: doc.id, ...doc.data() } as Transaction);
-                }
-            });
-            totalDocs += snapshot.docs.length;
-            
-            const currentLastDoc = snapshot.docs[snapshot.docs.length - 1];
-            if (currentLastDoc) {
-                if (!latestDoc || (sortOrder === 'desc' && currentLastDoc.data().date > latestDoc.data().date) || (sortOrder === 'asc' && currentLastDoc.data().date < latestDoc.data().date)) {
-                    latestDoc = currentLastDoc;
-                }
-            }
-        });
-        
-        let newTransactions = Array.from(newTransactionsMap.values());
-        
-        // Client-side filtering for search query and date range (as they don't have indexes)
-        const clientFilteredTransactions = newTransactions.filter(t => {
-          let matchesDate = true;
-          if (dateRange?.from) {
-            matchesDate = t.date.toDate() >= dateRange.from;
-          }
-          if (dateRange?.to) {
-            const toDate = new Date(dateRange.to);
-            toDate.setHours(23, 59, 59, 999);
-            matchesDate = matchesDate && t.date.toDate() <= toDate;
-          }
-
-          const lowerCasedSearch = searchQuery.toLowerCase();
-          const matchesSearch = searchQuery 
-            ? (t.description?.toLowerCase().includes(lowerCasedSearch) || 
-              getCategory(safeCategories, t.categoryId)?.name.toLowerCase().includes(lowerCasedSearch) ||
-              getAccount(safeAccounts, t.accountId)?.name.toLowerCase().includes(lowerCasedSearch) ||
-              getAccount(safeAccounts, t.fromAccountId)?.name.toLowerCase().includes(lowerCasedSearch) ||
-              getAccount(safeAccounts, t.toAccountId)?.name.toLowerCase().includes(lowerCasedSearch)
-            )
-            : true;
-            
-          return matchesDate && matchesSearch;
-        }).sort((a, b) => {
-            const dateA = a.date.toMillis();
-            const dateB = b.date.toMillis();
-            return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
-        });
-
-        setLastVisible(latestDoc);
-        setTransactions(prev => loadMore ? [...prev, ...clientFilteredTransactions] : clientFilteredTransactions);
-        // A simplification: if the total docs from all queries is less than the page size for each, assume no more.
-        setHasMore(totalDocs >= (queries.length * PAGE_SIZE / 2));
-        
-    } catch (error) {
-        console.error("Error fetching transactions: ", error);
-        toast({ title: "Error", description: "Could not fetch transactions. Check console for details.", variant: "destructive" });
-    } finally {
-        setIsLoading(false);
-        setIsLoadingMore(false);
-    }
-  }, [user, firestore, dateRange, accountId, categoryId, searchQuery, sortOrder, hasMore, lastVisible, toast, safeAccounts, safeCategories]);
-
+  const {
+    transactions,
+    isLoading,
+    error,
+    refresh: refreshTransactions,
+  } = useTransactions({
+    accountId: accountId !== "all" ? accountId : undefined,
+    categoryId: categoryId !== "all" ? categoryId : undefined,
+    startDate: dateRange?.from ? dateRange.from.getTime() : undefined,
+    endDate: dateRange?.to ? dateRange.to.getTime() : undefined,
+    sort: sortOrder,
+  });
 
   React.useEffect(() => {
-    // We don't want to fetch if the dependent data isn't ready
-    if (user && firestore && accounts && categories) {
-      fetchTransactions(false);
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message ?? "Failed to load transactions.",
+      });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, firestore, accounts, categories, dateRange, accountId, categoryId, searchQuery, sortOrder]);
+  }, [error, toast]);
+
+  const filteredTransactions = React.useMemo(() => {
+    const items = transactions || [];
+    if (!searchQuery.trim()) {
+      return items;
+    }
+    const lowerCasedSearch = searchQuery.toLowerCase();
+    return items.filter((t) => {
+      return (
+        t.description?.toLowerCase().includes(lowerCasedSearch) ||
+        getCategory(safeCategories, t.categoryId)?.name.toLowerCase().includes(lowerCasedSearch) ||
+        getAccount(safeAccounts, t.accountId)?.name.toLowerCase().includes(lowerCasedSearch) ||
+        getAccount(safeAccounts, t.fromAccountId)?.name.toLowerCase().includes(lowerCasedSearch) ||
+        getAccount(safeAccounts, t.toAccountId)?.name.toLowerCase().includes(lowerCasedSearch)
+      );
+    });
+  }, [transactions, searchQuery, safeCategories, safeAccounts]);
 
 
   const groupedTransactions = React.useMemo(() => {
-    return transactions.reduce((acc, transaction) => {
-      const jsDate = new Date(transaction.date.seconds * 1000);
+    return filteredTransactions.reduce((acc, transaction) => {
+      const jsDate = new Date(transaction.date.toMillis());
       const dateStr = format(jsDate, 'yyyy-MM-dd');
       
       if (!acc[dateStr]) {
@@ -250,7 +149,7 @@ function TransactionsPageContent() {
       acc[dateStr].push(transaction);
       return acc;
     }, {} as Record<string, Transaction[]>);
-  }, [transactions]);
+  }, [filteredTransactions]);
   
   const sortedDateKeys = React.useMemo(() => {
     const keys = Object.keys(groupedTransactions);
@@ -403,7 +302,7 @@ function TransactionsPageContent() {
                                 {transaction.transactionType}
                               </Badge>
                             </TableCell>
-                            <TableCell>{new Date(transaction.date.seconds * 1000).toLocaleDateString()}</TableCell>
+                            <TableCell>{transaction.date.toDate().toLocaleDateString()}</TableCell>
                             <TableCell className="text-right">
                               {new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)}
                             </TableCell>
@@ -564,13 +463,6 @@ function TransactionsPageContent() {
                 )})
               )}
             </div>
-            {hasMore && !isLoading && (
-              <div className="mt-6 flex justify-center">
-                <Button onClick={() => fetchTransactions(true)} disabled={isLoadingMore}>
-                  {isLoadingMore ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Load More"}
-                </Button>
-              </div>
-            )}
           </CardContent>
         </Card>
     </main>

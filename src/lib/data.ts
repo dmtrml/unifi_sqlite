@@ -1,6 +1,11 @@
-import type { Category, Expense, Budget, RecurringExpense, Transaction } from './types';
+type ExampleCategory = {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+};
 
-export const categories: Category[] = [
+export const categories: ExampleCategory[] = [
   { id: 'cat-1', name: 'Food', icon: 'UtensilsCrossed', color: "hsl(var(--chart-1))" },
   { id: 'cat-2', name: 'Transport', icon: 'Car', color: "hsl(var(--chart-2))" },
   { id: 'cat-3', name: 'Housing', icon: 'Home', color: "hsl(var(--chart-3))" },
@@ -11,8 +16,6 @@ export const categories: Category[] = [
   { id: 'cat-8', name: 'Other', icon: 'MoreHorizontal', color: "hsl(var(--chart-3))" },
 ];
 
-export const expenses: Transaction[] = [];
-
-export const budgets: Budget[] = [];
-
-export const recurringExpenses: RecurringExpense[] = [];
+export const expenses: unknown[] = [];
+export const budgets: unknown[] = [];
+export const recurringExpenses: unknown[] = [];

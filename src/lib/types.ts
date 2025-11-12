@@ -65,4 +65,5 @@ export type User = {
   name?: string;
   theme?: 'light' | 'dark';
   mainCurrency?: Currency;
+  mercadoPagoConnected?: boolean;
 };

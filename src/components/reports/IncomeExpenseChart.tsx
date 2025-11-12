@@ -53,7 +53,7 @@ export function IncomeExpenseChart({ transactions, accounts, mainCurrency }: Mon
       if (getYear(transactionDate) === currentYear) {
         const monthName = format(transactionDate, 'MMMM');
         const fromCurrency = getAccountCurrency(transaction.accountId);
-        const convertedAmount = convertAmount(transaction.amount, fromCurrency, mainCurrency);
+        const convertedAmount = convertAmount(transaction.amount ?? 0, fromCurrency, mainCurrency);
 
         if (transaction.transactionType === 'income') {
           monthlyData[monthName].income += convertedAmount;

@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import { Trash2 } from "lucide-react"
-import { doc } from "firebase/firestore"
 
 import {
   AlertDialog,
@@ -17,8 +16,9 @@ import {
 } from "@/components/ui/alert-dialog"
 import { DropdownMenuItem } from "./ui/dropdown-menu"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useUser } from "@/firebase"
-import { deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { useUser } from "@/firebase"
+import { mutate } from "swr"
+import { recurringApi, recurringKey } from "@/hooks/use-recurring-transactions"
 
 
 interface DeleteRecurringTransactionDialogProps {
@@ -27,11 +27,11 @@ interface DeleteRecurringTransactionDialogProps {
 
 export function DeleteRecurringTransactionDialog({ recurringTransactionId }: DeleteRecurringTransactionDialogProps) {
   const { toast } = useToast()
-  const firestore = useFirestore()
   const { user } = useUser()
+  const [isDeleting, setIsDeleting] = React.useState(false)
 
   const handleDelete = async () => {
-    if (!user || !firestore) {
+    if (!user) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -40,13 +40,24 @@ export function DeleteRecurringTransactionDialog({ recurringTransactionId }: Del
       return
     }
 
-    const recurringRef = doc(firestore, `users/${user.uid}/recurringTransactions/${recurringTransactionId}`);
-    deleteDocumentNonBlocking(recurringRef);
-
-    toast({
-      title: "Recurring Transaction Deleted",
-      description: "The recurring transaction template has been successfully deleted.",
-    })
+    try {
+      setIsDeleting(true)
+      await recurringApi.remove(user.uid, recurringTransactionId)
+      mutate(recurringKey(user.uid))
+      toast({
+        title: "Recurring Transaction Deleted",
+        description: "The recurring transaction template has been successfully deleted.",
+      })
+    } catch (error) {
+      console.error("Error deleting recurring transaction", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete recurring transaction.",
+      })
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (
@@ -67,7 +78,9 @@ export function DeleteRecurringTransactionDialog({ recurringTransactionId }: Del
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete}>Continue</AlertDialogAction>
+          <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
+            {isDeleting ? "Deleting..." : "Continue"}
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

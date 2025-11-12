@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { doc, runTransaction, getDoc } from "firebase/firestore"
 import { Trash2 } from "lucide-react"
 
 import {
@@ -16,21 +15,22 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useUser } from "@/firebase"
+import { useUser } from "@/firebase"
+import { useAccounts } from "@/hooks/use-accounts"
+import { notifyTransactionsChanged } from "@/lib/transactions-events"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import type { Transaction } from "@/lib/types"
-
 interface DeleteTransactionDialogProps {
   transactionId: string;
 }
 
 export function DeleteTransactionDialog({ transactionId }: DeleteTransactionDialogProps) {
   const { toast } = useToast()
-  const firestore = useFirestore()
   const { user } = useUser()
+  const { refresh: refreshAccounts } = useAccounts()
+  const [isDeleting, setIsDeleting] = React.useState(false)
 
   const handleDelete = async () => {
-    if (!user || !firestore) {
+    if (!user) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -39,56 +39,35 @@ export function DeleteTransactionDialog({ transactionId }: DeleteTransactionDial
       return
     }
 
-    const transactionRef = doc(firestore, `users/${user.uid}/transactions/${transactionId}`);
-    
     try {
-        await runTransaction(firestore, async (dbTransaction) => {
-            const transactionDoc = await dbTransaction.get(transactionRef);
-            if (!transactionDoc.exists()) {
-                throw new Error("Transaction not found!");
-            }
-            const transactionData = transactionDoc.data() as Transaction;
+      setIsDeleting(true)
+      const response = await fetch(`/api/transactions/${transactionId}`, {
+        method: "DELETE",
+        headers: {
+          "x-uid": user.uid,
+        },
+      })
 
-            if (transactionData.transactionType === 'transfer') {
-                const fromAccountRef = doc(firestore, `users/${user.uid}/accounts/${transactionData.fromAccountId}`);
-                const toAccountRef = doc(firestore, `users/${user.uid}/accounts/${transactionData.toAccountId}`);
-                const fromAccountDoc = await dbTransaction.get(fromAccountRef);
-                const toAccountDoc = await dbTransaction.get(toAccountRef);
-                // Revert balances
-                if (fromAccountDoc.exists()) {
-                  dbTransaction.update(fromAccountRef, { balance: fromAccountDoc.data().balance + transactionData.amount });
-                }
-                if (toAccountDoc.exists()) {
-                  dbTransaction.update(toAccountRef, { balance: toAccountDoc.data().balance - transactionData.amount });
-                }
-            } else {
-                const accountRef = doc(firestore, `users/${user.uid}/accounts/${transactionData.accountId}`);
-                const accountDoc = await dbTransaction.get(accountRef);
-                 if (accountDoc.exists()) {
-                    const currentBalance = accountDoc.data().balance;
-                    // Reverse the transaction amount
-                    const newBalance = transactionData.transactionType === 'expense'
-                        ? currentBalance + transactionData.amount
-                        : currentBalance - transactionData.amount;
-                    dbTransaction.update(accountRef, { balance: newBalance });
-                }
-            }
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.message || "Failed to delete transaction.")
+      }
 
-            dbTransaction.delete(transactionRef);
-        });
+      refreshAccounts()
+      notifyTransactionsChanged()
 
-        toast({
-            title: "Transaction Deleted",
-            description: "The transaction has been successfully deleted.",
-        });
-
+      toast({
+        title: "Transaction Deleted",
+        description: "The transaction has been successfully deleted.",
+      })
     } catch (error: any) {
-        console.error("Delete transaction failed: ", error);
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: error.message || "Failed to delete transaction.",
-        });
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error?.message || "Failed to delete transaction.",
+      })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -110,7 +89,9 @@ export function DeleteTransactionDialog({ transactionId }: DeleteTransactionDial
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete}>Continue</AlertDialogAction>
+          <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
+            {isDeleting ? "Deleting..." : "Continue"}
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

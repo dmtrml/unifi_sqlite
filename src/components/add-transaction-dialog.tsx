@@ -3,10 +3,9 @@
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { CalendarIcon, PlusCircle } from "lucide-react"
-import { useForm } from "react-hook-form"
+import { useForm, type DefaultValues } from "react-hook-form"
 import { z } from "zod"
 import { format } from "date-fns"
-import { collection, serverTimestamp, doc, runTransaction } from "firebase/firestore"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -40,10 +39,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useUser } from "@/firebase"
+import { useUser } from "@/firebase"
+import { useAccounts } from "@/hooks/use-accounts"
 import type { Category, Account, Currency } from "@/lib/types"
-import { transactionFormSchema, type TransactionFormValues } from "@/lib/schemas"
+import { transactionFormSchema, type TransactionFormInput } from "@/lib/schemas"
 import { convertAmount } from "@/lib/currency"
+import { notifyTransactionsChanged } from "@/lib/transactions-events"
+import { buildTransactionPayload } from "@/lib/transaction-payload"
 
 interface AddTransactionDialogProps {
   categories: Category[];
@@ -52,21 +54,25 @@ interface AddTransactionDialogProps {
 
 export function AddTransactionDialog({ categories, accounts }: AddTransactionDialogProps) {
   const [open, setOpen] = React.useState(false)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const { toast } = useToast()
-  const firestore = useFirestore()
   const { user } = useUser()
+  const { refresh: refreshAccounts } = useAccounts()
 
-  const form = useForm<TransactionFormValues>({
-    resolver: zodResolver(transactionFormSchema),
-    defaultValues: {
+  const createDefaultValues = React.useCallback(
+    (): DefaultValues<TransactionFormInput> => ({
       description: "",
       date: new Date(),
       transactionType: "expense",
       expenseType: "optional",
       amount: undefined,
-      amountSent: undefined,
-      amountReceived: undefined,
-    },
+    }),
+    [],
+  )
+
+  const form = useForm<TransactionFormInput>({
+    resolver: zodResolver(transactionFormSchema),
+    defaultValues: createDefaultValues(),
   })
 
   const transactionType = form.watch("transactionType")
@@ -79,17 +85,10 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
   const [toCurrency, setToCurrency] = React.useState<Currency | undefined>();
 
   React.useEffect(() => {
-    // Reset form when dialog opens/closes or type changes
-    form.reset({
-      description: "",
-      date: new Date(),
-      transactionType: "expense",
-      expenseType: "optional",
-      amount: undefined,
-      amountSent: undefined,
-      amountReceived: undefined,
-    });
-  }, [open, form]);
+    if (open) {
+      form.reset(createDefaultValues())
+    }
+  }, [createDefaultValues, open, form])
 
   React.useEffect(() => {
     if (transactionType === 'transfer' && fromAccountId && toAccountId) {
@@ -125,116 +124,51 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
   }, [categories, transactionType]);
 
 
-  async function onSubmit(data: TransactionFormValues) {
-    if (!user || !firestore) {
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "You must be logged in to add a transaction.",
-        })
-        return;
+  async function onSubmit(data: TransactionFormInput) {
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "You must be logged in to add a transaction.",
+      })
+      return
     }
-    
-    const transactionsRef = collection(firestore, `users/${user.uid}/transactions`);
+
+    const payload = buildTransactionPayload(data);
 
     try {
-        await runTransaction(firestore, async (transaction) => {
-             const { ...transactionData } = data;
-             
-             const finalTransactionData = {
-                ...transactionData,
-                description: transactionData.description || ""
-             };
+      setIsSubmitting(true)
+      const response = await fetch("/api/transactions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-uid": user.uid,
+        },
+        body: JSON.stringify(payload),
+      })
 
-            if (finalTransactionData.transactionType === 'transfer') {
-                 const fromAccountRef = doc(firestore, `users/${user.uid}/accounts`, finalTransactionData.fromAccountId!);
-                 const toAccountRef = doc(firestore, `users/${user.uid}/accounts`, finalTransactionData.toAccountId!);
-                 const fromAccountDoc = await transaction.get(fromAccountRef);
-                 const toAccountDoc = await transaction.get(toAccountRef);
-                 if (!fromAccountDoc.exists() || !toAccountDoc.exists()) throw new Error("Account not found for transfer.");
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}))
+        throw new Error(result?.message || "Failed to add transaction.")
+      }
 
-                 const fromAccountData = fromAccountDoc.data() as Account;
-                 const toAccountData = toAccountDoc.data() as Account;
+      refreshAccounts()
+      notifyTransactionsChanged()
 
-                 let amountSent = 0;
-                 let amountReceived = 0;
-
-                 if (fromAccountData.currency === toAccountData.currency) {
-                    if (!finalTransactionData.amount || finalTransactionData.amount <= 0) throw new Error("A positive amount is required.");
-                    amountSent = finalTransactionData.amount;
-                    amountReceived = finalTransactionData.amount;
-                 } else {
-                    if (!finalTransactionData.amountSent || finalTransactionData.amountSent <= 0) throw new Error("A positive sent amount is required.");
-                    if (!finalTransactionData.amountReceived || finalTransactionData.amountReceived <= 0) throw new Error("A positive received amount is required.");
-                    amountSent = finalTransactionData.amountSent;
-                    amountReceived = finalTransactionData.amountReceived;
-                 }
-                 
-                 transaction.update(fromAccountRef, { balance: fromAccountDoc.data().balance - amountSent });
-                 transaction.update(toAccountRef, { balance: toAccountDoc.data().balance + amountReceived });
-
-                transaction.set(doc(transactionsRef), {
-                    userId: user.uid,
-                    createdAt: serverTimestamp(),
-                    date: finalTransactionData.date,
-                    amount: fromAccountData.currency === toAccountData.currency ? finalTransactionData.amount : null,
-                    amountSent: fromAccountData.currency !== toAccountData.currency ? finalTransactionData.amountSent : null,
-                    amountReceived: fromAccountData.currency !== toAccountData.currency ? finalTransactionData.amountReceived : null,
-                    description: finalTransactionData.description,
-                    transactionType: 'transfer',
-                    fromAccountId: finalTransactionData.fromAccountId,
-                    toAccountId: finalTransactionData.toAccountId,
-                    accountId: null, categoryId: null, incomeType: null, expenseType: null,
-                });
-
-            } else { // Expense or Income
-                if (!finalTransactionData.amount || finalTransactionData.amount <= 0) throw new Error("A positive amount is required.");
-
-                const accountRef = doc(firestore, `users/${user.uid}/accounts`, finalTransactionData.accountId!);
-                const accountDoc = await transaction.get(accountRef);
-                if (!accountDoc.exists()) {
-                    throw "Account not found!";
-                }
-
-                const currentBalance = accountDoc.data().balance;
-                const newBalance = finalTransactionData.transactionType === 'expense'
-                    ? currentBalance - finalTransactionData.amount
-                    : currentBalance + finalTransactionData.amount;
-
-                transaction.update(accountRef, { balance: newBalance });
-
-                transaction.set(doc(transactionsRef), {
-                    userId: user.uid,
-                    createdAt: serverTimestamp(),
-                    date: finalTransactionData.date,
-                    amount: finalTransactionData.amount,
-                    description: finalTransactionData.description,
-                    transactionType: finalTransactionData.transactionType,
-                    accountId: finalTransactionData.accountId,
-                    categoryId: finalTransactionData.categoryId,
-                    ...(finalTransactionData.transactionType === 'expense' 
-                        ? { expenseType: finalTransactionData.expenseType, incomeType: null } 
-                        : { incomeType: finalTransactionData.incomeType, expenseType: null }),
-                    fromAccountId: null, toAccountId: null,
-                });
-            }
-        });
-        
-         toast({
-            title: "Transaction Added",
-            description: `Successfully added transaction.`,
-        });
-
+      toast({
+        title: "Transaction Added",
+        description: "Your transaction has been successfully added.",
+      })
+      setOpen(false)
     } catch (error) {
-        console.error("Transaction failed: ", error);
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Failed to add transaction.",
-        });
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add transaction.",
+      })
+    } finally {
+      setIsSubmitting(false)
     }
-
-    setOpen(false)
   }
 
   return (
@@ -543,7 +477,9 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
               )}
             />
             <DialogFooter>
-              <Button type="submit">Add Transaction</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Adding..." : "Add Transaction"}
+              </Button>
             </DialogFooter>
           </form>
         </Form>
@@ -551,3 +487,7 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
     </Dialog>
   )
 }
+
+
+
+

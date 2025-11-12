@@ -1,11 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { doc, collection, query, orderBy } from "firebase/firestore"
 import * as Icons from "lucide-react"
-import { useDoc, useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase"
+import { useUser } from "@/firebase"
+import { useTransactions } from "@/hooks/use-transactions"
+import { useCategories } from "@/hooks/use-categories"
+import { useAccounts } from "@/hooks/use-accounts"
+import { useUserProfile } from "@/hooks/use-user-profile"
 import AppLayout from "@/components/layout"
-import type { Account, Transaction, Category, User } from "@/lib/types"
+import type { Account, Transaction, Category, Currency } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
 import { ArrowLeft, Edit, Trash2 } from "lucide-react"
@@ -35,34 +38,17 @@ interface AccountPageParams {
 
 function AccountPageContent({ accountId }: { accountId: string}) {
   const { user } = useUser()
-  const firestore = useFirestore()
 
-  const userDocRef = useMemoFirebase(
-    () => (user ? doc(firestore, "users", user.uid) : null),
-    [user, firestore]
-  )
-  const { data: userData } = useDoc<User>(userDocRef)
+  const { transactions: allTransactions, isLoading: isTransactionsLoading } = useTransactions({
+    accountId,
+  });
 
-  const accountDocRef = useMemoFirebase(
-    () => (user ? doc(firestore, "users", user.uid, "accounts", accountId) : null),
-    [user, firestore, accountId]
-  )
-  const { data: account, isLoading: isAccountLoading } = useDoc<Account>(accountDocRef)
+  const { categories, isLoading: isCategoriesLoading } = useCategories();
 
-  const transactionsQuery = useMemoFirebase(
-    () => user ? query(collection(firestore, "users", user.uid, "transactions"), orderBy("date", "desc")) : null,
-    [user, firestore]
-  );
-  const { data: allTransactions, isLoading: isTransactionsLoading } = useCollection<Transaction>(transactionsQuery);
-
-  const categoriesQuery = useMemoFirebase(
-    () => user ? query(collection(firestore, "users", user.uid, "categories")) : null,
-    [user, firestore]
-  );
-  const { data: categories, isLoading: isCategoriesLoading } = useCollection<Category>(categoriesQuery);
-
-  const { data: allAccounts, isLoading: isAccountsLoading } = useCollection<Account>(
-    useMemoFirebase(() => user ? query(collection(firestore, "users", user.uid, "accounts")) : null, [user, firestore])
+  const { accounts: allAccounts, isLoading: isAccountsLoading } = useAccounts();
+  const account = React.useMemo(
+    () => (allAccounts || []).find((a) => a.id === accountId) ?? null,
+    [allAccounts, accountId]
   );
   
   const relatedTransactions = React.useMemo(() => {
@@ -74,7 +60,8 @@ function AccountPageContent({ accountId }: { accountId: string}) {
     );
   }, [allTransactions, accountId]);
 
-  const isLoading = isAccountLoading || isTransactionsLoading || isCategoriesLoading || isAccountsLoading || !userData;
+  const isLoading = isAccountsLoading || isTransactionsLoading || isCategoriesLoading || profileLoading;
+  const mainCurrency = (profile?.mainCurrency ?? "USD") as Currency;
   
   const IconComponent = account ? (Icons as any)[account.icon] || Icons.HelpCircle : Icons.HelpCircle;
 
@@ -195,14 +182,14 @@ function AccountPageContent({ accountId }: { accountId: string}) {
             <CardHeader>
               <CardTitle>Income vs. Expense</CardTitle>
               <CardDescription>
-                Your income and expenses for this account in {userData.mainCurrency || "USD"}.
+                Your income and expenses for this account in {mainCurrency}.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <IncomeExpenseChart
                 transactions={relatedTransactions}
                 accounts={allAccounts || []}
-                mainCurrency={userData.mainCurrency || "USD"}
+                mainCurrency={mainCurrency}
               />
             </CardContent>
           </Card>
@@ -210,7 +197,7 @@ function AccountPageContent({ accountId }: { accountId: string}) {
             <CardHeader>
               <CardTitle>Spending by Category</CardTitle>
               <CardDescription>
-                Spending breakdown for the current month in {userData.mainCurrency || "USD"}.
+                Spending breakdown for the current month in {mainCurrency}.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -218,7 +205,7 @@ function AccountPageContent({ accountId }: { accountId: string}) {
                 transactions={relatedTransactions}
                 categories={categories || []}
                 accounts={allAccounts || []}
-                mainCurrency={userData.mainCurrency || "USD"}
+                mainCurrency={mainCurrency}
               />
             </CardContent>
           </Card>
@@ -230,10 +217,10 @@ function AccountPageContent({ accountId }: { accountId: string}) {
 
 
 export default function AccountPage({ params }: AccountPageParams) {
-  const resolvedParams = React.use(params);
   return (
     <AppLayout>
-      <AccountPageContent accountId={resolvedParams.id} />
+      <AccountPageContent accountId={params.id} />
     </AppLayout>
   )
 }
+  const { profile, isLoading: profileLoading } = useUserProfile();

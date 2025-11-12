@@ -18,6 +18,9 @@
 # Miscellaneous
 .DS_Store
 *.pem
+.data/
+drizzle/
+tsconfig.tsbuildinfo
 
 # Local environment variables
 .env.local

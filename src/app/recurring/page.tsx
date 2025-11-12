@@ -1,8 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { collection, query, orderBy } from "firebase/firestore"
-import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase"
+import { useUser } from "@/firebase"
+import { useAccounts } from "@/hooks/use-accounts"
+import { useCategories } from "@/hooks/use-categories"
+import { useRecurringTransactions } from "@/hooks/use-recurring-transactions"
 import AppLayout from "@/components/layout"
 
 import {
@@ -26,8 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { AddRecurringTransactionDialog } from "@/components/add-recurring-transaction-dialog"
-import type { RecurringTransaction, Category, Account } from "@/lib/types"
+import type { Category, Account } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from "@/components/ui/dropdown-menu"
 import { EditRecurringTransactionDialog } from "@/components/edit-recurring-transaction-dialog"
@@ -44,29 +45,29 @@ function getAccount(accounts: Account[], accountId?: string): Account | undefine
 }
 
 function RecurringPageContent() {
-  const { user } = useUser()
-  const firestore = useFirestore()
+  const { user, isUserLoading } = useUser()
+  const { accounts, isLoading: accountsLoading } = useAccounts();
+  const { categories, isLoading: categoriesLoading } = useCategories();
+  const { recurringTransactions, isLoading: recurringLoading } = useRecurringTransactions();
 
-  const recurringTransactionsQuery = useMemoFirebase(() =>
-    user ? query(collection(firestore, "users", user.uid, "recurringTransactions"), orderBy("startDate", "desc")) : null,
-    [user, firestore]
+  const safeRecurringTransactions = React.useMemo(
+    () =>
+      [...recurringTransactions].sort(
+        (a, b) => b.startDate.toMillis() - a.startDate.toMillis(),
+      ),
+    [recurringTransactions],
   );
-  const categoriesQuery = useMemoFirebase(() =>
-    user ? query(collection(firestore, "users", user.uid, "categories"), (where: any) => where("type", "==", "expense")) : null,
-    [user, firestore]
-  );
-  const accountsQuery = useMemoFirebase(() =>
-    user ? query(collection(firestore, "users", user.uid, "accounts")) : null,
-    [user, firestore]
-  );
-
-  const { data: recurringTransactions } = useCollection<RecurringTransaction>(recurringTransactionsQuery);
-  const { data: categories } = useCollection<Category>(categoriesQuery);
-  const { data: accounts } = useCollection<Account>(accountsQuery);
-
-  const safeRecurringTransactions = recurringTransactions || [];
   const safeCategories = categories || [];
   const safeAccounts = accounts || [];
+  const isLoading = isUserLoading || accountsLoading || categoriesLoading || recurringLoading;
+
+  if (!user && !isUserLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6 text-center text-muted-foreground">
+        Please sign in to manage recurring transactions.
+      </div>
+    )
+  }
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
@@ -81,7 +82,6 @@ function RecurringPageContent() {
               Manage your recurring expenses and income.
             </CardDescription>
           </div>
-          <AddRecurringTransactionDialog categories={safeCategories} accounts={safeAccounts} />
         </CardHeader>
         <CardContent>
           <Table>
@@ -100,7 +100,7 @@ function RecurringPageContent() {
               {safeRecurringTransactions.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center h-24">
-                    No recurring transactions yet.
+                    {isLoading ? "Loading recurring transactions..." : "No recurring transactions yet."}
                   </TableCell>
                 </TableRow>
               ) : (

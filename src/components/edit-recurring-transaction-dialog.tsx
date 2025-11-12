@@ -6,11 +6,11 @@ import { CalendarIcon, Edit } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { format } from "date-fns"
-import { doc } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useUser } from "@/firebase"
-import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { useUser } from "@/firebase"
+import { mutate } from "swr"
+import { recurringApi, recurringKey } from "@/hooks/use-recurring-transactions"
 
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -60,8 +60,8 @@ interface EditRecurringTransactionDialogProps {
 
 export function EditRecurringTransactionDialog({ recurringTransaction, categories, accounts }: EditRecurringTransactionDialogProps) {
   const [open, setOpen] = React.useState(false)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const { toast } = useToast()
-  const firestore = useFirestore()
   const { user } = useUser()
 
   const form = useForm<RecurringTransactionFormValues>({
@@ -82,7 +82,7 @@ export function EditRecurringTransactionDialog({ recurringTransaction, categorie
   }, [open, recurringTransaction, form])
   
   async function onSubmit(data: RecurringTransactionFormValues) {
-     if (!user || !firestore) {
+     if (!user) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -91,16 +91,32 @@ export function EditRecurringTransactionDialog({ recurringTransaction, categorie
       return
     }
 
-    const recurringRef = doc(firestore, `users/${user.uid}/recurringTransactions/${recurringTransaction.id}`);
-    
-    updateDocumentNonBlocking(recurringRef, data);
-
-    toast({
-      title: "Recurring Transaction Updated",
-      description: `Successfully updated: ${data.description}.`,
-    })
-
-    setOpen(false)
+    try {
+      setIsSubmitting(true)
+      await recurringApi.update(user.uid, recurringTransaction.id, {
+        accountId: data.accountId,
+        categoryId: data.categoryId,
+        description: data.description,
+        frequency: data.frequency,
+        amount: data.amount,
+        startDate: data.startDate?.getTime() ?? Date.now(),
+      })
+      mutate(recurringKey(user.uid))
+      toast({
+        title: "Recurring Transaction Updated",
+        description: `Successfully updated: ${data.description}.`,
+      })
+      setOpen(false)
+    } catch (error) {
+      console.error("Error updating recurring transaction", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update recurring transaction.",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -263,7 +279,9 @@ export function EditRecurringTransactionDialog({ recurringTransaction, categorie
                 />
             </div>
             <DialogFooter>
-              <Button type="submit">Save Changes</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : "Save Changes"}
+              </Button>
             </DialogFooter>
           </form>
         </Form>

@@ -5,7 +5,6 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { PlusCircle } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-import { collection, serverTimestamp } from "firebase/firestore"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -34,8 +33,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useUser } from "@/firebase"
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { useUser } from "@/firebase"
+import { useCategories } from "@/hooks/use-categories"
 import * as Icons from "lucide-react"
 import { colorOptions } from "@/lib/colors"
 import { ScrollArea } from "./ui/scroll-area"
@@ -61,9 +60,10 @@ type CategoryFormValues = z.infer<typeof categoryFormSchema>
 
 export function AddCategoryDialog() {
   const [open, setOpen] = React.useState(false)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const { toast } = useToast()
-  const firestore = useFirestore()
   const { user } = useUser()
+  const { refresh } = useCategories()
 
   const form = useForm<CategoryFormValues>({
     resolver: zodResolver(categoryFormSchema),
@@ -78,7 +78,7 @@ export function AddCategoryDialog() {
   const categoryType = form.watch("type");
 
   async function onSubmit(data: CategoryFormValues) {
-    if (!user || !firestore) {
+    if (!user) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -87,20 +87,40 @@ export function AddCategoryDialog() {
       return
     }
 
-    const categoryRef = collection(firestore, `users/${user.uid}/categories`);
-    addDocumentNonBlocking(categoryRef, {
-      ...data,
-      userId: user.uid,
-      createdAt: serverTimestamp(),
-    });
+    try {
+      setIsSubmitting(true)
+      const response = await fetch("/api/categories", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-uid": user.uid,
+        },
+        body: JSON.stringify(data),
+      })
 
-    toast({
-      title: "Category Added",
-      description: `Successfully added category: ${data.name}.`,
-    })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.message || "Failed to add category.")
+      }
 
-    setOpen(false)
-    form.reset()
+      refresh()
+
+      toast({
+        title: "Category Added",
+        description: `Successfully added category: ${data.name}.`,
+      })
+
+      setOpen(false)
+      form.reset()
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error?.message || "Failed to add category.",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const iconNames = categoryType === 'expense' ? expenseIconNames : incomeIconNames;
@@ -218,7 +238,9 @@ export function AddCategoryDialog() {
               />
             </div>
             <DialogFooter>
-              <Button type="submit">Add Category</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Adding..." : "Add Category"}
+              </Button>
             </DialogFooter>
           </form>
         </Form>

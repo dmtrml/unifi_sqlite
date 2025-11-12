@@ -30,7 +30,7 @@ export function CategoryBreakdownChart({ transactions, categories, accounts, mai
     const expenseTransactions = transactions.filter(t => t.transactionType === 'expense');
     const totalExpenses = expenseTransactions.reduce((sum, t) => {
       const fromCurrency = getAccountCurrency(t.accountId);
-      return sum + convertAmount(t.amount, fromCurrency, mainCurrency);
+      return sum + convertAmount(t.amount ?? 0, fromCurrency, mainCurrency);
     }, 0);
 
     if (totalExpenses === 0) return [];
@@ -42,7 +42,7 @@ export function CategoryBreakdownChart({ transactions, categories, accounts, mai
           .filter(expense => expense.categoryId === category.id)
           .reduce((sum, expense) => {
             const fromCurrency = getAccountCurrency(expense.accountId);
-            return sum + convertAmount(expense.amount, fromCurrency, mainCurrency);
+            return sum + convertAmount(expense.amount ?? 0, fromCurrency, mainCurrency);
           }, 0);
         
         const percentage = (total / totalExpenses) * 100;

@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { doc } from "firebase/firestore"
 import * as Icons from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -20,8 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useUser } from "@/firebase"
-import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { useUser } from "@/firebase"
+import { useAccounts } from "@/hooks/use-accounts"
 import type { Account, AccountType } from "@/lib/types"
 
 const accountTypes: AccountType[] = ["Cash", "Card", "Bank Account", "Deposit", "Loan"];
@@ -41,10 +40,11 @@ interface UnstyledAccountsManagerProps {
 
 export function UnstyledAccountsManager({ accounts }: UnstyledAccountsManagerProps) {
   const { toast } = useToast()
-  const firestore = useFirestore()
   const { user } = useUser()
+  const { refresh } = useAccounts()
 
   const [accountStyles, setAccountStyles] = React.useState<Record<string, { type: AccountType }>>({})
+  const [savingId, setSavingId] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     const initialStyles = accounts.reduce((acc, account) => {
@@ -61,8 +61,8 @@ export function UnstyledAccountsManager({ accounts }: UnstyledAccountsManagerPro
     }))
   }
 
-  const handleSave = (accountId: string) => {
-    if (!user || !firestore) {
+  const handleSave = async (accountId: string) => {
+    if (!user) {
       toast({ title: "Error", description: "You must be logged in.", variant: "destructive" })
       return
     }
@@ -74,19 +74,41 @@ export function UnstyledAccountsManager({ accounts }: UnstyledAccountsManagerPro
     const accountToUpdate = accounts.find(a => a.id === accountId);
     if (!accountToUpdate) return;
 
+    try {
+      setSavingId(accountId)
+      const response = await fetch(`/api/accounts/${accountId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-uid": user.uid,
+        },
+        body: JSON.stringify({
+          type: styles.type,
+          icon,
+          color: accountToUpdate.color,
+        }),
+      })
 
-    const accountRef = doc(firestore, `users/${user.uid}/accounts/${accountId}`)
-    updateDocumentNonBlocking(accountRef, {
-      type: styles.type,
-      icon: icon,
-      // We keep the color that was assigned during import
-      color: accountToUpdate.color,
-    })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.message || "Failed to update account.")
+      }
 
-    toast({
-      title: "Account Styled",
-      description: "The account has been successfully updated.",
-    })
+      refresh()
+
+      toast({
+        title: "Account Styled",
+        description: "The account has been successfully updated.",
+      })
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error?.message || "Failed to update account.",
+      })
+    } finally {
+      setSavingId(null)
+    }
   }
 
   if (accounts.length === 0) {
@@ -130,7 +152,13 @@ export function UnstyledAccountsManager({ accounts }: UnstyledAccountsManagerPro
                   })}
                 </SelectContent>
               </Select>
-              <Button size="sm" onClick={() => handleSave(account.id)}>Save</Button>
+              <Button
+                size="sm"
+                onClick={() => handleSave(account.id)}
+                disabled={savingId === account.id}
+              >
+                {savingId === account.id ? "Saving..." : "Save"}
+              </Button>
             </div>
           </div>
         ))}

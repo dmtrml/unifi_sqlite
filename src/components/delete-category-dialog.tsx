@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { doc } from "firebase/firestore"
 import { Trash2 } from "lucide-react"
 
 import {
@@ -16,8 +15,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useUser } from "@/firebase"
-import { deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { useUser } from "@/firebase"
+import { useCategories } from "@/hooks/use-categories"
 import { DropdownMenuItem } from "./ui/dropdown-menu"
 
 interface DeleteCategoryDialogProps {
@@ -26,11 +25,12 @@ interface DeleteCategoryDialogProps {
 
 export function DeleteCategoryDialog({ categoryId }: DeleteCategoryDialogProps) {
   const { toast } = useToast()
-  const firestore = useFirestore()
   const { user } = useUser()
+  const { refresh } = useCategories()
+  const [isDeleting, setIsDeleting] = React.useState(false)
 
   const handleDelete = async () => {
-    if (!user || !firestore) {
+    if (!user) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -39,15 +39,35 @@ export function DeleteCategoryDialog({ categoryId }: DeleteCategoryDialogProps) 
       return
     }
 
-    // Note: We're not deleting transactions associated with the category.
-    // They will just appear as "Uncategorized".
-    const categoryRef = doc(firestore, `users/${user.uid}/categories/${categoryId}`);
-    deleteDocumentNonBlocking(categoryRef);
+    try {
+      setIsDeleting(true)
+      const response = await fetch(`/api/categories/${categoryId}`, {
+        method: "DELETE",
+        headers: {
+          "x-uid": user.uid,
+        },
+      })
 
-    toast({
-      title: "Category Deleted",
-      description: "The category has been successfully deleted.",
-    })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.message || "Failed to delete category.")
+      }
+
+      refresh()
+
+      toast({
+        title: "Category Deleted",
+        description: "The category has been successfully deleted.",
+      })
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error?.message || "Failed to delete category.",
+      })
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (
@@ -69,7 +89,9 @@ export function DeleteCategoryDialog({ categoryId }: DeleteCategoryDialogProps) 
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete}>Continue</AlertDialogAction>
+          <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
+            {isDeleting ? "Deleting..." : "Continue"}
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

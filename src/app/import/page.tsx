@@ -1,11 +1,10 @@
-
+﻿
 
 "use client"
 
 import * as React from "react"
 import { Upload, FileUp, X, Check, Loader2, Info } from "lucide-react"
 import Papa from "papaparse"
-import { collection, doc, writeBatch, serverTimestamp, query, DocumentReference } from "firebase/firestore"
 import Link from "next/link"
 
 import AppLayout from "@/components/layout"
@@ -36,9 +35,12 @@ import {
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import type { Account, Category, Currency, User, Transaction } from "@/lib/types"
-import { useFirestore, useUser, useCollection, useMemoFirebase, useDoc } from "@/firebase"
-import { colorOptions } from "@/lib/colors"
+import type { Currency } from "@/lib/types"
+import type { NormalizedImportRow, ImportSummary } from "@/lib/imports"
+import { useUser } from "@/firebase"
+import { useAccounts } from "@/hooks/use-accounts"
+import { useCategories } from "@/hooks/use-categories"
+import { useUserProfile } from "@/hooks/use-user-profile"
 
 const transactionFields = [
     { value: "date", label: "date" },
@@ -52,12 +54,7 @@ const transactionFields = [
     { value: "incomeCurrency", label: "incomeCurrency" },
 ];
 
-interface ImportResult {
-    successCount: number;
-    errorCount: number;
-    newCategories: number;
-    newAccounts: number;
-}
+type ImportResult = ImportSummary;
 
 function ImportPageContent() {
   const [step, setStep] = React.useState(1);
@@ -71,28 +68,13 @@ function ImportPageContent() {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const { user } = useUser();
-  const firestore = useFirestore();
   const { toast } = useToast();
-  
-  const userDocRef = useMemoFirebase(
-    () => (user ? doc(firestore, "users", user.uid) : null),
-    [user, firestore]
-  )
-  const { data: userData } = useDoc<User>(userDocRef);
+  const { profile } = useUserProfile();
 
-  const categoriesQuery = useMemoFirebase(() => 
-    user ? query(collection(firestore, "users", user.uid, "categories")) : null, 
-    [user, firestore]
-  );
-  const accountsQuery = useMemoFirebase(() =>
-    user ? query(collection(firestore, "users", user.uid, "accounts")) : null,
-    [user, firestore]
-  );
-
-  const { data: categories } = useCollection<Category>(categoriesQuery);
-  const { data: accounts } = useCollection<Account>(accountsQuery);
+  const { refresh: refreshCategories } = useCategories();
+  const { refresh: refreshAccounts } = useAccounts();
   
-  const mainCurrency = userData?.mainCurrency || "USD";
+  const mainCurrency = profile?.mainCurrency || "USD";
 
   const resetState = () => {
     setFile(null);
@@ -177,255 +159,198 @@ function ImportPageContent() {
     });
   }
   
-  type MappedRow = Record<string, string>;
 
   const handleImport = async () => {
-    if (!file || !user || !firestore || !accounts || !categories) return;
+    if (!file || !user) {
+      toast({
+        variant: "destructive",
+        title: "Import unavailable",
+        description: "Please sign in and select a CSV file before importing.",
+      });
+      return;
+    }
 
     setIsImporting(true);
-    setStep(3);
-    
-    // Create shuffled color pools for this import session
-    const accountColorPool = [...colorOptions.map(c => c.value)].sort(() => 0.5 - Math.random());
-    const categoryColorPool = [...colorOptions.map(c => c.value)].sort(() => 0.5 - Math.random());
-    let accountColorIndex = 0;
-    let categoryColorIndex = 0;
+    setError(null);
+    setImportResult(null);
 
-    const getNextAccountColor = () => {
-      const color = accountColorPool[accountColorIndex % accountColorPool.length];
-      accountColorIndex++;
-      return color;
-    }
+    const parseRows = () =>
+      new Promise<Record<string, string>[]>((resolve, reject) => {
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          worker: true,
+          complete: (results) => resolve((results.data as Record<string, string>[]) ?? []),
+          error: (err) => reject(err),
+        });
+      });
 
-    const getNextCategoryColor = () => {
-      const color = categoryColorPool[categoryColorIndex % categoryColorPool.length];
-      categoryColorIndex++;
-      return color;
-    }
+    const ensureCurrency = (value?: string) =>
+      ((value?.toUpperCase() as Currency) || (mainCurrency as Currency));
 
-    const localAccounts = [...accounts];
-    const localCategories = [...categories];
-
-    const getOrCreateAccount = (
-      name: string,
-      currency: string | undefined,
-      localAccounts: (Account & { ref?: DocumentReference })[],
-      batch: any,
-      result: ImportResult,
-    ): { id: string, currency: Currency } => {
-        let account = localAccounts.find(a => a.name.toLowerCase() === name.toLowerCase());
-        if (account) {
-            return { id: account.id, currency: account.currency };
-        }
-        
-        const newAccountCurrency = (currency?.toUpperCase() as Currency) || mainCurrency;
-        
-        const newAccountData = {
-            name: name,
-            balance: 0, 
-            userId: user!.uid,
-            icon: "Landmark", // Default icon for unstyled accounts
-            color: getNextAccountColor(),
-            type: 'Bank Account' as const,
-            currency: newAccountCurrency,
-        };
-
-        const newAccountRef = doc(collection(firestore!, `users/${user!.uid}/accounts`));
-        batch.set(newAccountRef, newAccountData);
-        
-        const newLocalAccount = { ...newAccountData, id: newAccountRef.id, ref: newAccountRef };
-        localAccounts.push(newLocalAccount);
-        result.newAccounts++;
-        
-        return { id: newAccountRef.id, currency: newAccountCurrency };
-    };
-
-    const getOrCreateCategory = (
-      name: string, 
-      type: 'expense' | 'income', 
-      localCategories: Category[], 
-      batch: any, 
-      result: ImportResult,
-    ): string => {
-      let category = localCategories.find(c => c.name.toLowerCase() === name.toLowerCase());
-      if (category) {
-        return category.id;
+    const buildNormalizedRow = (mappedRow: Record<string, string>): NormalizedImportRow | null => {
+      const dateValue = new Date(mappedRow.date);
+      if (isNaN(dateValue.getTime())) {
+        throw new Error("Invalid date");
       }
 
-      const newCategoryData = {
-        name: name,
-        userId: user!.uid,
-        icon: "MoreHorizontal",
-        color: getNextCategoryColor(),
-        type: type,
-      };
-      const newCategoryRef = doc(collection(firestore!, `users/${user!.uid}/categories`));
-      batch.set(newCategoryRef, newCategoryData);
-      localCategories.push({ ...newCategoryData, id: newCategoryRef.id });
-      result.newCategories++;
-      return newCategoryRef.id;
+      const incomeAmount = Number(mappedRow.income) || 0;
+      const outcomeAmount = Number(mappedRow.outcome) || 0;
+
+      if (!Number.isFinite(incomeAmount) || !Number.isFinite(outcomeAmount)) {
+        throw new Error("Invalid amount");
+      }
+
+      const description = mappedRow.comment?.trim() || "Imported Transaction";
+
+      if (outcomeAmount > 0 && incomeAmount > 0) {
+        const fromAccountName = mappedRow.outcomeAccountName?.trim();
+        const toAccountName = mappedRow.incomeAccountName?.trim();
+        if (!fromAccountName || !toAccountName) {
+          throw new Error("Transfer accounts missing");
+        }
+
+        return {
+          transactionType: "transfer",
+          date: dateValue.getTime(),
+          description,
+          amountSent: Math.abs(outcomeAmount),
+          amountReceived: Math.abs(incomeAmount),
+          fromAccountName,
+          fromAccountCurrency: ensureCurrency(mappedRow.outcomeCurrency),
+          toAccountName,
+          toAccountCurrency: ensureCurrency(mappedRow.incomeCurrency),
+        };
+      }
+
+      if (outcomeAmount > 0) {
+        const accountName = mappedRow.outcomeAccountName?.trim() || mappedRow.incomeAccountName?.trim();
+        if (!accountName) {
+          throw new Error("Account not provided for expense");
+        }
+        return {
+          transactionType: "expense",
+          date: dateValue.getTime(),
+          description,
+          amount: Math.abs(outcomeAmount),
+          accountName,
+          accountCurrency: ensureCurrency(mappedRow.outcomeCurrency || mappedRow.incomeCurrency),
+          categoryName: mappedRow.categoryName?.trim() || null,
+        };
+      }
+
+      if (incomeAmount > 0) {
+        const accountName = mappedRow.incomeAccountName?.trim() || mappedRow.outcomeAccountName?.trim();
+        if (!accountName) {
+          throw new Error("Account not provided for income");
+        }
+        return {
+          transactionType: "income",
+          date: dateValue.getTime(),
+          description,
+          amount: Math.abs(incomeAmount),
+          accountName,
+          accountCurrency: ensureCurrency(mappedRow.incomeCurrency || mappedRow.outcomeCurrency),
+          categoryName: mappedRow.categoryName?.trim() || null,
+        };
+      }
+
+      return null;
     };
 
+    try {
+      const allRows = await parseRows();
+      const normalizedRows: NormalizedImportRow[] = [];
+      let skippedRows = 0;
 
-    Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        worker: true,
-        chunkSize: 1024 * 1024 * 5, // 5MB chunks for large files
-        complete: async (results) => {
-            const BATCH_SIZE = 450; // Firestore batch limit is 500
-            const allRows = results.data as Record<string, string>[];
-            const finalResult: ImportResult = { successCount: 0, errorCount: 0, newCategories: 0, newAccounts: 0 };
-            
-            const accountBalanceChanges: Record<string, number> = {};
-
-            try {
-                for (let i = 0; i < allRows.length; i += BATCH_SIZE) {
-                    const batch = writeBatch(firestore!);
-                    const chunk = allRows.slice(i, i + BATCH_SIZE);
-                    
-                    for (const row of chunk) {
-                        try {
-                            const mappedRow: MappedRow = Object.entries(columnMapping).reduce((acc, [csvHeader, field]) => {
-                                if (field !== 'ignore' && row[csvHeader] != null && row[csvHeader] !== '') {
-                                    acc[field] = row[csvHeader];
-                                }
-                                return acc;
-                            }, {} as MappedRow);
-                            
-                            const date = new Date(mappedRow.date);
-                            if (isNaN(date.getTime())) {
-                               finalResult.errorCount++;
-                               continue;
-                            }
-                            
-                            const incomeAmount = Number(mappedRow.income) || 0;
-                            const outcomeAmount = Number(mappedRow.outcome) || 0;
-
-                            if (isNaN(incomeAmount) || isNaN(outcomeAmount)) {
-                                finalResult.errorCount++;
-                                continue;
-                            }
-
-                            let transactionType: 'income' | 'expense' | 'transfer' | null = null;
-                            
-                            if (outcomeAmount > 0 && incomeAmount > 0) {
-                                transactionType = 'transfer';
-                            } else if (outcomeAmount > 0) {
-                                transactionType = 'expense';
-                            } else if (incomeAmount > 0) {
-                                transactionType = 'income';
-                            } else {
-                                continue;
-                            }
-
-                            const newTransactionRef = doc(collection(firestore!, `users/${user.uid}/transactions`));
-                            let transactionData: Partial<Transaction> | null = null;
-                            
-                            if (transactionType === 'transfer') {
-                                if (!mappedRow.outcomeAccountName || !mappedRow.incomeAccountName) {
-                                    finalResult.errorCount++; continue;
-                                }
-
-                                const fromAccountInfo = getOrCreateAccount(mappedRow.outcomeAccountName, mappedRow.outcomeCurrency, localAccounts, batch, finalResult);
-                                const toAccountInfo = getOrCreateAccount(mappedRow.incomeAccountName, mappedRow.incomeCurrency, localAccounts, batch, finalResult);
-                                
-                                const isMultiCurrency = fromAccountInfo.currency !== toAccountInfo.currency;
-                                
-                                const amountSent = isMultiCurrency ? outcomeAmount : outcomeAmount;
-                                const amountReceived = isMultiCurrency ? incomeAmount : outcomeAmount;
-
-                                transactionData = {
-                                    userId: user.uid, date, description: mappedRow.comment || "Imported Transfer",
-                                    transactionType: 'transfer', fromAccountId: fromAccountInfo.id, toAccountId: toAccountInfo.id,
-                                    amount: isMultiCurrency ? null : outcomeAmount,
-                                    amountSent: isMultiCurrency ? amountSent : null,
-                                    amountReceived: isMultiCurrency ? amountReceived : null,
-                                    accountId: null, categoryId: null, expenseType: null, incomeType: null,
-                                };
-                                
-                                accountBalanceChanges[fromAccountInfo.id] = (accountBalanceChanges[fromAccountInfo.id] || 0) - amountSent;
-                                accountBalanceChanges[toAccountInfo.id] = (accountBalanceChanges[toAccountInfo.id] || 0) + amountReceived;
-
-                            } else { // Income or Expense
-                                const amount = transactionType === 'income' ? incomeAmount : outcomeAmount;
-                                const accountName = mappedRow.incomeAccountName || mappedRow.outcomeAccountName;
-                                const currency = mappedRow.incomeCurrency || mappedRow.outcomeCurrency;
-                                
-                                if (!accountName) {
-                                   finalResult.errorCount++; continue;
-                                }
-                                
-                                const accountInfo = getOrCreateAccount(accountName, currency, localAccounts, batch, finalResult);
-                                let categoryId: string | null = null;
-                                if (mappedRow.categoryName) {
-                                   categoryId = getOrCreateCategory(mappedRow.categoryName, transactionType, localCategories, batch, finalResult);
-                                }
-                                
-                                const finalAmount = transactionType === 'expense' ? -Math.abs(amount) : Math.abs(amount);
-                                
-                                transactionData = {
-                                    userId: user.uid,
-                                    date,
-                                    amount: Math.abs(amount),
-                                    description: mappedRow.comment || 'Imported Transaction',
-                                    transactionType: transactionType,
-                                    accountId: accountInfo.id, 
-                                    categoryId: categoryId || null,
-                                    expenseType: transactionType === 'expense' ? 'optional' : null,
-                                    incomeType: transactionType === 'income' ? 'active' : null,
-                                    fromAccountId: null,
-                                    toAccountId: null,
-                                    amountSent: null,
-                                    amountReceived: null,
-                                };
-
-                                accountBalanceChanges[accountInfo.id] = (accountBalanceChanges[accountInfo.id] || 0) + finalAmount;
-                            }
-                            
-                            if (transactionData) {
-                                batch.set(newTransactionRef, { ...transactionData, createdAt: serverTimestamp() });
-                                finalResult.successCount++;
-                            }
-
-                        } catch (e) {
-                            console.error("Error processing row: ", row, e);
-                            finalResult.errorCount++;
-                        }
-                    }
-
-                    // Apply balance changes accumulated in this chunk
-                    for (const accountId in accountBalanceChanges) {
-                        const account = localAccounts.find(a => a.id === accountId);
-                        if (account) {
-                          const accountRef = doc(firestore, `users/${user.uid}/accounts`, accountId);
-                          const newBalance = (account.balance || 0) + accountBalanceChanges[accountId];
-                          batch.update(accountRef, { balance: newBalance });
-                          account.balance = newBalance; // Update local copy for next chunk
-                        }
-                    }
-                    // Reset for next chunk
-                    Object.keys(accountBalanceChanges).forEach(k => delete accountBalanceChanges[k]);
-
-                    await batch.commit();
-                    toast({ title: `Importing...`, description: `Processed ${i + chunk.length} of ${allRows.length} rows.` });
-                }
-
-                setImportResult(finalResult);
-                toast({ title: "Import Complete", description: `Processed ${finalResult.successCount + finalResult.errorCount} rows.` });
-
-            } catch (commitError) {
-                console.error("Batch commit failed: ", commitError);
-                toast({ title: "Import Failed", description: "An error occurred while saving data. Please try again.", variant: "destructive" });
-                setError("A critical error occurred during the saving process.");
-                setImportResult(finalResult); // Show partial results even on failure
-            } finally {
-                setIsImporting(false);
+      for (const row of allRows) {
+        try {
+          const mappedRow = Object.entries(columnMapping).reduce((acc, [csvHeader, field]) => {
+            if (field !== "ignore" && row[csvHeader] != null && row[csvHeader] !== "") {
+              acc[field] = row[csvHeader];
             }
-        }
-    });
-  }
+            return acc;
+          }, {} as Record<string, string>);
 
+          if (!mappedRow.date) {
+            skippedRows++;
+            continue;
+          }
+
+          const normalized = buildNormalizedRow(mappedRow);
+          if (normalized) {
+            normalizedRows.push(normalized);
+          } else {
+            skippedRows++;
+          }
+        } catch (rowError) {
+          console.error("Skipping row during import", rowError);
+          skippedRows++;
+        }
+      }
+
+      if (!normalizedRows.length) {
+        const emptyResult: ImportResult = {
+          successCount: 0,
+          errorCount: skippedRows || allRows.length,
+          newCategories: 0,
+          newAccounts: 0,
+        };
+        setImportResult(emptyResult);
+        toast({
+          variant: "destructive",
+          title: "Import aborted",
+          description: "No valid rows found in the CSV file.",
+        });
+        return;
+      }
+
+      const response = await fetch("/api/imports", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-uid": user.uid,
+        },
+        body: JSON.stringify({
+          source: "csv",
+          defaultCurrency: mainCurrency,
+          rows: normalizedRows,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.message ?? "Failed to import data.");
+      }
+
+      const summary = (await response.json()) as ImportSummary;
+      const combinedResult: ImportResult = {
+        successCount: summary.successCount,
+        errorCount: summary.errorCount + skippedRows,
+        newCategories: summary.newCategories,
+        newAccounts: summary.newAccounts,
+      };
+
+      setImportResult(combinedResult);
+      toast({
+        title: "Import complete",
+        description: `Processed ${combinedResult.successCount + combinedResult.errorCount} rows.`,
+      });
+      refreshAccounts();
+      refreshCategories();
+    } catch (importError) {
+      console.error("CSV import failed", importError);
+      setError("An error occurred while importing data. Please try again.");
+      toast({
+        variant: "destructive",
+        title: "Import failed",
+        description:
+          importError instanceof Error ? importError.message : "Unexpected error during import.",
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  }
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile) {
@@ -659,3 +584,4 @@ export default function ImportPage() {
 }
 
     
+
