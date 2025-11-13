@@ -42,6 +42,7 @@ const parseFilters = (url: string): TransactionFilters => {
     cursor: parseNumber(searchParams.get('cursor')),
     limit: parseNumber(searchParams.get('limit')),
     sort: (searchParams.get('sort') as TransactionFilters['sort']) ?? undefined,
+    search: searchParams.get('search') ?? undefined,
   };
 };
 

@@ -1,13 +1,15 @@
 "use client"
 
 import * as React from "react"
-import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns"
+import { format, subDays, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfDay, endOfDay, isSameDay } from "date-fns"
 import { Calendar as CalendarIcon, FilterX, Search } from "lucide-react"
 import { DateRange } from "react-day-picker"
+import { DateRange as RangePicker } from "react-date-range"
+import "react-date-range/dist/styles.css"
+import "react-date-range/dist/theme/default.css"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
 import {
   Popover,
   PopoverContent,
@@ -23,6 +25,14 @@ import {
 import type { Account, Category } from "@/lib/types"
 import { Separator } from "./ui/separator"
 import { Input } from "./ui/input"
+import { useIsMobile } from "@/hooks/use-mobile"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
 
 interface TransactionFiltersProps {
   dateRange?: DateRange | undefined;
@@ -55,6 +65,34 @@ export function TransactionFilters({
   onSortOrderChange,
   onReset,
 }: TransactionFiltersProps) {
+  const isMobile = useIsMobile();
+  const [isDatePickerOpen, setIsDatePickerOpen] = React.useState(false);
+  const [pendingRange, setPendingRange] = React.useState<DateRange | undefined>(dateRange);
+
+  React.useEffect(() => {
+    if (!isDatePickerOpen) {
+      setPendingRange(dateRange);
+    }
+  }, [dateRange, isDatePickerOpen]);
+
+  const normalizeRange = (range?: DateRange) => {
+    if (!range?.from) return undefined;
+    const from = startOfDay(range.from);
+    const to = startOfDay(range.to ?? range.from);
+    return { from, to: endOfDay(to) };
+  };
+
+  const handleApplyRange = () => {
+    const normalized = normalizeRange(pendingRange);
+    onDateChange(normalized);
+    setIsDatePickerOpen(false);
+  };
+
+  const handleClearRange = () => {
+    setPendingRange(undefined);
+    onDateChange(undefined);
+    setIsDatePickerOpen(false);
+  };
 
   const presets = [
     {
@@ -99,6 +137,28 @@ export function TransactionFilters({
   ]
 
 
+  const isPresetActive = (range: DateRange) => {
+    if (!dateRange?.from || !dateRange?.to) return false;
+    return (
+      isSameDay(dateRange.from, range.from!) &&
+      isSameDay(dateRange.to, range.to ?? range.from!)
+    );
+  };
+
+  const [rangeSelection, setRangeSelection] = React.useState(() => ({
+    startDate: pendingRange?.from ?? new Date(),
+    endDate: pendingRange?.to ?? pendingRange?.from ?? new Date(),
+    key: "selection" as const,
+  }));
+
+  React.useEffect(() => {
+    setRangeSelection({
+      startDate: pendingRange?.from ?? new Date(),
+      endDate: pendingRange?.to ?? pendingRange?.from ?? new Date(),
+      key: "selection",
+    });
+  }, [pendingRange]);
+
   return (
     <div className="flex flex-col gap-2 mb-4">
       <div className="relative">
@@ -112,54 +172,172 @@ export function TransactionFilters({
         />
       </div>
       <div className="flex flex-col md:flex-row gap-2 md:items-center">
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              id="date"
-              variant={"outline"}
-              className={cn(
-                "w-full md:w-[300px] justify-start text-left font-normal",
-                !dateRange && "text-muted-foreground"
-              )}
-            >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {dateRange?.from ? (
-                dateRange.to ? (
-                  <>
-                    {format(dateRange.from, "LLL dd, y")} -{" "}
-                    {format(dateRange.to, "LLL dd, y")}
-                  </>
+        {isMobile ? (
+          <Sheet open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+            <SheetTrigger asChild>
+              <Button
+                id="date"
+                variant={"outline"}
+                className={cn(
+                  "w-full md:w-[300px] justify-start text-left font-normal",
+                  !dateRange && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dateRange?.from ? (
+                  dateRange.to ? (
+                    <>
+                      {format(dateRange.from, "LLL dd, y")} -{" "}
+                      {format(dateRange.to, "LLL dd, y")}
+                    </>
+                  ) : (
+                    format(dateRange.from, "LLL dd, y")
+                  )
                 ) : (
-                  format(dateRange.from, "LLL dd, y")
-                )
-              ) : (
-                <span>Pick a date</span>
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0 flex" align="start">
-            <div className="flex flex-col space-y-2 p-3 pr-2 border-r">
-              {presets.map(({ name, label, getDateRange }) => (
-                <Button
-                  key={name}
-                  variant="ghost"
-                  className="justify-start"
-                  onClick={() => onDateChange(getDateRange())}
-                >
-                  {label}
-                </Button>
-              ))}
-            </div>
-            <Calendar
-              initialFocus
-              mode="range"
-              defaultMonth={dateRange?.from}
-              selected={dateRange}
-              onSelect={onDateChange}
-              numberOfMonths={2}
-            />
-          </PopoverContent>
-        </Popover>
+                  <span>Pick a date</span>
+                )}
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="h-[90vh] overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>Select date range</SheetTitle>
+              </SheetHeader>
+              <div className="flex flex-col gap-3 py-4">
+                <div className="flex flex-wrap gap-2">
+                  {presets.map(({ name, label, getDateRange }) => (
+                    <Button
+                      key={name}
+                      size="sm"
+                      variant={isPresetActive(getDateRange()) ? "secondary" : "ghost"}
+                      className="justify-start"
+                      onClick={() => {
+                        const range = getDateRange();
+                        setPendingRange(range);
+                        onDateChange(normalizeRange(range));
+                        setIsDatePickerOpen(false);
+                      }}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                <RangePicker
+                  onChange={(item) => {
+                    const selection = item.selection;
+                    setRangeSelection(selection as typeof rangeSelection);
+                    setPendingRange({
+                      from: selection.startDate ?? undefined,
+                      to: selection.endDate ?? selection.startDate ?? undefined,
+                    });
+                  }}
+                  ranges={[rangeSelection]}
+                  moveRangeOnFirstSelection={false}
+                  months={1}
+                  direction="vertical"
+                  showDateDisplay={false}
+                  inputRanges={[]}
+                />
+                <div className="flex gap-2 justify-end border-t pt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleClearRange}
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleApplyRange}
+                    disabled={!pendingRange?.from}
+                  >
+                    Apply
+                  </Button>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <Popover open={isDatePickerOpen} onOpenChange={(open) => setIsDatePickerOpen(open)}>
+            <PopoverTrigger asChild>
+              <Button
+                id="date"
+                variant={"outline"}
+                className={cn(
+                  "w-full md:w-[300px] justify-start text-left font-normal",
+                  !dateRange && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dateRange?.from ? (
+                  dateRange.to ? (
+                    <>
+                      {format(dateRange.from, "LLL dd, y")} -{" "}
+                      {format(dateRange.to, "LLL dd, y")}
+                    </>
+                  ) : (
+                    format(dateRange.from, "LLL dd, y")
+                  )
+                ) : (
+                  <span>Pick a date</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto max-w-full p-3" align="start">
+              <div className="flex w-full flex-col gap-3">
+                <div className="flex flex-wrap gap-2">
+                  {presets.map(({ name, label, getDateRange }) => (
+                    <Button
+                      key={name}
+                      size="sm"
+                      variant={isPresetActive(getDateRange()) ? "secondary" : "ghost"}
+                      className="justify-start"
+                      onClick={() => {
+                        const range = getDateRange();
+                        setPendingRange(range);
+                        onDateChange(normalizeRange(range));
+                        setIsDatePickerOpen(false);
+                      }}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                <RangePicker
+                  onChange={(item) => {
+                    const selection = item.selection;
+                    setRangeSelection(selection as typeof rangeSelection);
+                    setPendingRange({
+                      from: selection.startDate ?? undefined,
+                      to: selection.endDate ?? selection.startDate ?? undefined,
+                    });
+                  }}
+                  ranges={[rangeSelection]}
+                  moveRangeOnFirstSelection={false}
+                  months={2}
+                  direction="horizontal"
+                  showDateDisplay={false}
+                  inputRanges={[]}
+                />
+                <div className="flex gap-2 justify-end border-t pt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleClearRange}
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleApplyRange}
+                    disabled={!pendingRange?.from}
+                  >
+                    Apply
+                  </Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        )}
 
         <Select value={selectedAccount} onValueChange={onAccountChange}>
           <SelectTrigger className="w-full md:w-[180px]">

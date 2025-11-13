@@ -33,7 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { useUser } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 import { useCategories } from "@/hooks/use-categories"
 import * as Icons from "lucide-react"
 import { colorOptions } from "@/lib/colors"

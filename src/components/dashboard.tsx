@@ -1,6 +1,6 @@
 "use client"
 import * as React from "react"
-import { useUser } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 import { useAccounts } from "@/hooks/use-accounts"
 import { useBudgets } from "@/hooks/use-budgets"
 import { useCategories } from "@/hooks/use-categories"
@@ -46,14 +46,14 @@ function LoadingSkeleton() {
 
 
 export default function Dashboard() {
-  const { user, isUserLoading } = useUser()
+  const { user } = useUser()
   const { accounts, isLoading: accountsLoading } = useAccounts();
   const { transactions, isLoading: transactionsLoading } = useTransactions();
   const { categories, isLoading: categoriesLoading } = useCategories();
   const { budgets, isLoading: budgetsLoading } = useBudgets();
   const { profile, isLoading: profileLoading } = useUserProfile();
 
-  const isLoading = isUserLoading || transactionsLoading || categoriesLoading || budgetsLoading || accountsLoading || profileLoading;
+  const isLoading = transactionsLoading || categoriesLoading || budgetsLoading || accountsLoading || profileLoading;
 
   const mainCurrency = (profile?.mainCurrency ?? "USD") as Currency;
 
@@ -156,7 +156,7 @@ export default function Dashboard() {
             )
           }) : (
             <div className="text-center text-muted-foreground py-8">
-              You haven't set any budgets yet. Go to the <a href="/budgets" className="text-primary underline">Budgets</a> page to create one.
+              You haven&apos;t set any budgets yet. Go to the <a href="/budgets" className="text-primary underline">Budgets</a> page to create one.
             </div>
           )}
         </CardContent>

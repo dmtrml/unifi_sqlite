@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useUser } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 import { useAccounts } from "@/hooks/use-accounts"
 import { useCategories } from "@/hooks/use-categories"
 import { useRecurringTransactions } from "@/hooks/use-recurring-transactions"
@@ -45,7 +45,7 @@ function getAccount(accounts: Account[], accountId?: string): Account | undefine
 }
 
 function RecurringPageContent() {
-  const { user, isUserLoading } = useUser()
+  const { user } = useUser()
   const { accounts, isLoading: accountsLoading } = useAccounts();
   const { categories, isLoading: categoriesLoading } = useCategories();
   const { recurringTransactions, isLoading: recurringLoading } = useRecurringTransactions();
@@ -59,9 +59,9 @@ function RecurringPageContent() {
   );
   const safeCategories = categories || [];
   const safeAccounts = accounts || [];
-  const isLoading = isUserLoading || accountsLoading || categoriesLoading || recurringLoading;
+  const isLoading = accountsLoading || categoriesLoading || recurringLoading;
 
-  if (!user && !isUserLoading) {
+  if (!user) {
     return (
       <div className="flex flex-1 items-center justify-center p-6 text-center text-muted-foreground">
         Please sign in to manage recurring transactions.

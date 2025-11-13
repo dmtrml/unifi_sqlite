@@ -41,7 +41,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
 import { useToast } from "@/hooks/use-toast"
-import { useUser } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 import type { Category, Account, Transaction } from "@/lib/types"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { transactionFormSchema, type TransactionFormInput } from "@/lib/schemas"

@@ -37,7 +37,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
 import { useToast } from "@/hooks/use-toast"
-import { useUser } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 import { useAccounts } from "@/hooks/use-accounts"
 import { notifyTransactionsChanged } from "@/lib/transactions-events"
 import type { Category, Account, Transaction, Currency } from "@/lib/types"

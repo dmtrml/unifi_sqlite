@@ -1,7 +1,7 @@
 import useSWR, { mutate } from 'swr';
 import { useMemo } from 'react';
 import type { Account } from '@/lib/types';
-import { useUser } from '@/firebase';
+import { useUser } from '@/lib/auth-context';
 
 type FetcherKey = [string, string];
 
@@ -25,7 +25,7 @@ export function useAccounts() {
   const { user } = useUser();
   const uid = user?.uid;
 
-  const key = uid ? (['/api/accounts', uid] as FetcherKey) : null;
+  const key = useMemo(() => (uid ? (['/api/accounts', uid] as FetcherKey) : null), [uid]);
   const { data, error, isLoading } = useSWR(key, fetcher);
 
   return useMemo(

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useUser } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 import AppLayout from "@/components/layout"
 import { useCategories } from "@/hooks/use-categories"
 

@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { DropdownMenuItem } from "./ui/dropdown-menu"
 import { useToast } from "@/hooks/use-toast"
-import { useUser } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 import { mutate } from "swr"
 import { recurringApi, recurringKey } from "@/hooks/use-recurring-transactions"
 

@@ -4,7 +4,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useUser } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 import { useCategories } from "@/hooks/use-categories"
 import { useAccounts } from "@/hooks/use-accounts"
 import { useTransactions } from "@/hooks/use-transactions"

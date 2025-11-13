@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import * as Icons from "lucide-react"
-import { useUser } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 import { useBudgets } from "@/hooks/use-budgets"
 import { useCategories } from "@/hooks/use-categories"
 import { useUserProfile } from "@/hooks/use-user-profile"
@@ -20,7 +20,7 @@ import type { Currency } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 
 function BudgetsPageContent() {
-  const { user, isUserLoading } = useUser()
+  const { user } = useUser()
   const { toast } = useToast()
   const { budgets, saveBudget, isLoading: budgetsLoading } = useBudgets()
   const { categories, isLoading: categoriesLoading } = useCategories()
@@ -47,7 +47,7 @@ function BudgetsPageContent() {
   )
 
   const mainCurrency = (profile?.mainCurrency ?? "USD") as Currency
-  const isLoading = isUserLoading || budgetsLoading || categoriesLoading || profileLoading
+  const isLoading = budgetsLoading || categoriesLoading || profileLoading
 
   const handleInputChange = (categoryId: string, value: string) => {
     setInputValues((prev) => ({ ...prev, [categoryId]: value }))
@@ -94,7 +94,7 @@ function BudgetsPageContent() {
     }
   }
 
-  if (!user && !isUserLoading) {
+  if (!user) {
     return (
       <div className="flex flex-1 items-center justify-center p-6 text-muted-foreground">
         Please sign in to manage budgets.

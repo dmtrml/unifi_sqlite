@@ -13,9 +13,10 @@ const mapCategory = (record: NonNullable<Awaited<ReturnType<typeof CategoriesRep
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { categoryId: string } },
+  context: { params: Promise<{ categoryId: string }> },
 ) {
   try {
+    const params = await context.params;
     const userId = await getUserIdOrThrow();
     const payload = await request.json();
     const updated = await CategoriesRepository.update(userId, params.categoryId, {
@@ -40,9 +41,10 @@ export async function PATCH(
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { categoryId: string } },
+  context: { params: Promise<{ categoryId: string }> },
 ) {
   try {
+    const params = await context.params;
     const userId = await getUserIdOrThrow();
     const existing = await CategoriesRepository.get(userId, params.categoryId);
     if (!existing) {

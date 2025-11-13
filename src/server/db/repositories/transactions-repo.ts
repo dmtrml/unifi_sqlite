@@ -9,6 +9,7 @@ import {
   lt,
   lte,
   or,
+  like,
 } from 'drizzle-orm';
 import type { DatabaseClient } from '@/server/db/connection';
 import { db } from '@/server/db/connection';
@@ -39,6 +40,7 @@ export type TransactionFilters = {
   cursor?: number;
   limit?: number;
   sort?: 'asc' | 'desc';
+  search?: string;
 };
 
 const withClient = (client?: DatabaseClient) => client ?? db;
@@ -68,6 +70,11 @@ const buildWhereClause = (userId: string, filters: TransactionFilters) => {
 
   if (typeof filters.endDate === 'number') {
     clauses.push(lte(transactions.date, filters.endDate));
+  }
+
+  if (typeof filters.search === 'string' && filters.search.trim().length > 0) {
+    const term = `%${filters.search.trim()}%`;
+    clauses.push(like(transactions.description, term));
   }
 
   if (typeof filters.cursor === 'number') {

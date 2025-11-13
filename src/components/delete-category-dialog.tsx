@@ -15,7 +15,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
-import { useUser } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 import { useCategories } from "@/hooks/use-categories"
 import { DropdownMenuItem } from "./ui/dropdown-menu"
 

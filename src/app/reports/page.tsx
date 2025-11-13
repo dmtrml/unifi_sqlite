@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useUser } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 import { useAccounts } from "@/hooks/use-accounts"
 import { useCategories } from "@/hooks/use-categories"
 import { useTransactions } from "@/hooks/use-transactions"
@@ -33,13 +33,13 @@ function LoadingSkeleton() {
 }
 
 function ReportsPageContent() {
-  const { user, isUserLoading } = useUser()
+  const { user } = useUser()
   const { accounts, isLoading: accountsLoading } = useAccounts();
   const { categories, isLoading: categoriesLoading } = useCategories();
   const { profile, isLoading: profileLoading } = useUserProfile();
   const { transactions, isLoading: transactionsLoading } = useTransactions();
 
-  const isLoading = isUserLoading || transactionsLoading || categoriesLoading || accountsLoading || profileLoading;
+  const isLoading = transactionsLoading || categoriesLoading || accountsLoading || profileLoading;
   const mainCurrency = (profile?.mainCurrency ?? "USD") as Currency;
 
   return (
@@ -48,7 +48,7 @@ function ReportsPageContent() {
         <h1 className="text-lg font-semibold md:text-2xl">Reports</h1>
       </div>
       
-      {isLoading ? (
+  {isLoading ? (
         <LoadingSkeleton />
       ) : (
         <div className="grid grid-cols-1 gap-6">

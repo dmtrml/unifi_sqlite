@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import useSWR, { mutate } from 'swr';
 import type { Category } from '@/lib/types';
-import { useUser } from '@/firebase';
+import { useUser } from '@/lib/auth-context';
 
 type FetchKey = [string, string];
 
@@ -23,7 +23,7 @@ const fetcher = async ([url, uid]: FetchKey): Promise<Category[]> => {
 
 export function useCategories() {
   const { user } = useUser();
-  const key = user ? (['/api/categories', user.uid] as FetchKey) : null;
+  const key = useMemo(() => (user ? (['/api/categories', user.uid] as FetchKey) : null), [user]);
 
   const { data, error, isLoading } = useSWR(key, fetcher);
 

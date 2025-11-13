@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useToast } from "@/hooks/use-toast"
-import { useUser } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 
 type DeletionOption = "transactions" | "all"
 
@@ -116,7 +116,7 @@ export function DeleteDataDialog() {
 
           <div>
             <Label htmlFor="confirmation" className="font-medium text-destructive">
-              To confirm, please type '{CONFIRMATION_KEYWORD}' below:
+              To confirm, please type &lsquo;{CONFIRMATION_KEYWORD}&rsquo; below:
             </Label>
             <Input
               id="confirmation"

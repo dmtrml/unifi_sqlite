@@ -33,7 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { useUser } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 import { useAccounts } from "@/hooks/use-accounts"
 import type { AccountType, Currency } from "@/lib/types"
 import { colorOptions } from "@/lib/colors"

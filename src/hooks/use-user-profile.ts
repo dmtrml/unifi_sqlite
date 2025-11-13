@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from 'react';
 import useSWR, { mutate } from 'swr';
 import type { User } from '@/lib/types';
-import { useUser } from '@/firebase';
+import { useUser } from '@/lib/auth-context';
 
 type FetchKey = [string, string];
 
@@ -28,7 +28,7 @@ export type ProfileUpdates = Partial<Pick<User, 'theme' | 'mainCurrency' | 'name
 export function useUserProfile() {
   const { user } = useUser();
   const uid = user?.uid;
-  const key = uid ? (['/api/profile', uid] as FetchKey) : null;
+  const key = useMemo(() => (uid ? (['/api/profile', uid] as FetchKey) : null), [uid]);
   const { data, error, isLoading } = useSWR(key, fetcher);
 
   const saveProfile = useCallback(

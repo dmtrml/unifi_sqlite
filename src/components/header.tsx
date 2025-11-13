@@ -17,7 +17,6 @@ import {
   Upload,
   Wallet,
 } from "lucide-react"
-import { signOut } from "firebase/auth"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -31,7 +30,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { BudgetWiseLogo } from "@/components/icons"
 import { cn } from "@/lib/utils"
-import { useAuth, useUser } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 import { useAccounts } from "@/hooks/use-accounts"
 import { useCategories } from "@/hooks/use-categories"
 import { AddTransactionDialog } from "@/components/add-transaction-dialog"
@@ -55,7 +54,6 @@ const navItems = [
 export default function AppHeader() {
   const pathname = usePathname()
   const { user } = useUser()
-  const auth = useAuth()
   const { categories } = useCategories()
   const { accounts } = useAccounts()
 
@@ -84,8 +82,7 @@ export default function AppHeader() {
   }, [user, pathname, categories, accounts])
 
   const handleLogout = () => {
-    if (!auth) return
-    signOut(auth)
+    console.info('Logout is disabled in development mode.');
   }
 
   return (

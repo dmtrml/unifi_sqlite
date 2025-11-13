@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { useUser } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 import { useAccounts } from "@/hooks/use-accounts"
 import { useCategories } from "@/hooks/use-categories"
 import { useUserProfile } from "@/hooks/use-user-profile"

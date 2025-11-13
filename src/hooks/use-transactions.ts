@@ -1,8 +1,8 @@
 import { useMemo, useEffect } from 'react';
-import useSWR, { mutate } from 'swr';
-import { Timestamp } from 'firebase/firestore';
+import useSWRInfinite from 'swr/infinite';
+import { Timestamp } from '@/lib/timestamp';
 import type { Transaction } from '@/lib/types';
-import { useUser } from '@/firebase';
+import { useUser } from '@/lib/auth-context';
 import { subscribeToTransactions } from '@/lib/transactions-events';
 
 export type UseTransactionsFilters = {
@@ -12,13 +12,19 @@ export type UseTransactionsFilters = {
   endDate?: number;
   limit?: number;
   sort?: 'asc' | 'desc';
+  search?: string;
 };
 
 type FetchKey = [string, string, string];
+type TransactionPage = {
+  items: Transaction[];
+  nextCursor: number | null;
+  hasMore: boolean;
+};
 
-const buildQuery = (filters?: UseTransactionsFilters) => {
+const buildQuery = (filters?: UseTransactionsFilters, cursor?: number | null) => {
   const params = new URLSearchParams();
-  const limit = filters?.limit ?? 500;
+  const limit = filters?.limit ?? 50;
   params.set('limit', String(limit));
   params.set('sort', filters?.sort ?? 'desc');
   if (filters?.accountId && filters.accountId !== 'all') {
@@ -33,10 +39,16 @@ const buildQuery = (filters?: UseTransactionsFilters) => {
   if (typeof filters?.endDate === 'number') {
     params.set('endDate', String(filters.endDate));
   }
+  if (filters?.search) {
+    params.set('search', filters.search);
+  }
+  if (typeof cursor === 'number') {
+    params.set('cursor', String(cursor));
+  }
   return params.toString();
 };
 
-const fetcher = async ([, uid, queryString]: FetchKey): Promise<Transaction[]> => {
+const fetcher = async ([, uid, queryString]: FetchKey): Promise<TransactionPage> => {
   const response = await fetch(`/api/transactions?${queryString}`, {
     headers: {
       'Content-Type': 'application/json',
@@ -50,36 +62,72 @@ const fetcher = async ([, uid, queryString]: FetchKey): Promise<Transaction[]> =
   }
 
   const payload = await response.json();
-  return (payload.items ?? []).map((item: any) => ({
-    ...item,
-    amount: item.amount ?? null,
-    amountSent: item.amountSent ?? null,
-    amountReceived: item.amountReceived ?? null,
-    date: Timestamp.fromMillis(item.date),
-  }));
+  return {
+    items: (payload.items ?? []).map((item: any) => ({
+      ...item,
+      amount: item.amount ?? null,
+      amountSent: item.amountSent ?? null,
+      amountReceived: item.amountReceived ?? null,
+      date: Timestamp.fromMillis(item.date),
+    })),
+    nextCursor: typeof payload.nextCursor === 'number' ? payload.nextCursor : null,
+    hasMore: Boolean(payload.hasMore),
+  };
 };
 
 export function useTransactions(filters?: UseTransactionsFilters) {
   const { user } = useUser();
-  const queryString = buildQuery(filters);
-  const key = user ? (['/api/transactions', user.uid, queryString] as FetchKey) : null;
+  const limit = filters?.limit ?? 50;
+  const normalizedFilters = useMemo(() => ({ ...(filters ?? {}), limit }), [filters, limit]);
+  const filtersKey = useMemo(() => JSON.stringify(normalizedFilters), [normalizedFilters]);
 
-  const { data, error, isLoading } = useSWR(key, fetcher);
+  const getKey = (
+    pageIndex: number,
+    previousPageData: TransactionPage | null,
+  ): FetchKey | null => {
+    if (!user) return null;
+    if (previousPageData && !previousPageData.hasMore) return null;
+    const cursor = pageIndex === 0 ? undefined : previousPageData?.nextCursor ?? undefined;
+    const queryString = buildQuery(normalizedFilters, cursor);
+    return ['/api/transactions', user.uid, queryString];
+  };
+
+  const { data, error, size, setSize, mutate } = useSWRInfinite<TransactionPage>(getKey, fetcher);
 
   useEffect(() => {
-    if (!key) return;
-    return subscribeToTransactions(() => mutate(key));
-  }, [key]);
+    if (!user) return;
+    return subscribeToTransactions(() => mutate());
+  }, [mutate, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    setSize(1);
+    mutate();
+  }, [filtersKey, mutate, setSize, user]);
+
+  const flatTransactions = useMemo(
+    () => (data ? data.flatMap((page) => page.items) : []),
+    [data],
+  );
+
+  const hasMore = data ? data[data.length - 1]?.hasMore ?? false : false;
+  const isLoadingInitial = !data && !error;
+  const isLoadingMore =
+    isLoadingInitial || (size > 0 && data ? typeof data[size - 1] === 'undefined' : false);
 
   return useMemo(
     () => ({
-      transactions: data ?? [],
-      isLoading,
+      transactions: flatTransactions,
+      isLoading: isLoadingInitial,
+      isLoadingMore,
+      hasMore,
       error,
-      refresh: () => {
-        if (key) mutate(key);
+      loadMore: () => {
+        if (!hasMore) return Promise.resolve();
+        return setSize(size + 1);
       },
+      refresh: () => mutate(),
     }),
-    [data, error, isLoading, key],
+    [flatTransactions, error, hasMore, isLoadingInitial, isLoadingMore, mutate, setSize, size],
   );
 }

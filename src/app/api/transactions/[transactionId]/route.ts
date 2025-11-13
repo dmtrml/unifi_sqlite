@@ -25,9 +25,10 @@ const mapRecord = (
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { transactionId: string } },
+  context: { params: Promise<{ transactionId: string }> },
 ) {
   try {
+    const params = await context.params;
     const userId = await getUserIdOrThrow();
     const payload = await request.json();
     const updated = await TransactionsService.update(userId, params.transactionId, {
@@ -67,9 +68,10 @@ export async function PATCH(
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { transactionId: string } },
+  context: { params: Promise<{ transactionId: string }> },
 ) {
   try {
+    const params = await context.params;
     const userId = await getUserIdOrThrow();
     const existing = await TransactionsService.delete(userId, params.transactionId);
     if (!existing) {

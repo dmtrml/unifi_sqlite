@@ -1,11 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { doc } from "firebase/firestore"
-import { useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 import { useCategories } from "@/hooks/use-categories"
 import { useAccounts } from "@/hooks/use-accounts"
 import { useTransactions } from "@/hooks/use-transactions"
+import { useUserProfile } from "@/hooks/use-user-profile"
 import AppLayout from "@/components/layout"
 import {
   ArrowRightLeft,
@@ -35,7 +35,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type { Account, Category, Transaction, User } from "@/lib/types"
+import type { Account, Category, Transaction } from "@/lib/types"
 import { MoreHorizontal, Landmark } from "lucide-react"
 import { EditTransactionDialog } from "@/components/edit-transaction-dialog"
 import { DeleteTransactionDialog } from "@/components/delete-transaction-dialog"
@@ -76,8 +76,8 @@ function formatDateHeader(dateStr: string) {
 
 function TransactionsPageContent() {
   const { user } = useUser()
-  const firestore = useFirestore()
   const { toast } = useToast()
+  const { profile } = useUserProfile()
 
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
   const [accountId, setAccountId] = React.useState<string>("all");
@@ -85,29 +85,27 @@ function TransactionsPageContent() {
   const [searchQuery, setSearchQuery] = React.useState<string>("");
   const [sortOrder, setSortOrder] = React.useState<'desc' | 'asc'>('desc');
 
-  const userDocRef = useMemoFirebase(
-    () => (user ? doc(firestore, "users", user.uid) : null),
-    [user, firestore]
-  )
-  const { data: userData } = useDoc<User>(userDocRef);
-  const mainCurrency = userData?.mainCurrency || "USD";
+  const mainCurrency = profile?.mainCurrency || "USD";
 
   const { categories } = useCategories();
   const { accounts } = useAccounts();
-  const safeCategories = categories || [];
-  const safeAccounts = accounts || [];
+  const safeCategories = React.useMemo(() => categories ?? [], [categories]);
+  const safeAccounts = React.useMemo(() => accounts ?? [], [accounts]);
 
   const {
     transactions,
     isLoading,
+    isLoadingMore,
+    hasMore,
     error,
-    refresh: refreshTransactions,
+    loadMore,
   } = useTransactions({
     accountId: accountId !== "all" ? accountId : undefined,
     categoryId: categoryId !== "all" ? categoryId : undefined,
     startDate: dateRange?.from ? dateRange.from.getTime() : undefined,
     endDate: dateRange?.to ? dateRange.to.getTime() : undefined,
     sort: sortOrder,
+    search: searchQuery.trim() || undefined,
   });
 
   React.useEffect(() => {
@@ -121,12 +119,11 @@ function TransactionsPageContent() {
   }, [error, toast]);
 
   const filteredTransactions = React.useMemo(() => {
-    const items = transactions || [];
     if (!searchQuery.trim()) {
-      return items;
+      return transactions;
     }
     const lowerCasedSearch = searchQuery.toLowerCase();
-    return items.filter((t) => {
+    return transactions.filter((t) => {
       return (
         t.description?.toLowerCase().includes(lowerCasedSearch) ||
         getCategory(safeCategories, t.categoryId)?.name.toLowerCase().includes(lowerCasedSearch) ||
@@ -463,6 +460,13 @@ function TransactionsPageContent() {
                 )})
               )}
             </div>
+            {hasMore && (
+              <div className="flex justify-center pt-4">
+                <Button variant="outline" onClick={loadMore} disabled={isLoadingMore}>
+                  {isLoadingMore ? "Loading..." : "Load more"}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
     </main>

@@ -15,9 +15,10 @@ const mapRecord = (record: NonNullable<Awaited<ReturnType<typeof AccountsReposit
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { accountId: string } },
+  context: { params: Promise<{ accountId: string }> },
 ) {
   try {
+    const params = await context.params;
     const userId = await getUserIdOrThrow();
     const payload = await request.json();
     const balanceValue =
@@ -51,9 +52,10 @@ export async function PATCH(
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { accountId: string } },
+  context: { params: Promise<{ accountId: string }> },
 ) {
   try {
+    const params = await context.params;
     const userId = await getUserIdOrThrow();
     const existing = await AccountsRepository.get(userId, params.accountId);
     if (!existing) {

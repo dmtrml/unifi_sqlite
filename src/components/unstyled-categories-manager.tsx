@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { useUser } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 import { useCategories } from "@/hooks/use-categories"
 import type { Category } from "@/lib/types"
 import { colorOptions } from "@/lib/colors"

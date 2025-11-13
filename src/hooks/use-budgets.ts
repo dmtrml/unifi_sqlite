@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from 'react';
 import useSWR, { mutate } from 'swr';
 import type { Budget } from '@/lib/types';
-import { useUser } from '@/firebase';
+import { useUser } from '@/lib/auth-context';
 
 type FetchKey = [string, string];
 
@@ -30,7 +30,7 @@ type SavePayload = {
 export function useBudgets() {
   const { user } = useUser();
   const uid = user?.uid;
-  const key = uid ? (['/api/budgets', uid] as FetchKey) : null;
+  const key = useMemo(() => (uid ? (['/api/budgets', uid] as FetchKey) : null), [uid]);
 
   const { data, error, isLoading } = useSWR(key, fetcher);
 

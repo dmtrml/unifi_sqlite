@@ -1,8 +1,8 @@
 import { useMemo, useCallback } from 'react';
 import useSWR, { mutate } from 'swr';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp } from '@/lib/timestamp';
 import type { RecurringTransaction } from '@/lib/types';
-import { useUser } from '@/firebase';
+import { useUser } from '@/lib/auth-context';
 
 type FetchKey = [string, string];
 

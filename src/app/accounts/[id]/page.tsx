@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import * as Icons from "lucide-react"
-import { useUser } from "@/firebase"
+import { useUser } from "@/lib/auth-context"
 import { useTransactions } from "@/hooks/use-transactions"
 import { useCategories } from "@/hooks/use-categories"
 import { useAccounts } from "@/hooks/use-accounts"
@@ -30,11 +30,9 @@ import { CategorySpendingChart } from "@/components/dashboard/category-spending-
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { MoreVertical } from "lucide-react"
 
-interface AccountPageParams {
-    params: {
-        id: string
-    }
-}
+type AccountPageParams = {
+  id: string;
+};
 
 function AccountPageContent({ accountId }: { accountId: string}) {
   const { user } = useUser()
@@ -46,6 +44,7 @@ function AccountPageContent({ accountId }: { accountId: string}) {
   const { categories, isLoading: isCategoriesLoading } = useCategories();
 
   const { accounts: allAccounts, isLoading: isAccountsLoading } = useAccounts();
+  const { profile, isLoading: profileLoading } = useUserProfile();
   const account = React.useMemo(
     () => (allAccounts || []).find((a) => a.id === accountId) ?? null,
     [allAccounts, accountId]
@@ -216,11 +215,11 @@ function AccountPageContent({ accountId }: { accountId: string}) {
 }
 
 
-export default function AccountPage({ params }: AccountPageParams) {
+export default function AccountPage({ params }: { params: Promise<AccountPageParams> }) {
+  const resolvedParams = React.use(params);
   return (
     <AppLayout>
-      <AccountPageContent accountId={params.id} />
+      <AccountPageContent accountId={resolvedParams.id} />
     </AppLayout>
   )
 }
-  const { profile, isLoading: profileLoading } = useUserProfile();

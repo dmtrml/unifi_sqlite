@@ -9,7 +9,7 @@ import AppLayout from '@/components/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { useUser } from '@/firebase';
+import { useUser } from '@/lib/auth-context';
 
 type LogEntry = {
   step: string;
