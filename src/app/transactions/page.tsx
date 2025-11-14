@@ -45,6 +45,12 @@ import { TransactionFilters } from "@/components/transaction-filters"
 import { DuplicateTransactionDialog } from "@/components/duplicate-transaction-dialog"
 import { convertAmount } from "@/lib/currency"
 import { useToast } from "@/hooks/use-toast"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 
 const PAGE_SIZE = 25;
 
@@ -78,12 +84,24 @@ function TransactionsPageContent() {
   const { user } = useUser()
   const { toast } = useToast()
   const { profile } = useUserProfile()
+  const [isFiltersOpen, setIsFiltersOpen] = React.useState(false)
 
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
   const [accountId, setAccountId] = React.useState<string>("all");
   const [categoryId, setCategoryId] = React.useState<string>("all");
   const [searchQuery, setSearchQuery] = React.useState<string>("");
   const [sortOrder, setSortOrder] = React.useState<'desc' | 'asc'>('desc');
+  React.useEffect(() => {
+    const openHandler = () => setIsFiltersOpen(true);
+    if (typeof window !== "undefined") {
+      window.addEventListener("transactions:filters-open", openHandler);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("transactions:filters-open", openHandler);
+      }
+    };
+  }, []);
 
   const mainCurrency = profile?.mainCurrency || "USD";
 
@@ -197,21 +215,6 @@ function TransactionsPageContent() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <TransactionFilters
-              dateRange={dateRange}
-              onDateChange={setDateRange}
-              accounts={safeAccounts}
-              selectedAccount={accountId}
-              onAccountChange={setAccountId}
-              categories={safeCategories}
-              selectedCategory={categoryId}
-              onCategoryChange={setCategoryId}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              sortOrder={sortOrder}
-              onSortOrderChange={setSortOrder}
-              onReset={handleFiltersReset}
-            />
             {/* Desktop Table */}
             <div className="hidden md:block">
               <Table>
@@ -467,8 +470,38 @@ function TransactionsPageContent() {
                 </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
+        </CardContent>
+      </Card>
+      <Sheet open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
+        <SheetContent side="right" className="w-[min(420px,95vw)] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Filters</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 space-y-4">
+            <TransactionFilters
+              dateRange={dateRange}
+              onDateChange={setDateRange}
+              accounts={safeAccounts}
+              selectedAccount={accountId}
+              onAccountChange={setAccountId}
+              categories={safeCategories}
+              selectedCategory={categoryId}
+              onCategoryChange={setCategoryId}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              sortOrder={sortOrder}
+              onSortOrderChange={setSortOrder}
+              onReset={handleFiltersReset}
+            />
+            <div className="flex items-center justify-between pt-2">
+              <Button variant="ghost" onClick={handleFiltersReset}>
+                Reset
+              </Button>
+              <Button onClick={() => setIsFiltersOpen(false)}>Close</Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </main>
   );
 }

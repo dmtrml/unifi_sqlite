@@ -5,6 +5,7 @@ import { format, subDays, startOfMonth, endOfMonth, startOfYear, endOfYear, star
 import { Calendar as CalendarIcon, FilterX, Search } from "lucide-react"
 import { DateRange } from "react-day-picker"
 import { DateRange as RangePicker } from "react-date-range"
+import type { RangeKeyDict } from "react-date-range"
 import "react-date-range/dist/styles.css"
 import "react-date-range/dist/theme/default.css"
 
@@ -222,7 +223,7 @@ export function TransactionFilters({
                   ))}
                 </div>
                 <RangePicker
-                  onChange={(item) => {
+                  onChange={(item: RangeKeyDict) => {
                     const selection = item.selection;
                     setRangeSelection(selection as typeof rangeSelection);
                     setPendingRange({
@@ -235,7 +236,6 @@ export function TransactionFilters({
                   months={1}
                   direction="vertical"
                   showDateDisplay={false}
-                  inputRanges={[]}
                 />
                 <div className="flex gap-2 justify-end border-t pt-3">
                   <Button
@@ -303,7 +303,7 @@ export function TransactionFilters({
                   ))}
                 </div>
                 <RangePicker
-                  onChange={(item) => {
+                  onChange={(item: RangeKeyDict) => {
                     const selection = item.selection;
                     setRangeSelection(selection as typeof rangeSelection);
                     setPendingRange({
@@ -316,7 +316,6 @@ export function TransactionFilters({
                   months={2}
                   direction="horizontal"
                   showDateDisplay={false}
-                  inputRanges={[]}
                 />
                 <div className="flex gap-2 justify-end border-t pt-3">
                   <Button

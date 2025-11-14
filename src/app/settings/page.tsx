@@ -19,7 +19,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import type { Currency, Transaction, Category, Account } from "@/lib/types"
 import {
@@ -44,15 +43,11 @@ function SettingsPageContent() {
   const { categories } = useCategories();
   const { accounts } = useAccounts();
 
-  const [isDarkTheme, setIsDarkTheme] = React.useState(false)
   const [mainCurrency, setMainCurrency] = React.useState<Currency>("USD")
 
   React.useEffect(() => {
-    if (profile) {
-      setIsDarkTheme(profile.theme === 'dark')
-      if (profile.mainCurrency) {
-        setMainCurrency(profile.mainCurrency)
-      }
+    if (profile?.mainCurrency) {
+      setMainCurrency(profile.mainCurrency)
     }
   }, [profile])
 
@@ -62,11 +57,8 @@ function SettingsPageContent() {
       return
     }
 
-    const newTheme = isDarkTheme ? 'dark' : 'light'
-    
     try {
       await saveProfile({
-        theme: newTheme,
         mainCurrency,
         email: user.email ?? profile?.email,
       })
@@ -189,24 +181,6 @@ function SettingsPageContent() {
       <div className="flex items-center">
         <h1 className="text-lg font-semibold md:text-2xl">Settings</h1>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Appearance</CardTitle>
-          <CardDescription>
-            Customize the look and feel of the application.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center space-x-2">
-            <Switch 
-              id="dark-theme" 
-              checked={isDarkTheme}
-              onCheckedChange={setIsDarkTheme}
-            />
-            <Label htmlFor="dark-theme">Dark Theme</Label>
-          </div>
-        </CardContent>
-      </Card>
       <Card>
         <CardHeader>
           <CardTitle>Currency</CardTitle>

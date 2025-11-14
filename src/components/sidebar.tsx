@@ -17,6 +17,9 @@ import {
 
 import { cn } from "@/lib/utils"
 import { BudgetWiseLogo } from "./icons"
+import { useUserProfile } from "@/hooks/use-user-profile"
+import { useUser } from "@/lib/auth-context"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 const navItems = [
     { href: "/", label: "Dashboard", icon: Home },
@@ -33,6 +36,16 @@ const navItems = [
 
 export default function Sidebar() {
     const pathname = usePathname()
+    const { profile } = useUserProfile()
+    const { user } = useUser()
+    const displayName = profile?.name || user?.displayName || "User"
+    const email = profile?.email || user?.email || ""
+    const initials = displayName
+      .split(" ")
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase()
 
     return (
         <aside className="hidden border-r bg-muted/40 md:block">
@@ -59,6 +72,22 @@ export default function Sidebar() {
                             </Link>
                         ))}
                     </nav>
+                </div>
+                <div className="border-t px-4 py-3">
+                    <Link
+                      href="/settings"
+                      className="flex items-center gap-3 rounded-md border bg-background p-3 transition hover:bg-muted/60"
+                    >
+                      <Avatar className="h-10 w-10">
+                        <AvatarFallback>{initials || "BW"}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">{displayName}</span>
+                        {email && (
+                          <span className="text-xs text-muted-foreground">{email}</span>
+                        )}
+                      </div>
+                    </Link>
                 </div>
             </div>
         </aside>

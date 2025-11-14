@@ -117,6 +117,21 @@ export class TransactionsRepository {
     };
   }
 
+  static listRange(
+    userId: string,
+    filters: Omit<TransactionFilters, 'cursor' | 'limit'> = {},
+    client?: DatabaseClient,
+  ) {
+    const database = withClient(client);
+    const sort = filters.sort ?? 'desc';
+    return database
+      .select()
+      .from(transactions)
+      .where(buildWhereClause(userId, { ...filters, sort }))
+      .orderBy(sort === 'asc' ? asc(transactions.date) : desc(transactions.date))
+      .all();
+  }
+
   static get(userId: string, transactionId: string, client?: DatabaseClient) {
     const database = withClient(client);
     return (

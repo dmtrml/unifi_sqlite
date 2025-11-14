@@ -12,7 +12,7 @@ type CategoryDoughnutChartProps = {
 export function CategoryDoughnutChart({ transactions, categories }: CategoryDoughnutChartProps) {
   const chartData = React.useMemo(() => {
     const expenseCategories = categories.filter(c => c.type === 'expense' || !c.type);
-    return expenseCategories.map(category => {
+    const items = expenseCategories.map(category => {
       const value = transactions
         .filter(t => t.transactionType === 'expense' && t.categoryId === category.id)
         .reduce((sum, t) => sum + (t.amount ?? 0), 0);
@@ -23,7 +23,38 @@ export function CategoryDoughnutChart({ transactions, categories }: CategoryDoug
           color: category.color
         }
       };
-    }).filter(item => item.value > 0);
+    }).filter(item => item.value > 0).sort((a, b) => b.value - a.value);
+
+    const total = items.reduce((sum, item) => sum + item.value, 0);
+    if (total === 0) {
+      return [];
+    }
+
+    const MIN_PERCENT = 0.04; // 4%
+    const MAX_SEGMENTS = 5;
+    const grouped: typeof items = [];
+    let otherTotal = 0;
+
+    items.forEach((item) => {
+      const percent = item.value / total;
+      if (percent < MIN_PERCENT || grouped.length >= MAX_SEGMENTS) {
+        otherTotal += item.value;
+      } else {
+        grouped.push(item);
+      }
+    });
+
+    if (otherTotal > 0) {
+      grouped.push({
+        name: 'Other',
+        value: otherTotal,
+        itemStyle: {
+          color: 'hsl(var(--muted))',
+        },
+      });
+    }
+
+    return grouped;
   }, [transactions, categories]);
 
   const totalExpenses = React.useMemo(() => {
