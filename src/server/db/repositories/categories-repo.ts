@@ -11,6 +11,7 @@ export type CategoryInput = {
   icon: string;
   color: string;
   type: 'expense' | 'income';
+  parentId?: string | null;
 };
 
 export type CategoryUpdateInput = Partial<Omit<CategoryInput, 'id'>>;
@@ -43,6 +44,7 @@ export class CategoriesRepository {
       icon: input.icon,
       color: input.color,
       type: input.type,
+      parentId: input.parentId ?? null,
       createdAt: timestamp,
       updatedAt: timestamp,
     });
@@ -56,6 +58,7 @@ export class CategoriesRepository {
     if (typeof input.icon === 'string') payload.icon = input.icon;
     if (typeof input.color === 'string') payload.color = input.color;
     if (typeof input.type === 'string') payload.type = input.type;
+    if (input.parentId !== undefined) payload.parentId = input.parentId ?? null;
 
     await database
       .update(categories)

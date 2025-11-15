@@ -53,6 +53,8 @@ export async function POST(request: Request) {
       errorCount: 0,
       newAccounts: 0,
       newCategories: 0,
+      newAccountNames: [],
+      newCategoryNames: [],
     };
 
     let colorCursor = 0;
@@ -97,6 +99,7 @@ export async function POST(request: Request) {
       accountIdMap.set(created.id, created);
       accountNameMap.set(key, created);
       summary.newAccounts += 1;
+      summary.newAccountNames?.push(created.name);
       return created;
     };
 
@@ -130,6 +133,7 @@ export async function POST(request: Request) {
       categoryIdMap.set(created.id, created);
       categoryNameMap.set(key, created);
       summary.newCategories += 1;
+      summary.newCategoryNames?.push(created.name);
       return created;
     };
 

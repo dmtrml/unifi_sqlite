@@ -33,11 +33,16 @@ export async function GET(request: Request) {
     const searchParams = new URL(request.url).searchParams;
     const startDate = parseNumber(searchParams.get('startDate'));
     const endDate = parseNumber(searchParams.get('endDate'));
+    const categoryIds = searchParams.getAll('categoryIds').filter(Boolean);
+    const singleCategory = searchParams.get('categoryId');
+    const resolvedCategoryIds =
+      categoryIds.length > 0 ? categoryIds : singleCategory ? [singleCategory] : undefined;
 
     const rows = TransactionsRepository.listRange(userId, {
       startDate,
       endDate,
       sort: 'desc',
+      categoryIds: resolvedCategoryIds,
     });
 
     return NextResponse.json({ items: rows.map(mapRecord) });

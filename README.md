@@ -1,44 +1,73 @@
 # BudgetWise (Next.js + SQLite)
 
-BudgetWise — это финансовое приложение на Next.js 15 (App Router) с серверной частью на SQLite + Drizzle ORM и dev-аутентификацией (фиксированный пользователь). Firebase удалён, все данные хранятся локально в `.data/app.sqlite`.
+BudgetWise — личный финансовый менеджер на Next.js 15 (App Router) с локальной базой SQLite/Drizzle. Проект полностью избавлен от Firebase: все данные лежат в `.data/app.sqlite`, а в dev-режиме используется один фиксированный пользователь (`dev-user`).
 
-## Запуск и разработка
+## Требования
+
+- Node.js **>= 20** (гарантированно работает на 20/22, иначе `better-sqlite3` не собирается).
+- npm 9+.
+
+## Быстрый старт
 
 ```bash
 npm install
-npm run db:migrate   # создаёт таблицы, если база новая
-npm run dev
+npm run db:migrate   # создаёт/обновляет таблицы в .data/app.sqlite
+npm run dev          # Turbopack dev server (порт 9002)
 ```
 
-Если база повреждена или нужно начать «с нуля»:
+Если база повреждена или нужно начать заново:
 
 ```bash
-npm run db:reset     # удаляет .data и снова прогоняет миграции
+npm run db:reset     # rm -rf .data && drizzle-kit migrate
 ```
 
-## Основные возможности
+## Стек
 
-- Учёт транзакций (расходы/доходы/переводы), категории, счета, бюджеты, рекуррентные операции.
-- Серверная пагинация с курсором и поиск по описанию транзакций.
-- Импорт CSV и интеграция Mercado Pago.
-- UI: shadcn/ui + Tailwind, графики на Recharts, данные через SWR/SWR Infinite.
+- **Клиент:** Next.js 15 (App Router), React 18, TypeScript, shadcn/ui + Tailwind, SWR/SWR Infinite, date-fns, Recharts/ECharts, lucide-react.
+- **Сервер / БД:** Next.js API routes, Drizzle ORM, better-sqlite3, SQLite (WAL). Миграции в `drizzle/`, схема в `src/server/db/schema.ts`.
+- **Прочее:** CSV импорт, Mercado Pago API, dev-аутентификация (`src/lib/dev-user.ts`), утилиты уведомлений о транзакциях, DateRangePicker для отчётов.
 
-## Структура
+## Основные разделы
 
-- `src/app` — страницы/роуты Next.js (App Router).
-- `src/server/db` — Drizzle ORM: схема, репозитории, сервисы.
-- `src/hooks` — клиентские хуки (SWR/SWR Infinite).
-- `drizzle/` — SQL миграции (`0000_eminent_quicksilver.sql`).
+- **Dashboard** (`/`) — суммарные KPI, графики доходов/расходов, диаграммы категорий.
+- **Accounts** (`/accounts`) — список счетов; просмотр `/accounts/[id]` с вкладками Transactions/Analytics.
+- **Transactions** (`/transactions`) — курсовая пагинация, фильтры (sheet), поиск, CRUD-диалоги.
+- **Categories / Budgets / Recurring** — управление справочниками, бюджетами и рекуррентными операциями.
+- **Import** (`/import`) — загрузка CSV.
+- **Reports** (`/reports`) — DateRangePicker, графики Income vs Expense, Spending by Category, Breakdown.
+- **Settings** (`/settings`) — профиль (имя/email/валюта), локальное хранение темы, Mercado Pago статусы.
+- **Delete data** — диалог, который чистит транзакции или все данные пользователя (`/api/data`).
 
 ## Аутентификация
 
-В dev-режиме используется `DevAuthProvider` с фиксированным пользователем. Для продакшена нужно внедрить реальную auth-систему (cookie/NextAuth/JWT) и обновить `getUserIdOrThrow`.
+Сейчас в dev используется `DevAuthProvider` (единственный пользователь `dev-user`). Для продакшена нужно внедрить реальную auth-систему (Auth.js/NextAuth/Clerk) и обновить `getUserIdOrThrow`, который сейчас просто смотрит на заголовок `x-uid`.
 
-## Полезные команды
+## Структура
 
-- `npm run dev` — запуск с Turbopack.
+- `src/app` — страницы и API (App Router).
+- `src/components` — UI, layout, дашборд, отчётные виджеты, диалоги.
+- `src/hooks` — клиентские SWR-хуки (`useAccounts`, `useTransactions`, `useUserProfile`, ...).
+- `src/server/db` — Drizzle schema, репозитории и сервисы (`TransactionsService`, `AccountsRepository`, ...).
+- `src/lib` — dev-user, currency/utils, контекст авторизации, события транзакций.
+- `drizzle/` — SQL миграции.
+- `docs/` — blueprint проекта и описание сущностей.
+
+## Команды npm
+
+- `npm run dev` — dev-сервер (Turbopack).
+- `npm run build` / `npm start` — прод сборка и запуск.
 - `npm run lint` — ESLint.
 - `npm run typecheck` — `tsc --noEmit`.
-- `npm run db:generate` — генерация миграций Drizzle.
+- `npm run db:generate` — генерация миграции Drizzle.
 - `npm run db:migrate` — применение миграций.
-- `npm run db:reset` — пересоздание базы (удаляет `.data`, затем `migrate`).
+- `npm run db:reset` — очистка `.data` и запуск миграций заново.
+
+## Известные ограничения / TODO
+
+1. Реализовать полноценную аутентификацию вместо dev-заглушки и описать login-flow в README.
+2. Оптимизировать отчётные эндпоинты (`/api/reports/transactions`) — добавить агрегации/лимиты, задокументировать Mercado Pago интеграцию.
+3. Довести dashboard до финального дизайна (по аналогии с Monarch Money): перестроить карточки, добавить net worth/insights.
+4. Добавить автотесты (unit/e2e) и CI (lint/typecheck) + описать процесс импорта CSV/Mercado Pago.
+5. Задокументировать dev-user/`DEV_USER_ID` и добавить сиды/примерные данные для быстрого старта.
+
+С вопросами по настройке или расширению — см. комментарии внутри `src/server/db` и `src/hooks`, либо создавай issue/TODO.

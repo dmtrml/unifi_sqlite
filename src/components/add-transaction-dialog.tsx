@@ -174,9 +174,13 @@ export function AddTransactionDialog({ categories, accounts }: AddTransactionDia
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="relative">
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Add Transaction
+        <Button
+          size="sm"
+          className="relative gap-2 px-2 md:px-4"
+          aria-label="Add Transaction"
+        >
+          <PlusCircle className="h-4 w-4" />
+          <span className="hidden md:inline">Add Transaction</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[480px]">

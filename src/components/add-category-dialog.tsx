@@ -54,6 +54,7 @@ const categoryFormSchema = z.object({
   color: z.string().min(1, "Color is required."),
   icon: z.string().min(1, "Icon is required."),
   type: z.enum(["expense", "income"]).default("expense"),
+  parentId: z.string().optional().nullable(),
 })
 
 type CategoryFormValues = z.infer<typeof categoryFormSchema>
@@ -63,7 +64,7 @@ export function AddCategoryDialog() {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const { toast } = useToast()
   const { user } = useUser()
-  const { refresh } = useCategories()
+  const { categories: existingCategories = [], refresh } = useCategories()
 
   const form = useForm<CategoryFormValues>({
     resolver: zodResolver(categoryFormSchema),
@@ -71,11 +72,25 @@ export function AddCategoryDialog() {
       name: "",
       color: "hsl(var(--custom-color-1))",
       icon: "MoreHorizontal",
-      type: "expense"
+      type: "expense",
+      parentId: null,
     },
   })
   
   const categoryType = form.watch("type");
+  const parentId = form.watch("parentId") || null;
+
+  const parentOptions = React.useMemo(() => {
+    return existingCategories.filter((category) => category.type === categoryType && !category.parentId);
+  }, [existingCategories, categoryType]);
+
+  React.useEffect(() => {
+    if (!parentId) return;
+    const stillValid = parentOptions.some((option) => option.id === parentId);
+    if (!stillValid) {
+      form.setValue("parentId", null);
+    }
+  }, [parentOptions, parentId, form]);
 
   async function onSubmit(data: CategoryFormValues) {
     if (!user) {
@@ -95,7 +110,10 @@ export function AddCategoryDialog() {
           "Content-Type": "application/json",
           "x-uid": user.uid,
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          parentId: data.parentId || null,
+        }),
       })
 
       if (!response.ok) {
@@ -124,6 +142,7 @@ export function AddCategoryDialog() {
   }
 
   const iconNames = categoryType === 'expense' ? expenseIconNames : incomeIconNames;
+  const parentPlaceholder = parentOptions.length === 0 ? "No parent categories" : "Select parent (optional)";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -172,6 +191,43 @@ export function AddCategoryDialog() {
                   <FormControl>
                     <Input placeholder="e.g., Groceries" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="parentId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Parent Category</FormLabel>
+                  <Select
+                    onValueChange={(value) => field.onChange(value === "none" ? null : value)}
+                    value={field.value ?? "none"}
+                    disabled={parentOptions.length === 0}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={parentPlaceholder} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="none">No parent</SelectItem>
+                      <ScrollArea className="h-60">
+                        {parentOptions.map((categoryOption) => (
+                          <SelectItem key={categoryOption.id} value={categoryOption.id}>
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="h-3 w-3 rounded-full"
+                                style={{ backgroundColor: categoryOption.color }}
+                              />
+                              {categoryOption.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </ScrollArea>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm';
 import {
+  foreignKey,
   index,
   integer,
   sqliteTable,
@@ -55,11 +56,18 @@ export const categories = sqliteTable(
     icon: text('icon').notNull(),
     color: text('color').notNull(),
     type: text('type').notNull(),
+    parentId: text('parent_id'),
     createdAt: integer('created_at', { mode: 'number' }).notNull().default(currentTimestamp),
     updatedAt: integer('updated_at', { mode: 'number' }).notNull().default(currentTimestamp),
   },
   (table) => ({
     userIdx: index('categories_user_idx').on(table.userId),
+    parentIdx: index('categories_parent_idx').on(table.parentId),
+    parentFk: foreignKey({
+      columns: [table.parentId],
+      foreignColumns: [table.id],
+      name: 'categories_parent_fk',
+    }).onDelete('set null'),
   }),
 );
 

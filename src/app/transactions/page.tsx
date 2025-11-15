@@ -51,6 +51,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { getCategoryWithDescendants } from "@/lib/category-tree"
 
 const PAGE_SIZE = 25;
 
@@ -110,6 +111,23 @@ function TransactionsPageContent() {
   const safeCategories = React.useMemo(() => categories ?? [], [categories]);
   const safeAccounts = React.useMemo(() => accounts ?? [], [accounts]);
 
+  const normalizeStart = React.useCallback((date?: Date) => {
+    if (!date) return undefined;
+    const copy = new Date(date);
+    copy.setHours(0, 0, 0, 0);
+    return copy.getTime();
+  }, []);
+
+  const normalizeEnd = React.useCallback((date?: Date) => {
+    if (!date) return undefined;
+    const copy = new Date(date);
+    copy.setHours(23, 59, 59, 999);
+    return copy.getTime();
+  }, []);
+
+  const startTimestamp = normalizeStart(dateRange?.from);
+  const endTimestamp = normalizeEnd(dateRange?.to);
+
   const {
     transactions,
     isLoading,
@@ -119,9 +137,12 @@ function TransactionsPageContent() {
     loadMore,
   } = useTransactions({
     accountId: accountId !== "all" ? accountId : undefined,
-    categoryId: categoryId !== "all" ? categoryId : undefined,
-    startDate: dateRange?.from ? dateRange.from.getTime() : undefined,
-    endDate: dateRange?.to ? dateRange.to.getTime() : undefined,
+    categoryIds:
+      categoryId !== "all" && categoryId
+        ? getCategoryWithDescendants(categoryId, safeCategories)
+        : undefined,
+    startDate: startTimestamp,
+    endDate: endTimestamp,
     sort: sortOrder,
     search: searchQuery.trim() || undefined,
   });
@@ -220,11 +241,9 @@ function TransactionsPageContent() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Category</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Account</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Date</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -232,7 +251,7 @@ function TransactionsPageContent() {
                 {isLoading ? (
                     <TableBody>
                         <TableRow>
-                            <TableCell colSpan={7} className="text-center h-24">
+                            <TableCell colSpan={5} className="text-center h-24">
                                 <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
                             </TableCell>
                         </TableRow>
@@ -240,7 +259,7 @@ function TransactionsPageContent() {
                 ) : sortedDateKeys.length === 0 ? (
                   <TableBody>
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center h-24">
+                      <TableCell colSpan={5} className="text-center h-24">
                         No transactions found for the selected filters.
                       </TableCell>
                     </TableRow>
@@ -258,15 +277,20 @@ function TransactionsPageContent() {
                     }, 0);
                     return (
                     <TableBody key={date}>
-                      <TableRow>
-                        <TableCell colSpan={7} className="font-semibold text-muted-foreground pt-6">
-                          <div className="flex justify-between items-center">
-                              <span>{formatDateHeader(date)}</span>
-                              {dailyTotal > 0 && (
-                                <span className="text-destructive font-bold">
-                                  -{currencyFormatter.format(dailyTotal)}
-                                </span>
-                              )}
+                      <TableRow className="!border-0">
+                        <TableCell colSpan={5} className="pt-6">
+                          <div className="flex items-center justify-between border-b border-border/60 pb-2 text-sm">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-primary/70" />
+                              <span className="tracking-wide uppercase text-xs font-semibold">
+                                {formatDateHeader(date)}
+                              </span>
+                            </div>
+                            {dailyTotal > 0 && (
+                              <span className="rounded-full bg-amber-100/80 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-200">
+                                -{currencyFormatter.format(dailyTotal)}
+                              </span>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -277,36 +301,84 @@ function TransactionsPageContent() {
                         const toAccount = getAccount(safeAccounts, transaction.toAccountId);
                         const amount = getTransactionAmount(transaction);
                         const currency = getTransactionCurrency(transaction);
+                        const isTransfer = transaction.transactionType === 'transfer';
+                        const IconComponent = isTransfer 
+                          ? ArrowRightLeft 
+                          : (category && (Icons as any)[category.icon]) || MoreHorizontal;
+                        const iconColor = isTransfer 
+                          ? 'hsl(var(--foreground))' 
+                          : category?.color || 'hsl(var(--foreground))';
+                        const isMultiCurrency = isTransfer && fromAccount?.currency !== toAccount?.currency;
 
                         return (
-                          <TableRow key={transaction.id}>
-                            <TableCell className="font-medium">{transaction.description}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline">
-                                {transaction.transactionType === 'transfer' 
-                                  ? `${fromAccount?.name} -> ${toAccount?.name}` 
+                          <TableRow
+                            key={transaction.id}
+                            className="!border-0 bg-transparent hover:bg-transparent [&>td]:py-3 [&>td]:px-3 [&>td:first-child]:pl-0 [&>td:last-child]:pr-0"
+                          >
+                            <TableCell className="align-top">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted/40"
+                                  style={{ color: iconColor }}
+                                >
+                                  <IconComponent className="h-5 w-5" />
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="font-semibold leading-tight">
+                                    {isTransfer
+                                      ? "Transfer"
+                                      : category?.name ?? "Uncategorized"}
+                                  </span>
+                                  {isTransfer && (
+                                    <span className="text-xs text-muted-foreground">
+                                      {fromAccount?.name ?? "N/A"} → {toAccount?.name ?? "N/A"}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="max-w-[280px] align-top">
+                              {transaction.description ? (
+                                <span className="text-sm text-foreground truncate">
+                                  {transaction.description}
+                                </span>
+                              ) : (
+                                <span className="text-sm italic text-muted-foreground">
+                                  No description
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="align-top">
+                              <Badge variant="outline" className="max-w-[180px] truncate">
+                                {isTransfer
+                                  ? `${fromAccount?.name ?? "N/A"} -> ${toAccount?.name ?? "N/A"}`
                                   : (account?.name ?? "No Account")}
                               </Badge>
                             </TableCell>
-                            <TableCell>
-                              {category ? (
-                                <Badge variant="outline">
-                                  {category.name}
-                                </Badge>
-                              ) : transaction.transactionType !== 'transfer' ? (
-                                <Badge variant="outline">Uncategorized</Badge>
-                              ) : null}
+                            <TableCell className="text-right align-top">
+                              {isTransfer ? (
+                                isMultiCurrency ? (
+                                  <div className="space-y-1 text-sm">
+                                    <span className="block font-semibold text-emerald-600">
+                                      +{new Intl.NumberFormat('en-US', { style: 'currency', currency: toAccount?.currency || mainCurrency }).format(transaction.amountReceived || 0)}
+                                    </span>
+                                    <span className="block font-semibold text-destructive">
+                                      -{new Intl.NumberFormat('en-US', { style: 'currency', currency: fromAccount?.currency || mainCurrency }).format(transaction.amountSent || 0)}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="font-semibold text-muted-foreground">
+                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)}
+                                  </span>
+                                )
+                              ) : (
+                                <span className={`font-semibold ${transaction.transactionType === 'expense' ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                  {transaction.transactionType === 'expense' ? '-' : '+'}
+                                  {new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)}
+                                </span>
+                              )}
                             </TableCell>
-                            <TableCell>
-                              <Badge variant={transaction.transactionType === 'expense' ? 'destructive' : transaction.transactionType === 'income' ? 'default' : 'secondary'}>
-                                {transaction.transactionType}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>{transaction.date.toDate().toLocaleDateString()}</TableCell>
-                            <TableCell className="text-right">
-                              {new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)}
-                            </TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="text-right align-top">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon">

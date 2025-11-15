@@ -34,9 +34,15 @@ const mapRecord = (
 
 const parseFilters = (url: string): TransactionFilters => {
   const searchParams = new URL(url).searchParams;
+  const includeUncategorized = searchParams.get('uncategorized') === 'true';
+  const multiCategory = searchParams.getAll('categoryIds').filter(Boolean);
+  const singleCategory = searchParams.get('categoryId') ?? undefined;
   return {
     accountId: searchParams.get('accountId') ?? undefined,
-    categoryId: searchParams.get('categoryId') ?? undefined,
+    categoryId: singleCategory,
+    categoryIds: multiCategory.length > 0 ? multiCategory : singleCategory ? [singleCategory] : undefined,
+    includeUncategorized,
+    transactionType: (searchParams.get('transactionType') as TransactionFilters['transactionType']) ?? undefined,
     startDate: parseNumber(searchParams.get('startDate')),
     endDate: parseNumber(searchParams.get('endDate')),
     cursor: parseNumber(searchParams.get('cursor')),

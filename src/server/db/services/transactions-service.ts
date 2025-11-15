@@ -166,4 +166,13 @@ export class TransactionsService {
 
     return deleted;
   }
+
+  static async deleteAll(userId: string, options: { resetAccountBalances?: boolean } = {}) {
+    withTransaction((tx) => {
+      if (options.resetAccountBalances) {
+        AccountsRepository.resetBalances(userId, tx);
+      }
+      TransactionsRepository.deleteAll(userId, tx);
+    });
+  }
 }

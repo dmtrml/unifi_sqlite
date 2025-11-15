@@ -34,6 +34,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
+import { buildCategoryChildrenMap } from "@/lib/category-tree"
 
 interface TransactionFiltersProps {
   dateRange?: DateRange | undefined;
@@ -69,6 +70,26 @@ export function TransactionFilters({
   const isMobile = useIsMobile();
   const [isDatePickerOpen, setIsDatePickerOpen] = React.useState(false);
   const [pendingRange, setPendingRange] = React.useState<DateRange | undefined>(dateRange);
+  const flattenedCategories = React.useMemo(() => {
+    if (!categories?.length) return [];
+    const childMap = buildCategoryChildrenMap(categories);
+    const byId = new Map(categories.map((category) => [category.id, category]));
+    const roots = categories
+      .filter((category) => !category.parentId || !byId.has(category.parentId))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const options: { id: string; label: string; depth: number }[] = [];
+    const visit = (category: Category, depth: number) => {
+      options.push({
+        id: category.id,
+        label: category.name,
+        depth,
+      });
+      const children = (childMap.get(category.id) ?? []).slice().sort((a, b) => a.name.localeCompare(b.name));
+      children.forEach((child) => visit(child as Category, depth + 1));
+    };
+    roots.forEach((root) => visit(root, 0));
+    return options;
+  }, [categories]);
 
   React.useEffect(() => {
     if (!isDatePickerOpen) {
@@ -358,9 +379,16 @@ export function TransactionFilters({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
-            {categories && categories.map((category) => (
-              <SelectItem key={category.id} value={category.id}>
-                {category.name}
+            {flattenedCategories.map((option) => (
+              <SelectItem key={option.id} value={option.id}>
+                <span
+                  className={cn(
+                    "block",
+                    option.depth > 0 && "pl-4 text-sm text-muted-foreground",
+                  )}
+                >
+                  {option.depth > 0 ? `↳ ${option.label}` : option.label}
+                </span>
               </SelectItem>
             ))}
           </SelectContent>

@@ -12,6 +12,7 @@ const mapCategory = (
   color: record.color,
   userId: record.userId,
   type: (record.type as Category['type']) ?? 'expense',
+  parentId: record.parentId ?? null,
 });
 
 export async function GET() {
@@ -37,11 +38,14 @@ export async function POST(request: Request) {
     if (!payload?.type) {
       return NextResponse.json({ message: 'Type is required.' }, { status: 400 });
     }
+    const parentId =
+      typeof payload.parentId === 'string' && payload.parentId.trim().length > 0 ? payload.parentId.trim() : null;
     const record = await CategoriesRepository.create(userId, {
       name: payload.name,
       icon: payload.icon ?? 'MoreHorizontal',
       color: payload.color ?? 'hsl(var(--muted-foreground))',
       type: payload.type,
+      parentId,
     });
 
     if (!record) {

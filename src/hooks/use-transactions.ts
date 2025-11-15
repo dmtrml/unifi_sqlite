@@ -8,6 +8,9 @@ import { subscribeToTransactions } from '@/lib/transactions-events';
 export type UseTransactionsFilters = {
   accountId?: string;
   categoryId?: string;
+  categoryIds?: string[];
+  includeUncategorized?: boolean;
+  transactionType?: 'expense' | 'income' | 'transfer';
   startDate?: number;
   endDate?: number;
   limit?: number;
@@ -30,8 +33,18 @@ const buildQuery = (filters?: UseTransactionsFilters, cursor?: number | null) =>
   if (filters?.accountId && filters.accountId !== 'all') {
     params.set('accountId', filters.accountId);
   }
-  if (filters?.categoryId && filters.categoryId !== 'all') {
+  if (filters?.categoryIds && filters.categoryIds.length > 0) {
+    filters.categoryIds.forEach((id) => {
+      if (id) params.append('categoryIds', id);
+    });
+  } else if (filters?.categoryId && filters.categoryId !== 'all') {
     params.set('categoryId', filters.categoryId);
+  }
+  if (filters?.includeUncategorized) {
+    params.set('uncategorized', 'true');
+  }
+  if (filters?.transactionType) {
+    params.set('transactionType', filters.transactionType);
   }
   if (typeof filters?.startDate === 'number') {
     params.set('startDate', String(filters.startDate));
@@ -78,7 +91,13 @@ const fetcher = async ([, uid, queryString]: FetchKey): Promise<TransactionPage>
 export function useTransactions(filters?: UseTransactionsFilters) {
   const { user } = useUser();
   const limit = filters?.limit ?? 50;
-  const normalizedFilters = useMemo(() => ({ ...(filters ?? {}), limit }), [filters, limit]);
+  const normalizedFilters = useMemo(() => {
+    const next: UseTransactionsFilters = { ...(filters ?? {}), limit };
+    if (Array.isArray(next.categoryIds) && next.categoryIds.length > 0) {
+      next.categoryIds = Array.from(new Set(next.categoryIds.filter(Boolean)));
+    }
+    return next;
+  }, [filters, limit]);
   const filtersKey = useMemo(() => JSON.stringify(normalizedFilters), [normalizedFilters]);
 
   const getKey = (

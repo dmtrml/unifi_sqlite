@@ -23,4 +23,6 @@ export type ImportSummary = {
   errorCount: number;
   newCategories: number;
   newAccounts: number;
+  newCategoryNames?: string[];
+  newAccountNames?: string[];
 };

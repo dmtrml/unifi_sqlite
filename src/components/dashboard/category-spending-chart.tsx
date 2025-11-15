@@ -3,8 +3,6 @@
 import * as React from "react"
 import { Pie, PieChart, Sector, Cell } from "recharts"
 import * as Icons from "lucide-react"
-import { startOfMonth, endOfMonth } from "date-fns"
-import type { DateRange } from "react-day-picker"
 
 import {
   ChartConfig,
@@ -12,152 +10,88 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import type { Category, Transaction, Account, Currency } from "@/lib/types"
-import { convertAmount } from "@/lib/currency"
-
-type CategorySpendingChartProps = {
-  transactions: Transaction[];
-  categories: Category[];
-  accounts: Account[];
-  mainCurrency: Currency;
-  dateRange?: DateRange;
-}
+import type { CategorySummaryItem, Currency } from "@/lib/types"
 
 const RADIAN = Math.PI / 180;
 const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, payload }: any) => {
   const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
   const IconComponent = (Icons as any)[payload.icon] || Icons.MoreHorizontal;
 
   return (
     <g>
-      <IconComponent
-        x={x - 12}
-        y={y - 12}
-        width={24}
-        height={24}
-        color="white"
-        strokeWidth={1.5}
-      />
+      <IconComponent x={x - 12} y={y - 12} width={24} height={24} color="white" strokeWidth={1.5} />
     </g>
   );
 };
 
+type ChartDatum = CategorySummaryItem & { children?: CategorySummaryItem[] };
+
+type Props = {
+  data: CategorySummaryItem[];
+  total: number;
+  mainCurrency: Currency;
+  childrenMap?: Record<string, CategorySummaryItem[]>;
+  onSelectCategory?: (categoryId: string | null, categoryName: string) => void;
+};
+
 export function CategorySpendingChart({
-  transactions,
-  categories,
-  accounts,
+  data,
+  total,
   mainCurrency,
-  dateRange,
-}: CategorySpendingChartProps) {
+  childrenMap,
+  onSelectCategory,
+}: Props) {
   const [activeCategory, setActiveCategory] = React.useState<string | null>(null);
   const id = "pie-interactive";
 
-  const getAccountCurrency = React.useCallback(
-    (accountId?: string) => accounts.find((a) => a.id === accountId)?.currency || "USD",
-    [accounts],
-  );
+  const displayData = React.useMemo(() => {
+    if (!data.length) return [];
+    const entries: ChartDatum[] = data.map((item) => ({
+      ...item,
+      children: item.categoryId ? childrenMap?.[item.categoryId] : undefined,
+    }));
+    const threshold = total * 0.03;
 
-  const filteredTransactions = React.useMemo(() => {
-    const now = new Date();
-    let from = dateRange?.from;
-    let to = dateRange?.to;
+    const major = entries.filter((item) => item.total >= threshold);
+    const minor = entries.filter((item) => item.total < threshold);
 
-    if (!from || !to) {
-      from = startOfMonth(now);
-      to = endOfMonth(now);
-    }
-
-    const endDate = new Date(to);
-    endDate.setHours(23, 59, 59, 999);
-
-    return transactions.filter((t) => {
-      if (t.transactionType !== "expense") return false;
-      const transactionDate = t.date.toDate();
-      return transactionDate >= from! && transactionDate <= endDate;
-    });
-  }, [transactions, dateRange]);
-
-  const totalSpent = React.useMemo(
-    () =>
-      filteredTransactions.reduce((sum, t) => {
-        const fromCurrency = getAccountCurrency(t.accountId);
-        return sum + convertAmount(t.amount ?? 0, fromCurrency, mainCurrency);
-      }, 0),
-    [filteredTransactions, getAccountCurrency, mainCurrency],
-  );
-
-  const categorySpending = React.useMemo(() => {
-    const spendingThreshold = totalSpent * 0.03;
-
-    const allCategorySpending = categories
-      .filter((c) => c.type === "expense" || !c.type)
-      .map((category) => {
-        const total = filteredTransactions
-          .filter((expense) => expense.categoryId === category.id)
-          .reduce((sum, expense) => {
-            const fromCurrency = getAccountCurrency(expense.accountId);
-            return sum + convertAmount(expense.amount ?? 0, fromCurrency, mainCurrency);
-          }, 0);
-        return {
-          category: category.name,
-          total,
-          fill: category.color,
-          icon: category.icon,
-        };
-      })
-      .filter((item) => item.total > 0);
-
-    const majorCategories = allCategorySpending.filter((item) => item.total >= spendingThreshold);
-    const minorCategories = allCategorySpending.filter((item) => item.total < spendingThreshold);
-
-    if (minorCategories.length > 1) {
-      const otherTotal = minorCategories.reduce((sum, item) => sum + item.total, 0);
-      majorCategories.push({
-        category: "Other",
-        total: otherTotal,
-        fill: "hsl(var(--muted-foreground))",
+    if (minor.length > 1) {
+      const otherTotal = minor.reduce((sum, item) => sum + item.total, 0);
+      major.push({
+        categoryId: "other",
+        name: "Other",
+        color: "hsl(var(--muted-foreground))",
         icon: "MoreHorizontal",
+        total: otherTotal,
+        children: undefined,
       });
     } else {
-      majorCategories.push(...minorCategories);
+      major.push(...minor);
     }
 
-    return majorCategories.sort((a, b) => b.total - a.total);
-  }, [filteredTransactions, categories, getAccountCurrency, mainCurrency, totalSpent]);
+    return major.sort((a, b) => b.total - a.total);
+  }, [data, total, childrenMap]);
 
   const chartConfig = React.useMemo(() => {
-    const config = categorySpending.reduce((acc, item) => {
-      acc[item.category] = {
-        label: item.category,
-        color: item.fill,
+    return displayData.reduce((acc, item) => {
+      acc[item.name] = {
+        label: item.name,
+        color: item.color ?? "hsl(var(--primary))",
       };
       return acc;
     }, {} as ChartConfig);
-
-    if (categorySpending.some((item) => item.category === "Other")) {
-      config["Other"] = {
-        label: "Other",
-        color: "hsl(var(--muted-foreground))",
-      };
-    }
-
-    return config;
-  }, [categorySpending]);
+  }, [displayData]);
 
   const activeIndex = React.useMemo(
-    () => categorySpending.findIndex((item) => item.category === activeCategory),
-    [activeCategory, categorySpending],
+    () => displayData.findIndex((item) => item.name === activeCategory),
+    [activeCategory, displayData],
   );
 
-  const currencyFormatter = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: mainCurrency,
-  });
+  const currencyFormatter = new Intl.NumberFormat("en-US", { style: "currency", currency: mainCurrency });
 
-  if (categorySpending.length === 0) {
+  if (!displayData.length || total <= 0) {
     return (
       <div className="flex h-[250px] items-center justify-center text-muted-foreground">
         No spending data available for this period.
@@ -172,17 +106,46 @@ export function CategorySpendingChart({
           cursor={false}
           content={
             <ChartTooltipContent
-              formatter={(value, name) => {
-                const percentage = totalSpent > 0 ? ((value as number) / totalSpent) * 100 : 0;
+              formatter={(value, name, item, _index, rawPayload) => {
+                const percentage = total > 0 ? ((value as number) / total) * 100 : 0;
+                const chartItem = (rawPayload as ChartDatum | undefined) ?? (item?.payload as ChartDatum | undefined);
+                const childList = chartItem?.children ?? [];
+                const parentTotal = chartItem?.total ?? (value as number);
                 return (
-                  <div>
+                  <div className="space-y-1.5">
                     <div className="font-medium text-foreground">{name}</div>
                     <div className="flex items-baseline gap-1.5">
-                      <span className="text-lg font-bold">
-                        {currencyFormatter.format(value as number)}
-                      </span>
+                      <span className="text-lg font-bold">{currencyFormatter.format(value as number)}</span>
                       <span className="text-sm text-muted-foreground">({percentage.toFixed(2)}%)</span>
                     </div>
+                    {childList.length > 0 && (
+                      <div className="mt-1 space-y-0.5 border-t border-border/60 pt-1 text-muted-foreground">
+                        {childList.slice(0, 4).map((child) => {
+                          const childShareOfParent =
+                            parentTotal && parentTotal > 0
+                              ? ((child.total / parentTotal) * 100).toFixed(1)
+                              : "0";
+                          const childShareOfTotal =
+                            total > 0 ? ((child.total / total) * 100).toFixed(2) : "0";
+                          return (
+                            <div
+                              key={child.categoryId ?? child.name}
+                              className="flex items-center justify-between gap-2 text-xs"
+                            >
+                              <span className="truncate">↳ {child.name}</span>
+                              <span>
+                                {currencyFormatter.format(child.total)} ({childShareOfTotal}% total / {childShareOfParent}% parent)
+                              </span>
+                            </div>
+                          );
+                        })}
+                        {childList.length > 4 && (
+                          <div className="text-[11px] italic text-muted-foreground">
+                            +{childList.length - 4} more
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               }}
@@ -205,12 +168,12 @@ export function CategorySpendingChart({
           dominantBaseline="middle"
           className="fill-foreground text-2xl font-bold"
         >
-          {currencyFormatter.format(totalSpent)}
+          {currencyFormatter.format(total)}
         </text>
         <Pie
-          data={categorySpending}
+          data={displayData}
           dataKey="total"
-          nameKey="category"
+          nameKey="name"
           innerRadius="65%"
           outerRadius="85%"
           strokeWidth={5}
@@ -223,14 +186,21 @@ export function CategorySpendingChart({
             </g>
           )}
           onMouseOver={(_, index) => {
-            setActiveCategory(categorySpending[index].category);
+            setActiveCategory(displayData[index].name);
           }}
           onMouseLeave={() => {
             setActiveCategory(null);
           }}
+          onClick={(_, index) => {
+                if (!onSelectCategory) return;
+            const entry = displayData[index];
+            if (!entry || entry.categoryId === 'other') return;
+            const categoryId = entry.categoryId ?? null;
+            onSelectCategory(categoryId, entry.name);
+          }}
         >
-          {categorySpending.map((entry, index) => (
-            <Cell key={`cell-${index}`} fill={entry.fill} />
+          {displayData.map((entry, index) => (
+            <Cell key={`cell-${index}`} fill={entry.color ?? "hsl(var(--primary))"} />
           ))}
         </Pie>
       </PieChart>

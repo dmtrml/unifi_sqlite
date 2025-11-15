@@ -99,4 +99,16 @@ export class AccountsRepository {
       .where(eq(accounts.id, accountId))
       .run();
   }
+
+  static resetBalances(userId: string, client?: DatabaseClient) {
+    const database = withClient(client);
+    database
+      .update(accounts)
+      .set({
+        balanceCents: 0,
+        updatedAt: nowMs(),
+      })
+      .where(eq(accounts.userId, userId))
+      .run();
+  }
 }

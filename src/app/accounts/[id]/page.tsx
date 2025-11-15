@@ -29,6 +29,8 @@ import { IncomeExpenseChart } from "@/components/reports/IncomeExpenseChart"
 import { CategorySpendingChart } from "@/components/dashboard/category-spending-chart"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { MoreVertical } from "lucide-react"
+import { buildCategorySummaryFromTransactions, buildIncomeExpenseSeriesFromTransactions } from "@/lib/reporting"
+import { startOfMonth, endOfMonth } from "date-fns"
 
 type AccountPageParams = {
   id: string;
@@ -59,8 +61,38 @@ function AccountPageContent({ accountId }: { accountId: string}) {
     );
   }, [allTransactions, accountId]);
 
+  const currentMonthRange = React.useMemo(() => {
+    const now = new Date();
+    return {
+      from: startOfMonth(now),
+      to: endOfMonth(now),
+    };
+  }, []);
+
   const isLoading = isAccountsLoading || isTransactionsLoading || isCategoriesLoading || profileLoading;
   const mainCurrency = (profile?.mainCurrency ?? "USD") as Currency;
+
+  const incomeExpenseSeries = React.useMemo(
+    () =>
+      buildIncomeExpenseSeriesFromTransactions({
+        transactions: relatedTransactions,
+        accounts: allAccounts || [],
+        mainCurrency,
+      }),
+    [relatedTransactions, allAccounts, mainCurrency],
+  );
+
+  const categorySummary = React.useMemo(
+    () =>
+      buildCategorySummaryFromTransactions({
+        transactions: relatedTransactions,
+        categories: categories || [],
+        accounts: allAccounts || [],
+        mainCurrency,
+        dateRange: currentMonthRange,
+      }),
+    [relatedTransactions, categories, allAccounts, mainCurrency, currentMonthRange],
+  );
   
   const IconComponent = account ? (Icons as any)[account.icon] || Icons.HelpCircle : Icons.HelpCircle;
 
@@ -185,11 +217,7 @@ function AccountPageContent({ accountId }: { accountId: string}) {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <IncomeExpenseChart
-                transactions={relatedTransactions}
-                accounts={allAccounts || []}
-                mainCurrency={mainCurrency}
-              />
+              <IncomeExpenseChart data={incomeExpenseSeries} mainCurrency={mainCurrency} />
             </CardContent>
           </Card>
           <Card>
@@ -201,9 +229,8 @@ function AccountPageContent({ accountId }: { accountId: string}) {
             </CardHeader>
             <CardContent>
               <CategorySpendingChart
-                transactions={relatedTransactions}
-                categories={categories || []}
-                accounts={allAccounts || []}
+                data={categorySummary.items}
+                total={categorySummary.total}
                 mainCurrency={mainCurrency}
               />
             </CardContent>

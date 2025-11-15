@@ -10,6 +10,8 @@ import {
   lte,
   or,
   like,
+  inArray,
+  isNull,
 } from 'drizzle-orm';
 import type { DatabaseClient } from '@/server/db/connection';
 import { db } from '@/server/db/connection';
@@ -35,6 +37,9 @@ export type TransactionInput = {
 export type TransactionFilters = {
   accountId?: string;
   categoryId?: string;
+  categoryIds?: string[];
+  includeUncategorized?: boolean;
+  transactionType?: 'expense' | 'income' | 'transfer';
   startDate?: number;
   endDate?: number;
   cursor?: number;
@@ -48,8 +53,16 @@ const withClient = (client?: DatabaseClient) => client ?? db;
 const buildWhereClause = (userId: string, filters: TransactionFilters) => {
   const clauses = [eq(transactions.userId, userId)];
 
-  if (filters.categoryId) {
+  if (filters.includeUncategorized) {
+    clauses.push(isNull(transactions.categoryId));
+  } else if (filters.categoryIds && filters.categoryIds.length > 0) {
+    clauses.push(inArray(transactions.categoryId, filters.categoryIds));
+  } else if (filters.categoryId) {
     clauses.push(eq(transactions.categoryId, filters.categoryId));
+  }
+
+  if (filters.transactionType) {
+    clauses.push(eq(transactions.transactionType, filters.transactionType));
   }
 
   if (typeof filters.accountId === 'string' && filters.accountId.length > 0) {
@@ -210,6 +223,11 @@ export class TransactionsRepository {
   static delete(userId: string, transactionId: string, client?: DatabaseClient) {
     const database = withClient(client);
     database.delete(transactions).where(and(eq(transactions.userId, userId), eq(transactions.id, transactionId))).run();
+  }
+
+  static deleteAll(userId: string, client?: DatabaseClient) {
+    const database = withClient(client);
+    database.delete(transactions).where(eq(transactions.userId, userId)).run();
   }
 
   static bulkInsert(userId: string, inputs: TransactionInput[], client?: DatabaseClient) {

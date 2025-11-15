@@ -7,6 +7,7 @@ export type Category = {
   color: string;
   userId: string;
   type: 'expense' | 'income';
+  parentId?: string | null;
 };
 
 export type AccountType = "Cash" | "Card" | "Bank Account" | "Deposit" | "Loan";
@@ -66,4 +67,25 @@ export type User = {
   theme?: 'light' | 'dark';
   mainCurrency?: Currency;
   mercadoPagoConnected?: boolean;
+};
+
+export type IncomeExpensePoint = {
+  month: string; // ISO date string (YYYY-MM-01)
+  income: number;
+  expense: number;
+};
+
+export type CategorySummaryItem = {
+  categoryId: string | null;
+  name: string;
+  color?: string | null;
+  icon?: string | null;
+  total: number;
+};
+
+export type DashboardKPI = {
+  totalIncome: number;
+  totalExpenses: number;
+  totalBudget: number;
+  netWorth: number;
 };

@@ -138,9 +138,14 @@ const TransactionsFilterButton = () => {
   }, [])
 
   return (
-    <Button variant="outline" onClick={handleOpen}>
-      <Filter className="mr-2 h-4 w-4" />
-      Filters
+    <Button
+      variant="outline"
+      onClick={handleOpen}
+      className="gap-2 px-2 md:px-4"
+      aria-label="Filters"
+    >
+      <Filter className="h-4 w-4" />
+      <span className="hidden md:inline">Filters</span>
     </Button>
   )
 }

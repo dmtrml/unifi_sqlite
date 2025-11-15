@@ -9,6 +9,7 @@ const mapCategory = (record: NonNullable<Awaited<ReturnType<typeof CategoriesRep
   color: record.color,
   userId: record.userId,
   type: record.type,
+  parentId: record.parentId ?? null,
 });
 
 export async function PATCH(
@@ -19,11 +20,14 @@ export async function PATCH(
     const params = await context.params;
     const userId = await getUserIdOrThrow();
     const payload = await request.json();
+    const parentId =
+      typeof payload.parentId === 'string' && payload.parentId.trim().length > 0 ? payload.parentId.trim() : null;
     const updated = await CategoriesRepository.update(userId, params.categoryId, {
       name: payload.name,
       icon: payload.icon,
       color: payload.color,
       type: payload.type,
+      parentId,
     });
 
     if (!updated) {

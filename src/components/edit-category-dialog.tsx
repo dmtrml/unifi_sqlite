@@ -56,6 +56,7 @@ const editCategoryFormSchema = z.object({
   color: z.string().min(1, "Color is required."),
   icon: z.string().min(1, "Icon is required."),
   type: z.enum(["expense", "income"]),
+  parentId: z.string().optional().nullable(),
 })
 
 type EditCategoryFormValues = z.infer<typeof editCategoryFormSchema>
@@ -69,17 +70,33 @@ export function EditCategoryDialog({ category }: EditCategoryDialogProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const { toast } = useToast()
   const { user } = useUser()
-  const { refresh } = useCategories()
+  const { categories: existingCategories = [], refresh } = useCategories()
 
   const form = useForm<EditCategoryFormValues>({
     resolver: zodResolver(editCategoryFormSchema),
     defaultValues: {
       ...category,
-      type: category.type || 'expense'
+      type: category.type || 'expense',
+      parentId: category.parentId ?? null,
     },
   })
   
   const categoryType = form.watch("type");
+  const parentId = form.watch("parentId") || null;
+
+  const parentOptions = React.useMemo(() => {
+    return existingCategories.filter(
+      (item) => item.id !== category.id && item.type === categoryType && !item.parentId,
+    );
+  }, [existingCategories, category.id, categoryType]);
+
+  React.useEffect(() => {
+    if (!parentId) return;
+    const stillValid = parentOptions.some((option) => option.id === parentId);
+    if (!stillValid) {
+      form.setValue("parentId", null);
+    }
+  }, [parentOptions, parentId, form]);
 
   async function onSubmit(data: EditCategoryFormValues) {
     if (!user) {
@@ -99,7 +116,10 @@ export function EditCategoryDialog({ category }: EditCategoryDialogProps) {
           "Content-Type": "application/json",
           "x-uid": user.uid,
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          parentId: data.parentId || null,
+        }),
       })
 
       if (!response.ok) {
@@ -127,6 +147,7 @@ export function EditCategoryDialog({ category }: EditCategoryDialogProps) {
   }
 
   const iconNames = categoryType === 'expense' ? expenseIconNames : incomeIconNames;
+  const parentPlaceholder = parentOptions.length === 0 ? "No parent categories" : "Select parent (optional)";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -175,6 +196,43 @@ export function EditCategoryDialog({ category }: EditCategoryDialogProps) {
                   <FormControl>
                     <Input placeholder="e.g., Groceries" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="parentId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Parent Category</FormLabel>
+                  <Select
+                    onValueChange={(value) => field.onChange(value === "none" ? null : value)}
+                    value={field.value ?? "none"}
+                    disabled={parentOptions.length === 0}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={parentPlaceholder} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="none">No parent</SelectItem>
+                      <ScrollArea className="h-60">
+                        {parentOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="h-3 w-3 rounded-full"
+                                style={{ backgroundColor: option.color }}
+                              />
+                              {option.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </ScrollArea>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

@@ -7,6 +7,7 @@ import { useCategories } from "@/hooks/use-categories"
 import { useTransactions } from "@/hooks/use-transactions"
 import { useUserProfile } from "@/hooks/use-user-profile"
 import { convertAmount } from "@/lib/currency"
+import type { Category, Currency } from "@/lib/types"
 
 import {
   Card,
@@ -15,8 +16,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-
-import type { Category, Currency } from "@/lib/types"
 
 import { MonthlySpendingChart } from "./dashboard/monthly-spending-chart"
 import { SummaryCards } from "./dashboard/summary-cards"
@@ -43,7 +42,6 @@ function LoadingSkeleton() {
     </div>
   )
 }
-
 
 export default function Dashboard() {
   const { user } = useUser()
@@ -99,13 +97,15 @@ export default function Dashboard() {
   const safeBudgets = budgets || [];
   const safeAccounts = accounts || [];
 
-
   return (
     <div className="grid gap-4 md:gap-8">
         <SummaryCards 
           totalBudget={totalBudget}
           totalExpenses={totalExpenses}
           totalIncome={totalIncome}
+          netWorth={safeAccounts.reduce((acc, account) => {
+            return acc + convertAmount(account.balance, account.currency, mainCurrency);
+          }, 0)}
           currency={mainCurrency}
         />
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
@@ -164,5 +164,3 @@ export default function Dashboard() {
     </div>
   )
 }
-
-    

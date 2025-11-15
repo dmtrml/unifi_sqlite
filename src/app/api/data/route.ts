@@ -8,21 +8,8 @@ import {
   categories,
   imports,
   recurringTransactions,
-  transactions,
 } from '@/server/db/schema';
 import { TransactionsService } from '@/server/db/services/transactions-service';
-
-async function deleteAllTransactions(userId: string) {
-  const ids = db
-    .select({ id: transactions.id })
-    .from(transactions)
-    .where(eq(transactions.userId, userId))
-    .all();
-
-  for (const { id } of ids) {
-    await TransactionsService.delete(userId, id);
-  }
-}
 
 export async function POST(request: Request) {
   try {
@@ -34,7 +21,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Invalid scope.' }, { status: 400 });
     }
 
-    await deleteAllTransactions(userId);
+    await TransactionsService.deleteAll(userId, { resetAccountBalances: scope === 'transactions' });
 
     if (scope === 'all') {
       db.delete(recurringTransactions).where(eq(recurringTransactions.userId, userId)).run();
