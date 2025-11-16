@@ -5,10 +5,8 @@
 import * as React from "react"
 import Link from "next/link"
 import { useUser } from "@/lib/auth-context"
-import { useCategories } from "@/hooks/use-categories"
-import { useAccounts } from "@/hooks/use-accounts"
-import { useTransactions } from "@/hooks/use-transactions"
 import { useUserProfile } from "@/hooks/use-user-profile"
+import { useRouter } from "next/navigation"
 import AppLayout from "@/components/layout"
 import { Button } from "@/components/ui/button"
 import {
@@ -20,7 +18,7 @@ import {
 } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import type { Currency, Transaction, Category, Account } from "@/lib/types"
+import type { Currency } from "@/lib/types"
 import {
   Select,
   SelectContent,
@@ -29,7 +27,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { DeleteDataDialog } from "@/components/delete-data-dialog"
-import { format } from "date-fns"
 import { Upload } from "lucide-react"
 
 const currencies: Currency[] = ["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "CNY", "INR", "ARS", "RUB"];
@@ -38,12 +35,13 @@ function SettingsPageContent() {
   const { user } = useUser()
   const { toast } = useToast()
   const { profile, saveProfile, isLoading: profileLoading } = useUserProfile()
-
-  const { transactions } = useTransactions({ sort: "desc" });
-  const { categories } = useCategories();
-  const { accounts } = useAccounts();
+  const router = useRouter()
 
   const [mainCurrency, setMainCurrency] = React.useState<Currency>("USD")
+  const [exportingFormat, setExportingFormat] = React.useState<"csv" | "json" | null>(null)
+  const [isBackingUp, setIsBackingUp] = React.useState(false)
+  const [isRestoring, setIsRestoring] = React.useState(false)
+  const restoreInputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
     if (profile?.mainCurrency) {
@@ -76,104 +74,144 @@ function SettingsPageContent() {
     }
   }
 
-   const handleExportTransactions = () => {
-    if (!transactions || !categories || !accounts) {
-      toast({
-        title: "Error",
-        description: "Data not loaded yet. Please try again in a moment.",
-        variant: "destructive",
-      });
+  const parseFilename = (headerValue: string | null): string | null => {
+    if (!headerValue) return null;
+    const match = /filename="?([^";]+)"?/i.exec(headerValue);
+    return match ? match[1] : null;
+  };
+
+  const handleExport = async (format: "csv" | "json") => {
+    if (!user) {
+      toast({ title: "Error", description: "You must be logged in.", variant: "destructive" });
       return;
     }
-
-    const sortedTransactions = [...transactions].sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime());
-
-    const getAccount = (id?: string) => accounts.find(a => a.id === id);
-    const getCategory = (id?: string) => categories.find(c => c.id === id);
-
-    const headers = [
-      "date", "categoryName", "comment", 
-      "outcomeAccountName", "outcome", "outcomeCurrency",
-      "incomeAccountName", "income", "incomeCurrency"
-    ];
-
-    const csvRows = [headers.join(",")];
-
-    sortedTransactions.forEach(t => {
-      const date = format(t.date.toDate(), "yyyy-MM-dd");
-      const comment = t.description?.replace(/"/g, '""').trim() || '';
-      
-      let categoryName = '';
-      let outcomeAccountName = '';
-      let outcome = '';
-      let outcomeCurrency = '';
-      let incomeAccountName = '';
-      let income = '';
-      let incomeCurrency = '';
-
-      if (t.transactionType === 'expense') {
-        const acc = getAccount(t.accountId);
-        const cat = getCategory(t.categoryId);
-        categoryName = cat?.name || 'Uncategorized';
-        outcomeAccountName = acc?.name || 'N/A';
-        outcome = String(t.amount || 0);
-        outcomeCurrency = acc?.currency || '';
-      } else if (t.transactionType === 'income') {
-        const acc = getAccount(t.accountId);
-        const cat = getCategory(t.categoryId);
-        categoryName = cat?.name || 'Uncategorized';
-        incomeAccountName = acc?.name || 'N/A';
-        income = String(t.amount || 0);
-        incomeCurrency = acc?.currency || '';
-      } else if (t.transactionType === 'transfer') {
-        const fromAccount = getAccount(t.fromAccountId);
-        const toAccount = getAccount(t.toAccountId);
-        const isMultiCurrency = fromAccount?.currency !== toAccount?.currency;
-        
-        outcomeAccountName = fromAccount?.name || 'N/A';
-        outcomeCurrency = fromAccount?.currency || '';
-        incomeAccountName = toAccount?.name || 'N/A';
-        incomeCurrency = toAccount?.currency || '';
-
-        if (isMultiCurrency) {
-            outcome = String(t.amountSent || 0);
-            income = String(t.amountReceived || 0);
-        } else {
-            outcome = String(t.amount || 0);
-            income = String(t.amount || 0);
-        }
+    try {
+      setExportingFormat(format);
+      const response = await fetch(`/api/transactions/export?format=${format}`, {
+        headers: {
+          "x-uid": user.uid,
+        },
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.message ?? "Failed to export transactions.");
       }
+      const blob = await response.blob();
+      const filename =
+        parseFilename(response.headers.get("content-disposition")) ??
+        `transactions.${format}`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast({
+        title: "Export ready",
+        description: `Downloaded ${filename}`,
+      });
+    } catch (error) {
+      console.error("Export failed", error);
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "Failed to export transactions.",
+        variant: "destructive",
+      });
+    } finally {
+      setExportingFormat(null);
+    }
+  };
 
-      const row = [
-        date, categoryName, comment,
-        outcomeAccountName, outcome, outcomeCurrency,
-        incomeAccountName, income, incomeCurrency
-      ];
-       const csvRow = row.map(val => {
-            const strVal = String(val);
-            // Add quotes only if the value contains a comma
-            if (strVal.includes(',')) {
-                return `"${strVal.replace(/"/g, '""')}"`;
-            }
-            return strVal;
-        }).join(",");
-      csvRows.push(csvRow);
-    });
+  const handleBackup = async () => {
+    if (!user) {
+      toast({ title: "Error", description: "You must be logged in.", variant: "destructive" });
+      return;
+    }
+    try {
+      setIsBackingUp(true);
+      const response = await fetch(`/api/backup`, {
+        headers: {
+          "x-uid": user.uid,
+        },
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.message ?? "Failed to create backup.");
+      }
+      const blob = await response.blob();
+      const filename =
+        parseFilename(response.headers.get("content-disposition")) ??
+        `backup-${new Date().toISOString().slice(0, 10)}.json`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast({
+        title: "Backup ready",
+        description: `Downloaded ${filename}`,
+      });
+    } catch (error) {
+      console.error("Backup failed", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create backup.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
 
-    const csvString = csvRows.join("\n");
-    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "transactions.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast({
-      title: "Export Successful",
-      description: "Your transactions have been exported to transactions.csv.",
-    });
+  const handleRestoreFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user || isRestoring) {
+      toast({ title: "Error", description: "You must be logged in.", variant: "destructive" });
+      event.target.value = "";
+      return;
+    }
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      setIsRestoring(true);
+      const text = await file.text();
+      const response = await fetch("/api/backup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-uid": user.uid,
+        },
+        body: text,
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.message ?? "Failed to restore backup.");
+      }
+      const result = await response.json().catch(() => ({}));
+      toast({
+        title: "Backup restored",
+        description:
+          typeof result?.summary === "object"
+            ? `Accounts: ${result.summary.accounts}, Transactions: ${result.summary.transactions}`
+            : "Your data has been restored.",
+      });
+      router.refresh();
+    } catch (error) {
+      console.error("Restore failed", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to restore backup.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRestoring(false);
+    }
   };
 
   return (
@@ -214,8 +252,49 @@ function SettingsPageContent() {
             Export your data or import new transactions.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex gap-2">
-          <Button variant="outline" onClick={handleExportTransactions}>Export Transactions</Button>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={handleBackup}
+            disabled={isBackingUp}
+          >
+            {isBackingUp ? "Creating backup..." : "Backup JSON"}
+          </Button>
+          <div className="text-xs text-muted-foreground w-full">
+            Restoring a backup will replace all existing accounts, categories, budgets, transactions, and recurring templates.
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (!isRestoring) {
+                restoreInputRef.current?.click();
+              }
+            }}
+            disabled={isRestoring}
+          >
+            {isRestoring ? "Restoring..." : "Restore JSON"}
+          </Button>
+          <input
+            ref={restoreInputRef}
+            type="file"
+            accept="application/json"
+            onChange={handleRestoreFile}
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            onClick={() => handleExport("csv")}
+            disabled={exportingFormat === "csv"}
+          >
+            {exportingFormat === "csv" ? "Exporting..." : "Export CSV"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => handleExport("json")}
+            disabled={exportingFormat === "json"}
+          >
+            {exportingFormat === "json" ? "Exporting..." : "Export JSON"}
+          </Button>
           <Button variant="outline" asChild>
             <Link href="/import">
               <Upload className="mr-2 h-4 w-4" />

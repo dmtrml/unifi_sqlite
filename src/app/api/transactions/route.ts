@@ -6,12 +6,7 @@ import {
 } from '@/server/db/repositories/transactions-repo';
 import { TransactionsService } from '@/server/db/services/transactions-service';
 import { toCents } from '@/server/db/utils';
-
-const parseNumber = (value: string | null) => {
-  if (!value) return undefined;
-  const num = Number(value);
-  return Number.isFinite(num) ? num : undefined;
-};
+import { parseTransactionFilters } from '@/app/api/transactions/utils';
 
 const mapRecord = (
   record: NonNullable<Awaited<ReturnType<typeof TransactionsRepository.get>>>,
@@ -32,30 +27,10 @@ const mapRecord = (
   incomeType: record.incomeType,
 });
 
-const parseFilters = (url: string): TransactionFilters => {
-  const searchParams = new URL(url).searchParams;
-  const includeUncategorized = searchParams.get('uncategorized') === 'true';
-  const multiCategory = searchParams.getAll('categoryIds').filter(Boolean);
-  const singleCategory = searchParams.get('categoryId') ?? undefined;
-  return {
-    accountId: searchParams.get('accountId') ?? undefined,
-    categoryId: singleCategory,
-    categoryIds: multiCategory.length > 0 ? multiCategory : singleCategory ? [singleCategory] : undefined,
-    includeUncategorized,
-    transactionType: (searchParams.get('transactionType') as TransactionFilters['transactionType']) ?? undefined,
-    startDate: parseNumber(searchParams.get('startDate')),
-    endDate: parseNumber(searchParams.get('endDate')),
-    cursor: parseNumber(searchParams.get('cursor')),
-    limit: parseNumber(searchParams.get('limit')),
-    sort: (searchParams.get('sort') as TransactionFilters['sort']) ?? undefined,
-    search: searchParams.get('search') ?? undefined,
-  };
-};
-
 export async function GET(request: Request) {
   try {
     const userId = await getUserIdOrThrow();
-    const filters = parseFilters(request.url);
+    const filters = parseTransactionFilters(request.url);
     const result = await TransactionsRepository.list(userId, filters);
     return NextResponse.json({
       items: result.items.map(mapRecord),

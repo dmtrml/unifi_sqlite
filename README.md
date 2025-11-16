@@ -35,7 +35,7 @@ npm run db:reset     # rm -rf .data && drizzle-kit migrate
 - **Categories / Budgets / Recurring** — управление справочниками, бюджетами и рекуррентными операциями.
 - **Import** (`/import`) — загрузка CSV, пресеты для ZenMoney/Monefy, автоматическое сопоставление колонок и поддержка мультивалютных переводов.
 - **Reports** (`/reports`) — DateRangePicker, графики Income vs Expense, Spending by Category, Breakdown.
-- **Settings** (`/settings`) — профиль (имя/email/валюта), локальное хранение темы, Mercado Pago статусы.
+- **Settings** (`/settings`) — профиль (имя/email/валюта), локальное хранение темы, Mercado Pago статусы, экспорт CSV/JSON и полный JSON-бэкап (восстановление перезаписывает все пользовательские данные).
 - **Delete data** — диалог, который чистит транзакции или все данные пользователя (`/api/data`).
 
 ## Аутентификация
