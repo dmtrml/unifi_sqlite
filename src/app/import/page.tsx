@@ -33,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import type { Currency } from "@/lib/types"
@@ -41,17 +42,18 @@ import { useUser } from "@/lib/auth-context"
 import { useAccounts } from "@/hooks/use-accounts"
 import { useCategories } from "@/hooks/use-categories"
 import { useUserProfile } from "@/hooks/use-user-profile"
+import { DEFAULT_IMPORT_PROFILE_ID, getImportProfile, importProfiles, type TransferStub } from "@/lib/import-profiles"
 
-const transactionFields = [
-    { value: "date", label: "date" },
-    { value: "categoryName", label: "categoryName" },
-    { value: "comment", label: "comment" },
-    { value: "outcomeAccountName", label: "outcomeAccountName" },
-    { value: "outcome", label: "outcome" },
-    { value: "outcomeCurrency", label: "outcomeCurrency" },
-    { value: "incomeAccountName", label: "incomeAccountName" },
-    { value: "income", label: "income" },
-    { value: "incomeCurrency", label: "incomeCurrency" },
+const DEFAULT_FIELDS = [
+  { value: "date", label: "date" },
+  { value: "categoryName", label: "categoryName" },
+  { value: "comment", label: "comment" },
+  { value: "outcomeAccountName", label: "outcomeAccountName" },
+  { value: "outcome", label: "outcome" },
+  { value: "outcomeCurrency", label: "outcomeCurrency" },
+  { value: "incomeAccountName", label: "incomeAccountName" },
+  { value: "income", label: "income" },
+  { value: "incomeCurrency", label: "incomeCurrency" },
 ];
 
 type ImportResult = ImportSummary & {
@@ -60,10 +62,22 @@ type ImportResult = ImportSummary & {
 };
 
 const MAPPING_STORAGE_KEY = "import:column-mapping";
+const PRESET_STORAGE_KEY = "import:selected-profile";
 
-const ensureCurrencyValue = (value: string | undefined, fallback: Currency): Currency => {
-  const normalized = value?.toUpperCase().trim();
-  return (normalized as Currency) || fallback;
+const escapeCsvValue = (value: string) => `"${value.replace(/"/g, '""')}"`;
+
+const isNormalizedRow = (value: NormalizedImportRow | TransferStub): value is NormalizedImportRow =>
+  Boolean(value && 'transactionType' in value);
+
+const finalizeProfileRows = (
+  items: (NormalizedImportRow | TransferStub)[],
+  profile: ReturnType<typeof getImportProfile>,
+  defaultCurrency: Currency,
+) => {
+  if (typeof profile.finalize === 'function') {
+    return profile.finalize(items, defaultCurrency);
+  }
+  return items.filter(isNormalizedRow);
 };
 
 const mapRowWithMapping = (
@@ -76,75 +90,6 @@ const mapRowWithMapping = (
     }
     return acc;
   }, {} as Record<string, string>);
-};
-
-const normalizeRow = (mappedRow: Record<string, string>, defaultCurrency: Currency): NormalizedImportRow | null => {
-  const dateValue = new Date(mappedRow.date);
-  if (isNaN(dateValue.getTime())) {
-    throw new Error(`Invalid date: ${mappedRow.date}`);
-  }
-
-  const incomeAmount = Number(mappedRow.income) || 0;
-  const outcomeAmount = Number(mappedRow.outcome) || 0;
-
-  if (!Number.isFinite(incomeAmount) || !Number.isFinite(outcomeAmount)) {
-    throw new Error("Invalid numeric amount");
-  }
-
-  const description = mappedRow.comment?.trim() || "Imported Transaction";
-
-  if (incomeAmount > 0 && outcomeAmount > 0) {
-    const fromAccountName = mappedRow.outcomeAccountName?.trim();
-    const toAccountName = mappedRow.incomeAccountName?.trim();
-    if (!fromAccountName || !toAccountName) {
-      throw new Error("Transfer accounts missing");
-    }
-    return {
-      transactionType: "transfer",
-      date: dateValue.getTime(),
-      description,
-      amountSent: Math.abs(outcomeAmount),
-      amountReceived: Math.abs(incomeAmount),
-      fromAccountName,
-      fromAccountCurrency: ensureCurrencyValue(mappedRow.outcomeCurrency, defaultCurrency),
-      toAccountName,
-      toAccountCurrency: ensureCurrencyValue(mappedRow.incomeCurrency, defaultCurrency),
-    };
-  }
-
-  if (outcomeAmount > 0) {
-    const accountName = mappedRow.outcomeAccountName?.trim() || mappedRow.incomeAccountName?.trim();
-    if (!accountName) {
-      throw new Error("Account not provided for expense");
-    }
-    return {
-      transactionType: "expense",
-      date: dateValue.getTime(),
-      description,
-      amount: Math.abs(outcomeAmount),
-      accountName,
-      accountCurrency: ensureCurrencyValue(mappedRow.outcomeCurrency || mappedRow.incomeCurrency, defaultCurrency),
-      categoryName: mappedRow.categoryName?.trim() || null,
-    };
-  }
-
-  if (incomeAmount > 0) {
-    const accountName = mappedRow.incomeAccountName?.trim() || mappedRow.outcomeAccountName?.trim();
-    if (!accountName) {
-      throw new Error("Account not provided for income");
-    }
-    return {
-      transactionType: "income",
-      date: dateValue.getTime(),
-      description,
-      amount: Math.abs(incomeAmount),
-      accountName,
-      accountCurrency: ensureCurrencyValue(mappedRow.incomeCurrency || mappedRow.outcomeCurrency, defaultCurrency),
-      categoryName: mappedRow.categoryName?.trim() || null,
-    };
-  }
-
-  return null;
 };
 
 function ImportPageContent() {
@@ -160,27 +105,59 @@ function ImportPageContent() {
   const [importResult, setImportResult] = React.useState<ImportResult | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const savedMappingRef = React.useRef<Record<string, string> | null>(null);
+  const savedMappingSignatureRef = React.useRef<string | null>(null);
+  const [profileId, setProfileId] = React.useState<string>(DEFAULT_IMPORT_PROFILE_ID);
+  const activeProfile = React.useMemo(() => getImportProfile(profileId), [profileId]);
 
   const { user } = useUser();
   const { toast } = useToast();
-  const { profile } = useUserProfile();
+  const { profile: userProfile } = useUserProfile();
 
   const { refresh: refreshCategories } = useCategories();
   const { refresh: refreshAccounts } = useAccounts();
   
-  const mainCurrency = (profile?.mainCurrency || "USD") as Currency;
+  const mainCurrency = (userProfile?.mainCurrency || "USD") as Currency;
+  const parserDelimiter = activeProfile.options?.delimiter ?? ",";
 
   React.useEffect(() => {
     if (typeof window === "undefined") return;
-    try {
-      const raw = localStorage.getItem(MAPPING_STORAGE_KEY);
-      if (raw) {
-        savedMappingRef.current = JSON.parse(raw);
+    const storedProfileId = localStorage.getItem(PRESET_STORAGE_KEY);
+    if (storedProfileId) {
+      const storedProfile = getImportProfile(storedProfileId);
+      if (storedProfile.id !== profileId) {
+        setProfileId(storedProfile.id);
       }
-    } catch {
-      savedMappingRef.current = null;
     }
+  }, [profileId]);
+
+  const mappingStorageKey = React.useMemo(
+    () => `${MAPPING_STORAGE_KEY}:${activeProfile.id}`,
+    [activeProfile.id],
+  );
+
+  const headersSignature = React.useCallback((list: string[]) => {
+    return list.map((header) => header.trim().toLowerCase()).sort().join("|");
   }, []);
+
+  const initializeMapping = React.useCallback((csvHeaders: string[], options?: { force?: boolean }) => {
+    const force = options?.force ?? false;
+    const saved = savedMappingRef.current;
+    const savedSignature = savedMappingSignatureRef.current;
+    const currentSignature = headersSignature(csvHeaders);
+    const shouldUseSaved = !force && Boolean(saved && savedSignature && savedSignature === currentSignature);
+
+    if (shouldUseSaved && saved) {
+      const mapping: Record<string, string> = {};
+      csvHeaders.forEach((header) => {
+        mapping[header] = saved[header] ?? "ignore";
+      });
+      setColumnMapping(mapping);
+      return;
+    }
+
+    const inferred = activeProfile.inferMapping(csvHeaders);
+    setColumnMapping(inferred);
+  }, [activeProfile, headersSignature]);
 
   const resetState = () => {
     setFile(null);
@@ -202,59 +179,49 @@ function ImportPageContent() {
     setColumnMapping(prev => ({ ...prev, [csvHeader]: transactionField }));
   }
 
-  const initializeMapping = React.useCallback((csvHeaders: string[]) => {
-    const saved = savedMappingRef.current;
-    if (saved) {
-      const mapping: Record<string, string> = {};
-      let hasMatch = false;
-      csvHeaders.forEach((header) => {
-        if (saved[header]) {
-          mapping[header] = saved[header];
-          if (saved[header] !== "ignore") {
-            hasMatch = true;
-          }
-        } else {
-          mapping[header] = "ignore";
-        }
-      });
-      if (hasMatch) {
-        setColumnMapping(mapping);
-        return;
-      }
-    }
-    setColumnMapping(buildAutoMapping(csvHeaders));
-  }, []);
-
   React.useEffect(() => {
     if (typeof window === "undefined") return;
     if (!headers.length) return;
     if (!Object.keys(columnMapping).length) return;
-    localStorage.setItem(MAPPING_STORAGE_KEY, JSON.stringify(columnMapping));
+    const payload = {
+      headers,
+      mapping: columnMapping,
+    };
+    localStorage.setItem(mappingStorageKey, JSON.stringify(payload));
     savedMappingRef.current = columnMapping;
-  }, [columnMapping, headers]);
+    savedMappingSignatureRef.current = headersSignature(headers);
+  }, [columnMapping, headers, headersSignature, mappingStorageKey]);
 
-  const buildAutoMapping = (csvHeaders: string[]) => {
-    const newMapping: Record<string, string> = {};
-    transactionFields.forEach((field) => {
-      const fieldVariants = [
-        field.value.toLowerCase(),
-        field.label.toLowerCase().replace(/[^a-z0-9]/gi, ''),
-      ];
-      for (const header of csvHeaders) {
-        const lowerHeader = header.toLowerCase().replace(/[^a-z0-9]/gi, '');
-        if (!newMapping[header] && fieldVariants.some((variant) => lowerHeader.includes(variant))) {
-          newMapping[header] = field.value;
-          break;
-        }
+  React.useEffect(() => {
+    if (!headers.length) return;
+    initializeMapping(headers);
+  }, [headers, initializeMapping, activeProfile.id]);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = localStorage.getItem(mappingStorageKey);
+    if (!raw) {
+      savedMappingRef.current = null;
+      savedMappingSignatureRef.current = null;
+      return;
+    }
+    try {
+      const payload = JSON.parse(raw);
+      if (payload && typeof payload === "object" && payload.mapping && Array.isArray(payload.headers)) {
+        savedMappingRef.current = payload.mapping;
+        savedMappingSignatureRef.current = headersSignature(payload.headers);
+      } else if (payload && typeof payload === "object") {
+        savedMappingRef.current = payload;
+        savedMappingSignatureRef.current = null;
+      } else {
+        savedMappingRef.current = null;
+        savedMappingSignatureRef.current = null;
       }
-    });
-    csvHeaders.forEach((header) => {
-      if (!newMapping[header]) {
-        newMapping[header] = "ignore";
-      }
-    });
-    return newMapping;
-  };
+    } catch {
+      savedMappingRef.current = null;
+      savedMappingSignatureRef.current = null;
+    }
+  }, [headersSignature, mappingStorageKey]);
 
   const handleFile = (selectedFile: File) => {
     if (!selectedFile) {
@@ -275,10 +242,14 @@ function ImportPageContent() {
       header: true,
       skipEmptyLines: true,
       preview: 6, // Get headers and 5 rows for preview
+      delimiter: parserDelimiter,
       complete: (results) => {
         if (results.meta.fields && results.data.length > 0) {
             setHeaders(results.meta.fields);
-            setPreviewData(results.data as Record<string, string>[]);
+            const processed = activeProfile.preprocessRows
+              ? activeProfile.preprocessRows(results.data as Record<string, string>[])
+              : (results.data as Record<string, string>[]);
+            setPreviewData(processed);
             initializeMapping(results.meta.fields);
             setStep(2);
         } else {
@@ -312,17 +283,19 @@ function ImportPageContent() {
           header: true,
           skipEmptyLines: true,
           worker: true,
+          delimiter: parserDelimiter,
           complete: (results) => resolve((results.data as Record<string, string>[]) ?? []),
           error: (err) => reject(err),
         });
       });
     try {
       const allRows = await parseRows();
-      const normalizedRows: NormalizedImportRow[] = [];
+      const processedRows = activeProfile.preprocessRows ? activeProfile.preprocessRows(allRows) : allRows;
       let skippedRows = 0;
       const rowErrors: string[] = [];
-      for (let index = 0; index < allRows.length; index++) {
-        const row = allRows[index];
+      const intermediate: (NormalizedImportRow | TransferStub)[] = [];
+      for (let index = 0; index < processedRows.length; index++) {
+        const row = processedRows[index];
         try {
           const mappedRow = mapRowWithMapping(row, columnMapping);
           if (!mappedRow.date) {
@@ -332,9 +305,9 @@ function ImportPageContent() {
             }
             continue;
           }
-          const normalized = normalizeRow(mappedRow, mainCurrency);
+          const normalized = activeProfile.normalizeRow(mappedRow, mainCurrency);
           if (normalized) {
-            normalizedRows.push(normalized);
+            intermediate.push(normalized);
           } else {
             skippedRows++;
           }
@@ -347,16 +320,21 @@ function ImportPageContent() {
         }
       }
 
-      if (!normalizedRows.length) {
+      const finalizedRows = finalizeProfileRows(intermediate, activeProfile, mainCurrency);
+
+      if (!finalizedRows.length) {
         const emptyResult: ImportResult = {
           successCount: 0,
-          errorCount: skippedRows || allRows.length,
+          errorCount: skippedRows || processedRows.length,
           newCategories: 0,
           newAccounts: 0,
           newAccountNames: [],
           newCategoryNames: [],
-          skippedRows: skippedRows || allRows.length,
+          skippedRows: skippedRows || processedRows.length,
           skippedDetails: rowErrors,
+          errorDetails: [],
+          errorStats: {},
+          processedRows: 0,
         };
         setImportResult(emptyResult);
         toast({
@@ -384,7 +362,8 @@ function ImportPageContent() {
         body: JSON.stringify({
           source: "csv",
           defaultCurrency: mainCurrency,
-          rows: normalizedRows,
+          profileId: activeProfile.id,
+          rows: finalizedRows,
         }),
       });
 
@@ -401,6 +380,9 @@ function ImportPageContent() {
         newAccounts: summary.newAccounts,
         newAccountNames: summary.newAccountNames ?? [],
         newCategoryNames: summary.newCategoryNames ?? [],
+        errorDetails: summary.errorDetails ?? [],
+        errorStats: summary.errorStats ?? {},
+        processedRows: summary.processedRows ?? finalizedRows.length,
         skippedRows,
         skippedDetails: rowErrors,
       };
@@ -445,13 +427,53 @@ function ImportPageContent() {
     }
   };
 
+  const handleDownloadErrorReport = React.useCallback(() => {
+    if (!importResult) return;
+    const serverErrors = importResult.errorDetails ?? [];
+    const clientErrors = importResult.skippedDetails ?? [];
+    if (!serverErrors.length && !clientErrors.length) return;
+
+    const rows: string[] = ['source,rowIndex,code,message,details'];
+    const pushRow = (source: string, rowIndex: string, code: string, message: string, details: string) => {
+      rows.push(
+        [source, rowIndex, code, message, details].map((value) => escapeCsvValue(value)).join(','),
+      );
+    };
+
+    serverErrors.forEach((detail) => {
+      const info = detail.rowSample ? JSON.stringify(detail.rowSample) : '';
+      pushRow(
+        'server',
+        detail.rowIndex != null ? String(detail.rowIndex) : '',
+        detail.code ?? 'unknown',
+        detail.message,
+        info,
+      );
+    });
+
+    clientErrors.forEach((message, index) => {
+      pushRow('client', '', `mapping-${index + 1}`, message, '');
+    });
+
+    if (rows.length <= 1) return;
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `import-errors-${Date.now()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [importResult]);
+
   React.useEffect(() => {
     if (!previewData.length) {
       setNormalizedPreview([]);
       setPreviewError(null);
       return;
     }
-    const rows: NormalizedImportRow[] = [];
+    const items: (NormalizedImportRow | TransferStub)[] = [];
     for (let i = 0; i < Math.min(previewData.length, 5); i++) {
       const row = previewData[i];
       const mappedRow = mapRowWithMapping(row, columnMapping);
@@ -461,9 +483,9 @@ function ImportPageContent() {
         return;
       }
       try {
-        const normalized = normalizeRow(mappedRow, (mainCurrency as Currency) || "USD");
+        const normalized = activeProfile.normalizeRow(mappedRow, (mainCurrency as Currency) || "USD");
         if (normalized) {
-          rows.push(normalized);
+          items.push(normalized);
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
@@ -473,8 +495,9 @@ function ImportPageContent() {
       }
     }
     setPreviewError(null);
-    setNormalizedPreview(rows);
-  }, [previewData, columnMapping, mainCurrency]);
+    const finalizedPreview = finalizeProfileRows(items, activeProfile, mainCurrency as Currency);
+    setNormalizedPreview(finalizedPreview);
+  }, [previewData, columnMapping, mainCurrency, activeProfile]);
   
   const renderStepContent = () => {
     switch (step) {
@@ -531,23 +554,50 @@ function ImportPageContent() {
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
-                    {headers.length > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setColumnMapping(buildAutoMapping(headers))}
-                      >
-                        Auto-map
-                      </Button>
-                    )}
                   </div>
                 )}
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-               <div>
+               <div className="space-y-4">
+                 <div className="grid grid-cols-1 gap-2 md:grid-cols-[240px_1fr]">
+                   <div className="space-y-1">
+                    <Label>Import preset</Label>
+                    <Select
+                      value={activeProfile.id}
+                       onValueChange={(value) => {
+                         const nextProfile = getImportProfile(value);
+                         setProfileId(nextProfile.id);
+                         if (typeof window !== "undefined") {
+                           localStorage.setItem(PRESET_STORAGE_KEY, nextProfile.id);
+                         }
+                         setColumnMapping({});
+                         setNormalizedPreview([]);
+                       }}
+                     >
+                       <SelectTrigger>
+                         <SelectValue placeholder="Select preset" />
+                       </SelectTrigger>
+                       <SelectContent>
+                         {importProfiles.map((item) => (
+                           <SelectItem key={item.id} value={item.id}>
+                             {item.label}
+                           </SelectItem>
+                         ))}
+                       </SelectContent>
+                     </Select>
+                     <p className="text-xs text-muted-foreground">
+                       Preset determines default column mapping and parsing rules.
+                     </p>
+                   </div>
+                 </div>
                   <h3 className="text-base font-medium mb-2">Column Mapping</h3>
-                  <p className="text-sm text-muted-foreground mb-2">Mapping is saved automatically for the next upload.</p>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm text-muted-foreground">Mapping is saved automatically for the next upload.</p>
+                    <Button variant="outline" size="sm" onClick={() => initializeMapping(headers, { force: true })}>
+                      Auto map
+                    </Button>
+                  </div>
                   <div className="rounded-md border">
                     <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {headers.map((header) => (
@@ -563,7 +613,7 @@ function ImportPageContent() {
                             <SelectContent>
                               <SelectItem value="ignore">Ignore</SelectItem>
                               <SelectSeparator />
-                              {transactionFields.map(field => (
+                              {(activeProfile.fields ?? DEFAULT_FIELDS).map(field => (
                                 <SelectItem key={field.value} value={field.value}>
                                   {field.label}
                                 </SelectItem>
@@ -662,7 +712,14 @@ function ImportPageContent() {
             </CardFooter>
           </Card>
         );
-      case 3:
+      case 3: {
+        const serverErrorDetails = importResult?.errorDetails ?? [];
+        const serverErrorStatsEntries = Object.entries(importResult?.errorStats ?? {});
+        const totalServerErrors =
+          serverErrorStatsEntries.reduce((sum, [, count]) => sum + Number(count ?? 0), 0) ||
+          serverErrorDetails.length;
+        const hasServerErrors = serverErrorDetails.length > 0;
+        const hasClientMappingErrors = (importResult?.skippedDetails?.length ?? 0) > 0;
         return (
           <Card>
              <CardHeader>
@@ -687,6 +744,13 @@ function ImportPageContent() {
                             Processed {importResult.successCount + importResult.errorCount} rows.
                           </p>
                         </div>
+                        {hasClientMappingErrors && !hasServerErrors && (
+                          <div className="flex justify-end">
+                            <Button variant="outline" size="sm" onClick={handleDownloadErrorReport}>
+                              Download error report
+                            </Button>
+                          </div>
+                        )}
                         <div className="grid gap-4 md:grid-cols-2">
                           <div className="rounded-md border p-4 space-y-1">
                             <p className="text-sm text-muted-foreground">Successfully imported</p>
@@ -705,6 +769,49 @@ function ImportPageContent() {
                             <p className="text-2xl font-semibold">{importResult.newAccounts}</p>
                           </div>
                         </div>
+                        {hasServerErrors && (
+                          <div className="rounded-md border p-4 space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <h4 className="font-medium">Server-side errors</h4>
+                                <p className="text-sm text-muted-foreground">
+                                  Showing first {Math.min(serverErrorDetails.length, 5)} of {totalServerErrors}.
+                                </p>
+                              </div>
+                              <Button variant="outline" size="sm" onClick={handleDownloadErrorReport}>
+                                Download report
+                              </Button>
+                            </div>
+                            <ul className="space-y-2 text-sm">
+                              {serverErrorDetails.slice(0, 5).map((detail, index) => (
+                                <li key={`${detail.rowIndex}-${detail.code}-${index}`} className="rounded-md bg-muted/50 p-3">
+                                  <p className="font-semibold">
+                                    Row {detail.rowIndex} · {detail.code}
+                                  </p>
+                                  <p className="text-muted-foreground">{detail.message}</p>
+                                  {detail.rowSample && (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      {detail.rowSample.transactionType} ·{' '}
+                                      {detail.rowSample.accountName ??
+                                        detail.rowSample.fromAccountName ??
+                                        detail.rowSample.toAccountName ??
+                                        '—'}
+                                    </p>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                            {serverErrorStatsEntries.length > 0 && (
+                              <div className="text-xs text-muted-foreground">
+                                {serverErrorStatsEntries.map(([code, count]) => (
+                                  <span key={code} className="mr-3">
+                                    {code}: {count}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                         {(importResult.newCategoryNames?.length ?? 0) > 0 && (
                           <div>
                             <h4 className="font-medium">Created categories</h4>
@@ -794,6 +901,7 @@ function ImportPageContent() {
               </CardFooter>
           </Card>
         );
+      }
       default:
         return null;
     }
@@ -801,9 +909,6 @@ function ImportPageContent() {
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
-      <div className="flex items-center">
-        <h1 className="text-lg font-semibold md:text-2xl">Import Transactions</h1>
-      </div>
       {renderStepContent()}
     </main>
   )
@@ -819,4 +924,3 @@ export default function ImportPage() {
 }
 
     
-

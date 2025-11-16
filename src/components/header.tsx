@@ -51,18 +51,25 @@ export default function AppHeader() {
   const { user } = useUser()
   const { categories } = useCategories()
   const { accounts } = useAccounts()
+  const currentNavItem = React.useMemo(() => {
+    if (!pathname) return null
+    return (
+      navItems.find((item) => {
+        if (item.href === "/") return pathname === "/"
+        return pathname.startsWith(item.href)
+      }) ?? null
+    )
+  }, [pathname])
 
   const headerActions = React.useMemo(() => {
     if (!user) return []
     const nodes: React.ReactNode[] = []
 
-    if (pathname === "/" || pathname?.startsWith("/transactions")) {
+    if (pathname?.startsWith("/transactions")) {
       if (categories && accounts) {
         nodes.push(<AddTransactionDialog key="add-transaction" categories={categories} accounts={accounts} />)
       }
-      if (pathname?.startsWith("/transactions")) {
-        nodes.push(<TransactionsFilterButton key="filters" />)
-      }
+      nodes.push(<TransactionsFilterButton key="filters" />)
       return nodes
     }
 
@@ -124,6 +131,11 @@ export default function AppHeader() {
           </nav>
         </SheetContent>
       </Sheet>
+      {currentNavItem && (
+        <span className="text-sm font-medium text-muted-foreground">
+          {currentNavItem.label}
+        </span>
+      )}
       <div className="w-full flex-1" />
       <div className="flex items-center gap-2">{headerActions}</div>
     </header>

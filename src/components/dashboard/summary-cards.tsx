@@ -1,8 +1,8 @@
 "use client"
 
 import { DollarSign, PiggyBank, Wallet, TrendingUp, TrendingDown } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import type { Currency } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type SummaryCardsProps = {
   totalBudget: number;
@@ -15,64 +15,77 @@ type SummaryCardsProps = {
 export function SummaryCards({ totalBudget, totalExpenses, totalIncome, netWorth, currency }: SummaryCardsProps) {
   const remainingBudget = totalBudget - totalExpenses;
   const currencyFormatter = new Intl.NumberFormat("en-US", { style: "currency", currency });
+  const incomeVsExpense = totalIncome
+    ? ((totalIncome - totalExpenses) / totalIncome) * 100
+    : 0;
+  const spendingOfBudget = totalBudget ? (totalExpenses / totalBudget) * 100 : null;
+  const remainingOfBudget = totalBudget ? (remainingBudget / totalBudget) * 100 : null;
 
   const cards = [
     {
       title: "Net Worth",
       amount: netWorth,
       icon: DollarSign,
-      trend: totalIncome - totalExpenses,
-      trendLabel: "net flow",
+      accent: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+      meta: `${currencyFormatter.format(totalIncome - totalExpenses)} net flow`,
+      trendValue: totalIncome - totalExpenses,
+      trendIsPercent: false,
     },
     {
       title: "Income (period)",
       amount: totalIncome,
       icon: PiggyBank,
-      trend: totalIncome ? (totalIncome - totalExpenses) / totalIncome : 0,
-      trendLabel: "vs expenses",
+      accent: "bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300",
+      meta: `${incomeVsExpense.toFixed(1)}% vs expenses`,
+      trendValue: incomeVsExpense,
+      trendIsPercent: true,
     },
     {
       title: "Expenses (period)",
       amount: totalExpenses,
       icon: Wallet,
-      trend: totalBudget ? totalExpenses / totalBudget : 0,
-      trendLabel: totalBudget ? "of budget" : undefined,
+      accent: "bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300",
+      meta: spendingOfBudget != null ? `${spendingOfBudget.toFixed(1)}% of budget` : undefined,
+      trendValue: spendingOfBudget ?? 0,
+      trendIsPercent: true,
     },
     {
       title: "Remaining Budget",
       amount: remainingBudget,
       icon: DollarSign,
-      trend: totalBudget ? remainingBudget / totalBudget : 0,
-      trendLabel: totalBudget ? "of total" : undefined,
+      accent: "bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300",
+      meta:
+        remainingOfBudget != null
+          ? `${remainingOfBudget.toFixed(1)}% of total`
+          : undefined,
+      trendValue: remainingOfBudget ?? 0,
+      trendIsPercent: true,
     },
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {cards.map((card) => {
-        const trendPositive = card.trend >= 0;
-        return (
-          <Card key={card.title}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{card.title}</CardTitle>
-              <card.icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="text-2xl font-bold">{currencyFormatter.format(card.amount)}</div>
-              {card.trendLabel && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  {trendPositive ? (
-                    <TrendingUp className="h-3 w-3 text-emerald-500" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3 text-destructive" />
-                  )}
-                  {Math.abs(card.trend * 100).toFixed(1)}% {trendPositive ? "↑" : "↓"} {card.trendLabel}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
+    <div className="flex gap-3 overflow-x-auto pb-1">
+      {cards.map((card) => (
+        <div
+          key={card.title}
+          className="inline-flex min-w-[190px] flex-col justify-center border-r border-border/40 px-3 py-2 text-sm last:border-r-0"
+        >
+          <div className="flex items-center gap-2">
+            <card.icon className={cn("h-3.5 w-3.5", card.accent)} />
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {card.title}
+            </p>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <p className="text-base font-semibold">
+              {currencyFormatter.format(card.amount)}
+            </p>
+            {card.meta && (
+              <span className="text-[11px] text-muted-foreground">{card.meta}</span>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -33,7 +33,7 @@ npm run db:reset     # rm -rf .data && drizzle-kit migrate
 - **Accounts** (`/accounts`) — список счетов; просмотр `/accounts/[id]` с вкладками Transactions/Analytics.
 - **Transactions** (`/transactions`) — курсовая пагинация, фильтры (sheet), поиск, CRUD-диалоги.
 - **Categories / Budgets / Recurring** — управление справочниками, бюджетами и рекуррентными операциями.
-- **Import** (`/import`) — загрузка CSV.
+- **Import** (`/import`) — загрузка CSV, пресеты для ZenMoney/Monefy, автоматическое сопоставление колонок и поддержка мультивалютных переводов.
 - **Reports** (`/reports`) — DateRangePicker, графики Income vs Expense, Spending by Category, Breakdown.
 - **Settings** (`/settings`) — профиль (имя/email/валюта), локальное хранение темы, Mercado Pago статусы.
 - **Delete data** — диалог, который чистит транзакции или все данные пользователя (`/api/data`).
@@ -67,7 +67,7 @@ npm run db:reset     # rm -rf .data && drizzle-kit migrate
 1. Реализовать полноценную аутентификацию вместо dev-заглушки и описать login-flow в README.
 2. Оптимизировать отчётные эндпоинты (`/api/reports/transactions`) — добавить агрегации/лимиты, задокументировать Mercado Pago интеграцию.
 3. Довести dashboard до финального дизайна (по аналогии с Monarch Money): перестроить карточки, добавить net worth/insights.
-4. Добавить автотесты (unit/e2e) и CI (lint/typecheck) + описать процесс импорта CSV/Mercado Pago.
+4. Добавить автотесты (unit/e2e) и CI (lint/typecheck) + описать процесс импорта CSV/Mercado Pago (пресеты, Auto map, обработку мультивалютных переводов).
 5. Задокументировать dev-user/`DEV_USER_ID` и добавить сиды/примерные данные для быстрого старта.
 
 С вопросами по настройке или расширению — см. комментарии внутри `src/server/db` и `src/hooks`, либо создавай issue/TODO.

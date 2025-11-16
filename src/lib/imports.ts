@@ -18,6 +18,25 @@ export type NormalizedImportRow = {
   categoryName?: string | null;
 };
 
+export type ImportErrorCode =
+  | 'invalid_date'
+  | 'invalid_amount'
+  | 'missing_account'
+  | 'missing_category'
+  | 'transfer_accounts_missing'
+  | 'transaction_service_error'
+  | 'unknown';
+
+export type ImportErrorDetail = {
+  rowIndex: number;
+  code: ImportErrorCode;
+  message: string;
+  rowSample?: Pick<
+    NormalizedImportRow,
+    'transactionType' | 'date' | 'amount' | 'amountSent' | 'amountReceived' | 'accountName' | 'fromAccountName' | 'toAccountName' | 'categoryName'
+  >;
+};
+
 export type ImportSummary = {
   successCount: number;
   errorCount: number;
@@ -25,4 +44,7 @@ export type ImportSummary = {
   newAccounts: number;
   newCategoryNames?: string[];
   newAccountNames?: string[];
+  processedRows?: number;
+  errorDetails?: ImportErrorDetail[];
+  errorStats?: Partial<Record<ImportErrorCode | 'other', number>>;
 };

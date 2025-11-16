@@ -106,9 +106,9 @@ export function CategorySpendingChart({
           cursor={false}
           content={
             <ChartTooltipContent
-              formatter={(value, name, item, _index, rawPayload) => {
+              formatter={(value, name, item) => {
                 const percentage = total > 0 ? ((value as number) / total) * 100 : 0;
-                const chartItem = (rawPayload as ChartDatum | undefined) ?? (item?.payload as ChartDatum | undefined);
+                const chartItem = item?.payload as ChartDatum | undefined;
                 const childList = chartItem?.children ?? [];
                 const parentTotal = chartItem?.total ?? (value as number);
                 return (

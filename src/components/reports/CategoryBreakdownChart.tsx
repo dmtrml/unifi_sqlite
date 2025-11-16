@@ -147,6 +147,7 @@ export function CategoryBreakdownChart({
                   const childPercentage = total > 0 ? (child.total / total) * 100 : 0;
                   const ChildIcon =
                     (Icons[child.icon as keyof typeof Icons] ?? Icons.MoreHorizontal) as LucideIcon;
+                  const childIconColor = child.color ?? item.color ?? "currentColor";
                   return (
                     <button
                       key={child.categoryId ?? `${item.name}-${child.name}`}
@@ -154,7 +155,7 @@ export function CategoryBreakdownChart({
                       onClick={() => onSelectCategory?.(child.categoryId ?? null, child.name)}
                     >
                       <span className="flex items-center gap-2 truncate">
-                        <ChildIcon className="h-3.5 w-3.5" style={{ color: child.color ?? item.color }} />
+                        <ChildIcon className="h-3.5 w-3.5" style={{ color: childIconColor }} />
                         <span className="truncate">{child.name}</span>
                       </span>
                       <span className="flex items-center gap-2">

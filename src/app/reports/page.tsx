@@ -194,8 +194,7 @@ function ReportsPageContent() {
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h1 className="text-lg font-semibold md:text-2xl">Reports</h1>
+      <div className="flex flex-col items-start gap-3 md:flex-row md:items-center md:justify-end">
         <DateRangePicker dateRange={dateRange} onDateChange={setDateRange} />
       </div>
       

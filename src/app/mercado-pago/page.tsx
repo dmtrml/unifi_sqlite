@@ -180,7 +180,17 @@ function MercadoPagoPageContent() {
     }
 
     if (!normalizedRows.length) {
-      setImportResult({ successCount: 0, errorCount: skippedRows, newCategories: 0, newAccounts: 0 });
+      setImportResult({
+        successCount: 0,
+        errorCount: skippedRows,
+        newCategories: 0,
+        newAccounts: 0,
+        newCategoryNames: [],
+        newAccountNames: [],
+        errorDetails: [],
+        errorStats: {},
+        processedRows: 0,
+      });
       toast({ variant: "destructive", title: "�?�?��+���", description: "�?�� �������?�?�' ���?�?�?�? �������." });
       setIsImporting(false);
       return;
@@ -211,6 +221,11 @@ function MercadoPagoPageContent() {
         errorCount: summary.errorCount + skippedRows,
         newCategories: summary.newCategories,
         newAccounts: summary.newAccounts,
+        newCategoryNames: summary.newCategoryNames ?? [],
+        newAccountNames: summary.newAccountNames ?? [],
+        errorDetails: summary.errorDetails ?? [],
+        errorStats: summary.errorStats ?? {},
+        processedRows: summary.processedRows ?? normalizedRows.length,
       };
 
       setImportResult(combined);
@@ -224,7 +239,17 @@ function MercadoPagoPageContent() {
         title: "�?�?��+���",
         description: importError instanceof Error ? importError.message : 'Unexpected error during import.',
       });
-      setImportResult({ successCount: 0, errorCount: skippedRows, newCategories: 0, newAccounts: 0 });
+      setImportResult({
+        successCount: 0,
+        errorCount: skippedRows,
+        newCategories: 0,
+        newAccounts: 0,
+        newCategoryNames: [],
+        newAccountNames: [],
+        errorDetails: [],
+        errorStats: {},
+        processedRows: 0,
+      });
     } finally {
       setIsImporting(false);
     }
@@ -384,12 +409,34 @@ function MercadoPagoPageContent() {
                           <p className="text-muted-foreground">РџРѕР¶Р°Р»СѓР№СЃС‚Р°, РїРѕРґРѕР¶РґРёС‚Рµ.</p>
                       </div>
                   ) : importResult ? (
-                      <div className="space-y-4">
+                      <div className="space-y-4 text-left">
                           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/50">
                              <Check className="h-6 w-6 text-green-600 dark:text-green-400" />
                           </div>
-                          <h3 className="text-lg font-semibold">РРјРїРѕСЂС‚ Р·Р°РІРµСЂС€РµРЅ</h3>
-                          <p>РЈСЃРїРµС€РЅРѕ РёРјРїРѕСЂС‚РёСЂРѕРІР°РЅРѕ: {importResult.successCount} С‚СЂР°РЅР·Р°РєС†РёР№.</p>
+                          <h3 className="text-lg font-semibold text-center">Import completed</h3>
+                          <p className="text-center">Imported {importResult.successCount} transactions.</p>
+                          {importResult.errorCount > 0 && (
+                            <p className="text-center text-sm text-muted-foreground">
+                              Not imported: {importResult.errorCount}
+                            </p>
+                          )}
+                          {importResult.errorDetails && importResult.errorDetails.length > 0 && (
+                            <div className="rounded-md border border-red-200/60 bg-red-50 p-4 text-sm dark:border-red-900/40 dark:bg-red-950/30">
+                              <p className="font-medium mb-2">Transaction creation errors</p>
+                              <ul className="space-y-1">
+                                {importResult.errorDetails.slice(0, 3).map((detail, index) => (
+                                  <li key={`${detail.rowIndex}-${detail.code}-${index}`}>
+                                    Row {detail.rowIndex}: {detail.message}
+                                  </li>
+                                ))}
+                              </ul>
+                              {importResult.errorDetails.length > 3 && (
+                                <p className="mt-2 text-xs text-muted-foreground">
+                                  …and {importResult.errorDetails.length - 3} more.
+                                </p>
+                              )}
+                            </div>
+                          )}
                       </div>
                   ) : error ? (
                       <Alert variant="destructive">
@@ -412,9 +459,6 @@ function MercadoPagoPageContent() {
   return (
     <AppLayout>
       <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
-        <div className="flex items-center">
-          <h1 className="text-lg font-semibold md:text-2xl">РРЅС‚РµРіСЂР°С†РёСЏ СЃ Mercado Pago</h1>
-        </div>
         {renderStepContent()}
       </main>
     </AppLayout>
@@ -426,10 +470,6 @@ export default MercadoPagoPageContent;
     
 
     
-
-
-
-
 
 
 

@@ -1,6 +1,6 @@
 import type { Category } from '@/lib/types';
 
-type CategoryLike = Pick<Category, 'id'> & { parentId?: string | null };
+type CategoryLike = Pick<Category, 'id' | 'parentId' | 'name'>;
 
 export const buildCategoryChildrenMap = (categories: CategoryLike[]) => {
   const map = new Map<string, CategoryLike[]>();

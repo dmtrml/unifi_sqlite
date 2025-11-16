@@ -17,7 +17,7 @@ const databaseFile = resolveDatabasePath();
 fs.mkdirSync(path.dirname(databaseFile), { recursive: true });
 
 const sqlite = new Database(databaseFile);
-sqlite.pragma('journal_mode = WAL');
+sqlite.pragma('journal_mode = DELETE');
 
 export const db = drizzle(sqlite, { schema });
 export type DatabaseClient = typeof db | TransactionClient;

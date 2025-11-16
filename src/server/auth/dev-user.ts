@@ -8,12 +8,17 @@ let hasEnsuredDevUser = false;
  */
 export async function ensureDevUser(): Promise<string> {
   if (!hasEnsuredDevUser) {
-    await UsersRepository.upsert(DEV_USER_ID, {
-      email: DEV_USER_PROFILE.email,
-      name: DEV_USER_PROFILE.name,
-      theme: DEV_USER_PROFILE.theme,
-      mainCurrency: DEV_USER_PROFILE.mainCurrency,
-    });
+    const existing = await UsersRepository.getById(DEV_USER_ID);
+    if (!existing) {
+      await UsersRepository.upsert(DEV_USER_ID, {
+        email: DEV_USER_PROFILE.email,
+        name: DEV_USER_PROFILE.name,
+        theme: DEV_USER_PROFILE.theme,
+        mainCurrency: DEV_USER_PROFILE.mainCurrency,
+      });
+    } else {
+      await UsersRepository.upsert(DEV_USER_ID, {});
+    }
     hasEnsuredDevUser = true;
   }
   return DEV_USER_ID;

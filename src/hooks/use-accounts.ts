@@ -28,15 +28,20 @@ export function useAccounts() {
   const key = useMemo(() => (uid ? (['/api/accounts', uid] as FetcherKey) : null), [uid]);
   const { data, error, isLoading } = useSWR(key, fetcher);
 
+  const sortedAccounts = useMemo(() => {
+    if (!data) return [];
+    return [...data].sort((a, b) => b.balance - a.balance);
+  }, [data]);
+
   return useMemo(
     () => ({
-      accounts: data ?? [],
+      accounts: sortedAccounts,
       isLoading,
       error,
       refresh: () => {
         if (key) mutate(key);
       },
     }),
-    [data, error, isLoading, key],
+    [sortedAccounts, error, isLoading, key],
   );
 }

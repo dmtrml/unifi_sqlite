@@ -194,11 +194,6 @@ function CategoriesPageContent() {
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
-      <div className="flex items-center">
-        <h1 className="text-lg font-semibold md:text-2xl">Categories</h1>
-        <div className="ml-auto">
-        </div>
-      </div>
       <div className="flex flex-col gap-6">
         {unstyledCategories.length > 0 && <UnstyledCategoriesManager categories={unstyledCategories} />}
         <CategoryTable title="Expense Categories" categories={expenseCategories} />
