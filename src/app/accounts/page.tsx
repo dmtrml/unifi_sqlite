@@ -21,12 +21,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import * as Icons from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { UnstyledAccountsManager } from "@/components/unstyled-accounts-manager"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { convertAmount } from "@/lib/currency"
 import type { Currency } from "@/lib/types"
+import { getAccountTypeIcon } from "@/lib/account-icons"
 
 
 function AccountsPageContent() {
@@ -62,10 +62,8 @@ function AccountsPageContent() {
       const entry = map.get(type)!
       entry.accounts.push(account)
       entry.total += convertedBalance
-      if (!entry.icon) {
-        entry.icon = account.icon
-        entry.iconColor = account.color
-      }
+      entry.icon = account.icon
+      entry.iconColor = account.color
     })
 
     return Array.from(map.values()).sort((a, b) => a.type.localeCompare(b.type))
@@ -111,12 +109,9 @@ function AccountsPageContent() {
                         <div className="flex w-full items-center justify-between gap-4">
                           <div className="flex items-center gap-3 text-left">
                             <div className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-muted/60 text-muted-foreground">
-                              {
-                                React.createElement(
-                                  (Icons as any)[group.icon || "Wallet"],
-                                  { className: "h-5 w-5" }
-                                )
-                              }
+                              {React.createElement(getAccountTypeIcon(group.type, group.icon), {
+                                className: "h-5 w-5",
+                              })}
                             </div>
                             <div className="flex flex-col">
                               <span className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">

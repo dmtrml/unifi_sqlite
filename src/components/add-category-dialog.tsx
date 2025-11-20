@@ -38,16 +38,7 @@ import { useCategories } from "@/hooks/use-categories"
 import * as Icons from "lucide-react"
 import { colorOptions } from "@/lib/colors"
 import { ScrollArea } from "./ui/scroll-area"
-
-const expenseIconNames = [
-  "Home", "ShoppingCart", "UtensilsCrossed", "HeartPulse", "Car", 
-  "Ticket", "Lightbulb", "ShoppingBag", "Gift", "Book", "Film", 
-  "Briefcase", "Plane", "Wrench", "MoreHorizontal"
-];
-
-const incomeIconNames = [
-    "TrendingUp", "CircleDollarSign", "Award", "Briefcase", "Gift", "MoreHorizontal"
-]
+import { expenseCategoryIconNames, incomeCategoryIconNames } from "@/lib/category-icon-map"
 
 const categoryFormSchema = z.object({
   name: z.string().min(1, "Category name is required."),
@@ -141,7 +132,7 @@ export function AddCategoryDialog() {
     }
   }
 
-  const iconNames = categoryType === 'expense' ? expenseIconNames : incomeIconNames;
+  const iconNames = categoryType === 'expense' ? expenseCategoryIconNames : incomeCategoryIconNames;
   const parentPlaceholder = parentOptions.length === 0 ? "No parent categories" : "Select parent (optional)";
 
   return (

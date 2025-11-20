@@ -8,6 +8,7 @@ import { CategoriesRepository } from '@/server/db/repositories/categories-repo';
 import { ImportsRepository } from '@/server/db/repositories/imports-repo';
 import { TransactionsService } from '@/server/db/services/transactions-service';
 import { toCents } from '@/server/db/utils';
+import { getSuggestedCategoryIcon } from '@/lib/category-icon-map';
 
 type ImportRequestBody = {
   source?: string;
@@ -154,7 +155,7 @@ export async function POST(request: Request) {
 
       const created = await CategoriesRepository.create(userId, {
         name: normalizedName,
-        icon: DEFAULT_CATEGORY_ICON,
+        icon: getSuggestedCategoryIcon(normalizedName, type) ?? DEFAULT_CATEGORY_ICON,
         color: nextColor(),
         type,
         parentId,

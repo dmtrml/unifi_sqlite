@@ -7,12 +7,15 @@ import type { LucideIcon } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import type { CategorySummaryItem, Currency } from "@/lib/types"
 
+export type BreakdownMode = 'linear' | 'log';
+
 type Props = {
   data: CategorySummaryItem[];
   total: number;
   mainCurrency: Currency;
   childrenMap?: Record<string, CategorySummaryItem[]>;
   onSelectCategory?: (categoryId: string | null, categoryName: string) => void;
+  displayMode?: BreakdownMode;
 };
 
 export function CategoryBreakdownChart({
@@ -21,11 +24,32 @@ export function CategoryBreakdownChart({
   mainCurrency,
   childrenMap,
   onSelectCategory,
+  displayMode = 'linear',
 }: Props) {
   const currencyFormatter = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: mainCurrency,
   });
+  const computeShare = React.useCallback(
+    (value: number, base: number) => {
+      if (base <= 0 || value <= 0) return 0;
+      if (displayMode === "log") {
+        const numerator = Math.log(value + 1);
+        const denominator = Math.log(base + 1);
+        return denominator > 0 ? (numerator / denominator) * 100 : 0;
+      }
+      return (value / base) * 100;
+    },
+    [displayMode],
+  );
+
+  const getWeight = React.useCallback(
+    (value: number) => {
+      if (value <= 0) return 0;
+      return displayMode === "log" ? Math.log(value + 1) : value;
+    },
+    [displayMode],
+  );
 
   if (!data.length || total <= 0) {
     return (
@@ -44,19 +68,20 @@ export function CategoryBreakdownChart({
           item.categoryId && childrenMap?.[item.categoryId]
             ? [...childrenMap[item.categoryId]].sort((a, b) => b.total - a.total)
             : [];
+        const barShare = computeShare(item.total, total);
         const renderProgress = () => {
           if (childItems.length === 0) {
             return (
               <div className="relative h-4">
                 <Progress
-                  value={percentage}
+                  value={barShare}
                   className="absolute top-1/2 h-2 w-full -translate-y-1/2"
                   style={{ "--indicator-color": item.color ?? "var(--primary)" } as React.CSSProperties}
                 />
                 <span
                   className="absolute text-xs font-semibold text-muted-foreground"
                   style={{
-                    left: `calc(${Math.min(percentage, 95)}% + 4px)` ,
+                    left: `calc(${Math.min(barShare, 95)}% + 4px)` ,
                     top: "50%",
                     transform: "translateY(-50%)",
                   }}
@@ -68,38 +93,67 @@ export function CategoryBreakdownChart({
           }
           const childrenTotal = childItems.reduce((sum, child) => sum + child.total, 0);
           const parentOwnTotal = Math.max(item.total - childrenTotal, 0);
-          const parentShare = percentage;
+          const parentShare = barShare;
+          const segments = childItems
+            .map((segment, index) => ({
+              key: segment.categoryId ?? `${item.categoryId}-${index}`,
+              color: segment.color ?? item.color ?? "var(--primary)",
+              total: Math.max(segment.total, 0),
+            }))
+            .filter((segment) => segment.total > 0);
+          if (parentOwnTotal > 0) {
+            segments.push({
+              key: `${item.categoryId ?? item.name}-own`,
+              color: item.color ?? "var(--primary)",
+              total: parentOwnTotal,
+            });
+          }
+          const totalWeight = segments.reduce((sum, segment) => sum + getWeight(segment.total), 0);
+          if (!segments.length || totalWeight <= 0 || parentShare <= 0) {
+            return (
+              <div className="relative h-4">
+                <Progress
+                  value={parentShare}
+                  className="absolute top-1/2 h-2 w-full -translate-y-1/2"
+                  style={{ "--indicator-color": item.color ?? "var(--primary)" } as React.CSSProperties}
+                />
+                <span
+                  className="absolute text-xs font-semibold text-muted-foreground"
+                  style={{
+                    left: `calc(${Math.min(parentShare, 95)}% + 4px)`,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                  }}
+                >
+                  {percentage.toFixed(0)}%
+                </span>
+              </div>
+            );
+          }
           let offset = 0;
           return (
             <div className="relative h-4">
               <div className="absolute top-1/2 h-2 w-full -translate-y-1/2 rounded-full bg-muted" />
-              {childItems.map((segment, index) => {
-                const share = total > 0 ? (segment.total / total) * 100 : 0;
-                const bar = (
+              {segments.map((segment) => {
+                const weight = getWeight(segment.total);
+                if (weight <= 0 || totalWeight <= 0 || parentShare <= 0) return null;
+                const width = (weight / totalWeight) * parentShare;
+                if (width <= 0) return null;
+                const element = (
                   <span
-                    key={segment.categoryId ?? `${item.categoryId}-${index}`}
+                    key={segment.key}
                     className="absolute top-1/2 h-2 -translate-y-1/2 rounded-none"
                     style={{
                       left: `${offset}%`,
-                      width: `${share}%`,
-                      backgroundColor: segment.color ?? item.color ?? "var(--primary)",
+                      width: `${width}%`,
+                      backgroundColor: segment.color,
                     }}
                   />
                 );
-                offset += share;
-                return bar;
+                offset += width;
+                return element;
               })}
-              {parentOwnTotal > 0 && (
-                <span
-                  className="absolute top-1/2 h-2 -translate-y-1/2 rounded-none"
-                  style={{
-                    left: `${offset}%`,
-                    width: `${total > 0 ? (parentOwnTotal / total) * 100 : 0}%`,
-                    backgroundColor: item.color ?? "var(--primary)",
-                  }}
-                />
-              )}
-              {offset < parentShare && (
+              {offset < parentShare && parentShare > 0 && totalWeight > 0 && (
                 <span
                   className="absolute top-1/2 h-2 -translate-y-1/2 rounded-none"
                   style={{
@@ -112,7 +166,7 @@ export function CategoryBreakdownChart({
               <span
                 className="absolute text-xs font-semibold text-muted-foreground"
                 style={{
-                  left: `calc(${Math.min(percentage, 95)}% + 4px)` ,
+                  left: `calc(${Math.min(parentShare, 95)}% + 4px)` ,
                   top: "50%",
                   transform: "translateY(-50%)",
                 }}

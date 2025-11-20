@@ -38,6 +38,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import type { Currency } from "@/lib/types"
 import type { NormalizedImportRow, ImportSummary } from "@/lib/imports"
+import { formatDateLabel } from "@/lib/date"
 import { useUser } from "@/lib/auth-context"
 import { useAccounts } from "@/hooks/use-accounts"
 import { useCategories } from "@/hooks/use-categories"
@@ -682,9 +683,9 @@ function ImportPageContent() {
                                     row.amountReceived ?? 0
                                   } ${row.toAccountCurrency ?? mainCurrency}`
                                 : `${row.amount ?? 0} ${row.accountCurrency ?? mainCurrency}`;
-                            return (
+                              return (
                               <TableRow key={index}>
-                                <TableCell>{isNaN(date.getTime()) ? "—" : date.toLocaleDateString()}</TableCell>
+                                <TableCell>{formatDateLabel(date)}</TableCell>
                                 <TableCell className="capitalize">{row.transactionType}</TableCell>
                                 <TableCell>{details}</TableCell>
                                 <TableCell className="text-right font-medium">{amountDisplay}</TableCell>

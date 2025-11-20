@@ -11,7 +11,6 @@ import {
   ArrowRightLeft,
   Loader2
 } from "lucide-react"
-import { format } from 'date-fns';
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -52,6 +51,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { getCategoryWithDescendants } from "@/lib/category-tree"
+import { formatDateLabel, getUTCDateKey, dateFromKeyUTC } from "@/lib/date"
 
 const PAGE_SIZE = 25;
 
@@ -66,19 +66,15 @@ function getAccount(accounts: Account[], accountId?: string): Account | undefine
 }
 
 function formatDateHeader(dateStr: string) {
-  const today = new Date();
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
+  const todayKey = getUTCDateKey(new Date());
+  const yesterdayKey = getUTCDateKey(Date.now() - 86400000);
 
-  const todayStr = format(today, 'yyyy-MM-dd');
-  const yesterdayStr = format(yesterday, 'yyyy-MM-dd');
-  
-  if (dateStr === todayStr) return "Today";
-  if (dateStr === yesterdayStr) return "Yesterday";
-  
-  const date = new Date(dateStr);
-  const zonedDate = new Date(date.valueOf() + date.getTimezoneOffset() * 60 * 1000);
-  return format(zonedDate, "MMMM d, yyyy");
+  if (dateStr === todayKey) return "Today";
+  if (dateStr === yesterdayKey) return "Yesterday";
+
+  const date = dateFromKeyUTC(dateStr);
+  if (!date) return dateStr;
+  return formatDateLabel(date, undefined, { month: "long", day: "numeric", year: "numeric" });
 }
 
 function TransactionsPageContent() {
@@ -176,23 +172,21 @@ function TransactionsPageContent() {
 
   const groupedTransactions = React.useMemo(() => {
     return filteredTransactions.reduce((acc, transaction) => {
-      const jsDate = new Date(transaction.date.toMillis());
-      const dateStr = format(jsDate, 'yyyy-MM-dd');
-      
-      if (!acc[dateStr]) {
-        acc[dateStr] = [];
-      }
-      acc[dateStr].push(transaction);
+      const dateKey = getUTCDateKey(transaction.date);
+      if (!dateKey) return acc;
+      if (!acc[dateKey]) acc[dateKey] = [];
+      acc[dateKey].push(transaction);
       return acc;
     }, {} as Record<string, Transaction[]>);
   }, [filteredTransactions]);
   
   const sortedDateKeys = React.useMemo(() => {
     const keys = Object.keys(groupedTransactions);
+    const getMillis = (key: string) => dateFromKeyUTC(key)?.getTime() ?? 0;
     if (sortOrder === 'asc') {
-        return keys.sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+      return keys.sort((a, b) => getMillis(a) - getMillis(b));
     }
-    return keys.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    return keys.sort((a, b) => getMillis(b) - getMillis(a));
   }, [groupedTransactions, sortOrder]);
 
   const handleFiltersReset = () => {

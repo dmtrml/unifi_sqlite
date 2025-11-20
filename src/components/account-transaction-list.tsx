@@ -1,11 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { format } from 'date-fns'
 import * as Icons from "lucide-react"
 import { ArrowRightLeft, Landmark } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Transaction, Category, Account, Currency } from "@/lib/types"
+import { formatDateLabel, getUTCDateKey, dateFromKeyUTC } from "@/lib/date"
 
 interface AccountTransactionListProps {
   transactions: Transaction[];
@@ -28,28 +28,23 @@ export function AccountTransactionList({ transactions, categories, accounts, cur
   const getAccount = (accountId?: string) => accounts.find(a => a.id === accountId);
 
   const groupedTransactions = transactions.reduce((acc, transaction) => {
-    const dateStr = format(new Date(transaction.date.seconds * 1000), 'yyyy-MM-dd');
-    if (!acc[dateStr]) {
-      acc[dateStr] = [];
-    }
-    acc[dateStr].push(transaction);
+    const dateKey = getUTCDateKey(transaction.date);
+    if (!dateKey) return acc;
+    if (!acc[dateKey]) acc[dateKey] = [];
+    acc[dateKey].push(transaction);
     return acc;
   }, {} as Record<string, Transaction[]>);
 
   const formatDateHeader = (dateStr: string) => {
-    const today = new Date();
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+    const todayKey = getUTCDateKey(new Date());
+    const yesterdayKey = getUTCDateKey(Date.now() - 86400000);
 
-    const todayStr = format(today, 'yyyy-MM-dd');
-    const yesterdayStr = format(yesterday, 'yyyy-MM-dd');
-    
-    if (dateStr === todayStr) return "Today";
-    if (dateStr === yesterdayStr) return "Yesterday";
-    
-    const date = new Date(dateStr);
-    const zonedDate = new Date(date.valueOf() + date.getTimezoneOffset() * 60 * 1000);
-    return format(zonedDate, "MMMM d, yyyy");
+    if (dateStr === todayKey) return "Today";
+    if (dateStr === yesterdayKey) return "Yesterday";
+
+    const date = dateFromKeyUTC(dateStr);
+    if (!date) return dateStr;
+    return formatDateLabel(date, undefined, { month: "long", day: "numeric", year: "numeric" });
   }
 
   return (

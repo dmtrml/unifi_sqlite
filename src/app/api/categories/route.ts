@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getUserIdOrThrow } from '@/server/auth/get-user-id';
 import { CategoriesRepository } from '@/server/db/repositories/categories-repo';
 import type { Category } from '@/lib/types';
+import { getSuggestedCategoryIcon } from '@/lib/category-icon-map';
 
 const mapCategory = (
   record: Awaited<ReturnType<typeof CategoriesRepository.list>>[number],
@@ -40,9 +41,10 @@ export async function POST(request: Request) {
     }
     const parentId =
       typeof payload.parentId === 'string' && payload.parentId.trim().length > 0 ? payload.parentId.trim() : null;
+    const defaultIcon = getSuggestedCategoryIcon(payload.name, payload.type) ?? 'MoreHorizontal';
     const record = await CategoriesRepository.create(userId, {
       name: payload.name,
-      icon: payload.icon ?? 'MoreHorizontal',
+      icon: payload.icon ?? defaultIcon,
       color: payload.color ?? 'hsl(var(--muted-foreground))',
       type: payload.type,
       parentId,

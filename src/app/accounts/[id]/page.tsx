@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import * as Icons from "lucide-react"
 import { useUser } from "@/lib/auth-context"
 import { useTransactions } from "@/hooks/use-transactions"
 import { useCategories } from "@/hooks/use-categories"
@@ -31,6 +30,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { MoreVertical } from "lucide-react"
 import { buildCategorySummaryFromTransactions, buildIncomeExpenseSeriesFromTransactions } from "@/lib/reporting"
 import { startOfMonth, endOfMonth } from "date-fns"
+import { getAccountTypeIcon } from "@/lib/account-icons"
 
 type AccountPageParams = {
   id: string;
@@ -94,8 +94,6 @@ function AccountPageContent({ accountId }: { accountId: string}) {
     [relatedTransactions, categories, allAccounts, mainCurrency, currentMonthRange],
   );
   
-  const IconComponent = account ? (Icons as any)[account.icon] || Icons.HelpCircle : Icons.HelpCircle;
-
   if (isLoading) {
     return (
         <div className="p-4 lg:p-6 space-y-6">
@@ -129,6 +127,8 @@ function AccountPageContent({ accountId }: { accountId: string}) {
     )
   }
 
+  const AccountIcon = getAccountTypeIcon(account.type, account.icon);
+
   return (
     <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
       <div className="flex items-center gap-4">
@@ -143,7 +143,7 @@ function AccountPageContent({ accountId }: { accountId: string}) {
       <Card>
         <CardHeader className="flex flex-row items-start justify-between">
           <div className="flex items-center gap-4">
-             <IconComponent className="h-10 w-10" style={{ color: account.color }} />
+             <AccountIcon className="h-10 w-10" style={{ color: account.color }} />
               <div>
                 <CardTitle className="text-2xl">{account.name}</CardTitle>
                 <div className="flex items-center gap-2 mt-1">

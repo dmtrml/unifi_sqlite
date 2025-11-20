@@ -1,6 +1,7 @@
 import { parse as parseDate, isValid } from 'date-fns';
 import type { NormalizedImportRow } from '@/lib/imports';
 import type { Currency } from '@/lib/types';
+import { formatDateLabel } from '@/lib/date';
 
 export type ImportColumnMapping = Record<string, string>;
 export type ImportField = { value: string; label: string };
@@ -396,7 +397,7 @@ const monefyProfile: ImportProfile = {
       }
 
       throw new Error(
-        `Unpaired transfer between ${stub.account} and ${stub.otherAccount} on ${new Date(stub.date).toLocaleDateString()}`,
+        `Unpaired transfer between ${stub.account} and ${stub.otherAccount} on ${formatDateLabel(stub.date)}`,
       );
     });
 

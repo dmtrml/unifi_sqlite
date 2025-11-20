@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:reset": "node -e \"require('fs').rmSync('.data',{recursive:true,force:true}); require('fs').mkdirSync('.data',{recursive:true});\" && drizzle-kit migrate"
+    "db:reset": "node -e \"require('fs').rmSync('.data',{recursive:true,force:true}); require('fs').mkdirSync('.data',{recursive:true});\" && drizzle-kit migrate",
+    "categories:assign-icons": "tsx scripts/apply-category-icons.ts"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",
@@ -56,6 +57,7 @@
     "patch-package": "^8.0.0",
     "react": "^18.3.1",
     "react-date-range": "^2.0.1",
+    "react-datepicker": "^8.9.0",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.54.2",
@@ -79,6 +81,7 @@
     "genkit-cli": "^1.20.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
+    "tsx": "^4.20.6",
     "typescript": "^5"
   }
 }

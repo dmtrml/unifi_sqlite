@@ -26,13 +26,7 @@ import { useCategories } from "@/hooks/use-categories"
 import type { Category } from "@/lib/types"
 import { colorOptions } from "@/lib/colors"
 import { ScrollArea } from "./ui/scroll-area"
-
-const iconNames = [
-  "Home", "ShoppingCart", "UtensilsCrossed", "HeartPulse", "Car", 
-  "Ticket", "Lightbulb", "ShoppingBag", "Gift", "Book", "Film", 
-  "Briefcase", "Plane", "Wrench", "TrendingUp", "CircleDollarSign", 
-  "Award", "MoreHorizontal"
-];
+import { categoryIconNames, getSuggestedCategoryIcon } from "@/lib/category-icon-map"
 
 interface UnstyledCategoriesManagerProps {
   categories: Category[];
@@ -48,7 +42,9 @@ export function UnstyledCategoriesManager({ categories }: UnstyledCategoriesMana
 
   React.useEffect(() => {
     const initialStyles = categories.reduce((acc, category) => {
-      acc[category.id] = { icon: category.icon }
+      const suggested =
+        getSuggestedCategoryIcon(category.name, category.type ?? 'expense') ?? category.icon;
+      acc[category.id] = { icon: category.icon === "MoreHorizontal" ? suggested : category.icon }
       return acc
     }, {} as Record<string, { icon: string }>)
     setCategoryStyles(initialStyles)
@@ -133,7 +129,7 @@ export function UnstyledCategoriesManager({ categories }: UnstyledCategoriesMana
                 </SelectTrigger>
                 <SelectContent>
                   <ScrollArea className="h-60">
-                    {iconNames.map(iconName => {
+                    {categoryIconNames.map(iconName => {
                       const IconComponent = (Icons as any)[iconName];
                       return (
                         <SelectItem key={iconName} value={iconName}>

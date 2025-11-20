@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/select"
 import type { Account, Category } from "@/lib/types"
 import type { ImportSummary, NormalizedImportRow } from "@/lib/imports"
+import { formatDateLabel } from "@/lib/date"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -355,7 +356,7 @@ function MercadoPagoPageContent() {
                         <TableBody>
                             {transactions.map(tx => (
                                 <TableRow key={tx.id}>
-                                    <TableCell>{new Date(tx.date).toLocaleDateString()}</TableCell>
+                                    <TableCell>{formatDateLabel(new Date(tx.date))}</TableCell>
                                     <TableCell>{tx.description}</TableCell>
                                     <TableCell>{getOperationTypeBadge(tx.type, tx.operation_type)}</TableCell>
                                     <TableCell className="text-right">
@@ -470,6 +471,3 @@ export default MercadoPagoPageContent;
     
 
     
-
-
-

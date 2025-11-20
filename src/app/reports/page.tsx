@@ -16,7 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { IncomeExpenseChart } from "@/components/reports/IncomeExpenseChart"
-import { CategoryBreakdownChart } from "@/components/reports/CategoryBreakdownChart"
+import { CategoryBreakdownChart, type BreakdownMode } from "@/components/reports/CategoryBreakdownChart"
 import { CategorySpendingChart } from "@/components/dashboard/category-spending-chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { CategorySummaryItem, Currency, IncomeExpensePoint, Transaction } from "@/lib/types"
@@ -24,6 +24,7 @@ import type { DateRange } from "react-day-picker"
 import { DateRangePicker } from "@/components/reports/date-range-picker"
 import { startOfYear, endOfYear } from "date-fns"
 import { getCategoryRootId, getCategoryWithDescendants } from "@/lib/category-tree"
+import { formatDateLabel } from "@/lib/date"
 
 type DetailFilters = UseTransactionsFilters & { title: string };
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -53,6 +54,24 @@ function ReportsPageContent() {
   });
   const [detailFilters, setDetailFilters] = React.useState<DetailFilters | null>(null);
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
+  const [breakdownMode, setBreakdownMode] = React.useState<BreakdownMode>("linear");
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("reports.breakdownMode");
+    if (stored === "linear" || stored === "log") {
+      setBreakdownMode(stored);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("reports.breakdownMode", breakdownMode);
+  }, [breakdownMode]);
+
+  const toggleBreakdownMode = React.useCallback(() => {
+    setBreakdownMode((prev) => (prev === "linear" ? "log" : "linear"));
+  }, []);
 
   const normalizeStart = (date?: Date) => {
     if (!date) return undefined;
@@ -246,11 +265,22 @@ function ReportsPageContent() {
             </Card>
             
             <Card className="lg:col-span-1">
-              <CardHeader>
-                <CardTitle>Expense Breakdown by Category</CardTitle>
-                <CardDescription>
-                  Expense distribution by category for the selected period, displayed in {mainCurrency}.
-                </CardDescription>
+              <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle>Expense Breakdown by Category</CardTitle>
+                  <CardDescription>
+                    Expense distribution by category for the selected period, displayed in {mainCurrency}.
+                  </CardDescription>
+                </div>
+                <Button
+                  variant={breakdownMode === "log" ? "default" : "outline"}
+                  size="sm"
+                  className="sm:mt-1"
+                  onClick={toggleBreakdownMode}
+                  aria-pressed={breakdownMode === "log"}
+                >
+                  {breakdownMode === "log" ? "Log scale" : "Linear scale"}
+                </Button>
               </CardHeader>
               <CardContent>
                 <CategoryBreakdownChart
@@ -259,6 +289,7 @@ function ReportsPageContent() {
                   mainCurrency={mainCurrency}
                   childrenMap={categoryChildrenMap}
                   onSelectCategory={handleCategorySelect}
+                  displayMode={breakdownMode}
                 />
               </CardContent>
             </Card>
@@ -390,7 +421,7 @@ function TransactionsTable({ transactions, accounts, categories, mainCurrency }:
 
           return (
             <TableRow key={transaction.id}>
-              <TableCell>{Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString()}</TableCell>
+              <TableCell>{formatDateLabel(date)}</TableCell>
               <TableCell>
                 {category?.name ?? (transaction.transactionType === 'transfer' ? 'Transfer' : 'Uncategorized')}
               </TableCell>
